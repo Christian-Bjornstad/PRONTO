@@ -27,14 +27,14 @@
 **Description:** Reproduce and fix the current Windows path assertion failures without changing production path resolution behavior.
 
 **Acceptance criteria:**
-- [ ] Tests compare paths semantically across Windows and Linux.
-- [ ] No test is skipped, deleted, or weakened.
-- [ ] Existing production behavior is unchanged.
+- [x] Tests compare paths semantically across Windows and Linux.
+- [x] No test is skipped, deleted, or weakened.
+- [x] Existing production behavior is unchanged.
 
 **Verification:**
-- [ ] RED: focused path tests fail on the current assertions.
-- [ ] GREEN: focused path tests pass after normalization.
-- [ ] Full unit suite passes in the clean environment.
+- [x] RED: focused path tests fail on the current assertions.
+- [x] GREEN: focused path tests pass after normalization.
+- [x] Full unit suite passes in the clean environment.
 
 **Dependencies:** Task 1
 

@@ -39,7 +39,7 @@ key/variant UI        plots/QC/MDT UI
 ### Phase 1: Reproducible baseline
 
 - [x] Task 1: Document and automate the isolated Python development setup.
-- [ ] Task 2: Make existing tests platform-independent and establish a green unit-test baseline.
+- [x] Task 2: Make existing tests platform-independent and establish a green unit-test baseline.
 - [ ] Task 3: Add pull-request CI without publishing Docker images.
 - [ ] Task 4: Record the approved fixture/privacy policy and local artifact boundaries.
 

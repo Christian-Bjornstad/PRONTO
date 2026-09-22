@@ -5,6 +5,7 @@ import pytest
 import pronto.pronto
 
 from contextlib import nullcontext as does_not_raise
+from pathlib import Path
 
 @pytest.mark.parametrize(
     "input, exception, want",
@@ -101,7 +102,11 @@ def test_get_tmb_string(input, exception, want):
 )
 def test_glob_tsoppi_file(inputs, exception, want):
     with exception:
-        assert pronto.pronto.glob_tsoppi_file(*inputs) == want
+        result = pronto.pronto.glob_tsoppi_file(*inputs)
+        if want is None:
+            assert result is None
+        else:
+            assert Path(result) == Path(want)
 
 @pytest.mark.parametrize(
     "inputs, exception, want",
