@@ -23,6 +23,9 @@ class AdapterError(ValueError):
 
 _MISSING_VALUES = {"", "-", ".", "NA", "N/A"}
 _BUILD_NAMES = {"hg19": "GRCh37", "grch37": "GRCh37", "hg38": "GRCh38", "grch38": "GRCh38"}
+_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+MAX_SOURCE_BYTES = 100 * 1024 * 1024
+MAX_SOURCE_ROWS = 10_000
 
 
 def _is_missing(value: str | None) -> bool:
@@ -30,9 +33,17 @@ def _is_missing(value: str | None) -> bool:
 
 
 def _rows(path: Path) -> list[dict[str, str]]:
+    if path.stat().st_size > MAX_SOURCE_BYTES:
+        raise AdapterError("Source file exceeds the allowed size")
     with path.open(encoding="utf-8-sig", newline="") as source_file:
         data_lines = (line for line in source_file if not line.startswith("#"))
-        return list(csv.DictReader(data_lines, delimiter="\t"))
+        reader = csv.DictReader(data_lines, delimiter="\t")
+        rows = []
+        for row in reader:
+            if len(rows) >= MAX_SOURCE_ROWS:
+                raise AdapterError("Source table exceeds the allowed row count")
+            rows.append(row)
+        return rows
 
 
 def _sha256(path: Path) -> str:
@@ -179,7 +190,9 @@ def adapt_pronto_output(
     generator_version: str,
 ) -> ReportData:
     """Build validated ReportData from one existing PRONTO output sample."""
-    root = Path(fixture_root)
+    if not _IDENTIFIER.fullmatch(sample_id):
+        raise AdapterError("Sample identifier is invalid")
+    root = Path(fixture_root).resolve(strict=True)
     metadata_path = root / "InPreD_PRONTO_metadata.txt"
     summary_path = _single(list(root.glob("*_variant_summary.tsv")), "variant summary")
     sample_directory = root / sample_id

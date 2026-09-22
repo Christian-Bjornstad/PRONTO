@@ -1,6 +1,9 @@
 from pathlib import Path
 
-from pronto_report.adapters.pronto_output import adapt_pronto_output
+import pytest
+
+import pronto_report.adapters.pronto_output as adapter_module
+from pronto_report.adapters.pronto_output import AdapterError, adapt_pronto_output
 from pronto_report.cli import main
 from pronto_report.serialization import deserialize_report_data, serialize_report_data
 
@@ -118,3 +121,21 @@ def test_cli_exports_the_approved_ous_fixture(tmp_path):
     exported = deserialize_report_data(output_path.read_bytes())
     assert exported.sample["sampleId"] == SAMPLE_ID
     assert len(exported.variants) == 30
+
+
+@pytest.mark.parametrize("sample_id", ["../outside", "sample/child", "C:\\outside"])
+def test_adapter_rejects_sample_ids_that_can_escape_the_fixture_root(sample_id):
+    with pytest.raises(AdapterError, match="Sample identifier is invalid"):
+        adapt_pronto_output(
+            FIXTURE_ROOT,
+            sample_id=sample_id,
+            generated_at=GENERATED_AT,
+            generator_version="1.0.0",
+        )
+
+
+def test_adapter_rejects_oversized_source_before_reading(monkeypatch):
+    monkeypatch.setattr(adapter_module, "MAX_SOURCE_BYTES", 1)
+
+    with pytest.raises(AdapterError, match="Source file exceeds the allowed size"):
+        build_report()
