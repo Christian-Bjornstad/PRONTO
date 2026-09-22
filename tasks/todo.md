@@ -119,13 +119,13 @@
 **Description:** Implement the smallest typed in-process representation and structured validation issue model required by the schemas.
 
 **Acceptance criteria:**
-- [ ] Models distinguish immutable report facts from review activity.
-- [ ] Validation failures use stable codes, paths, and safe messages.
-- [ ] User-facing errors exclude stack traces and input file contents.
+- [x] Models distinguish immutable report facts from review activity.
+- [x] Validation failures use stable codes, paths, and safe messages.
+- [x] User-facing errors exclude stack traces and input file contents.
 
 **Verification:**
-- [ ] RED/GREEN focused model and validation tests.
-- [ ] Type annotations cover public constructors and validators.
+- [x] RED/GREEN focused model and validation tests.
+- [x] Type annotations cover public constructors and validators.
 
 **Dependencies:** Task 5
 

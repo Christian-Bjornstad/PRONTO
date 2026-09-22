@@ -53,7 +53,7 @@ key/variant UI        plots/QC/MDT UI
 ### Phase 2: Report data contract
 
 - [x] Task 5: Add failing schema tests and v1 JSON Schema documents.
-- [ ] Task 6: Implement typed models and structured validation errors.
+- [x] Task 6: Implement typed models and structured validation errors.
 - [ ] Task 7: Implement stable report/variant identity and duplicate diagnostics.
 - [ ] Task 8: Implement deterministic JSON serialization and round-trip tests.
 - [ ] Task 9: Adapt one approved public fixture into valid `ReportData`.
