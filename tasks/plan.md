@@ -46,8 +46,8 @@ key/variant UI        plots/QC/MDT UI
 ### Checkpoint: Baseline
 
 - [x] Clean environment installs successfully.
-- [ ] Existing unit tests pass on Windows and CI Linux.
-- [ ] Existing OUS/HUS behavior remains unchanged.
+- [x] Existing unit tests pass on Windows and CI Linux.
+- [x] Existing OUS/HUS behavior remains unchanged.
 - [x] No generated report or unapproved artifact is tracked.
 
 ### Phase 2: Report data contract
