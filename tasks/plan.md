@@ -67,7 +67,7 @@ key/variant UI        plots/QC/MDT UI
 
 ### Phase 3: Clean HTML renderer
 
-- [ ] Task 10: Add the renderer shell, design tokens, and five accessible tab panels.
+- [x] Task 10: Add the renderer shell, design tokens, and five accessible tab panels.
 - [ ] Task 11: Render key findings and the variant review table from `ReportData`.
 - [ ] Task 12: Add review-state presentation with separate decision and classification controls.
 - [ ] Task 13: Render CNV plots, sequencing QC, and the tumour-board surface.
