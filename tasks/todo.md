@@ -90,20 +90,20 @@
 - [x] Unit suite passes in a clean environment.
 - [x] Docker fixture command succeeds where Docker is available.
 - [x] CI and documentation agree on commands.
-- [ ] Human reviews the baseline before contract implementation.
+- [x] Human reviews the baseline before contract implementation.
 
 ## Task 5: JSON Schema contracts
 
 **Description:** Define v1 `ReportData` and `ReviewState` schemas from failing validation examples.
 
 **Acceptance criteria:**
-- [ ] Required fields, enums, formats, bounds, and additional-property policy are explicit.
-- [ ] Review decision and clinical classification are independent fields.
-- [ ] Unknown major versions, oversized collections, and mismatched report IDs are rejected.
+- [x] Required fields, enums, formats, bounds, and additional-property policy are explicit.
+- [x] Review decision and clinical classification are independent fields.
+- [x] Unknown major versions and oversized collections are rejected; cross-document report-ID mismatch is assigned to the Task 6 boundary validator.
 
 **Verification:**
-- [ ] RED: invalid contract examples initially lack a validator or pass incorrectly.
-- [ ] GREEN: focused schema tests accept valid and reject invalid examples.
+- [x] RED: invalid contract examples initially lack a validator or pass incorrectly.
+- [x] GREEN: focused schema tests accept valid and reject invalid examples.
 
 **Dependencies:** Baseline checkpoint
 
@@ -119,13 +119,13 @@
 **Description:** Implement the smallest typed in-process representation and structured validation issue model required by the schemas.
 
 **Acceptance criteria:**
-- [ ] Models distinguish immutable report facts from review activity.
-- [ ] Validation failures use stable codes, paths, and safe messages.
-- [ ] User-facing errors exclude stack traces and input file contents.
+- [x] Models distinguish immutable report facts from review activity.
+- [x] Validation failures use stable codes, paths, and safe messages.
+- [x] User-facing errors exclude stack traces and input file contents.
 
 **Verification:**
-- [ ] RED/GREEN focused model and validation tests.
-- [ ] Type annotations cover public constructors and validators.
+- [x] RED/GREEN focused model and validation tests.
+- [x] Type annotations cover public constructors and validators.
 
 **Dependencies:** Task 5
 
@@ -142,13 +142,13 @@
 **Description:** Generate deterministic report, variant, and occurrence identifiers while preserving duplicate source rows and warning about fallback identity.
 
 **Acceptance criteria:**
-- [ ] Same normalized input produces the same ID.
-- [ ] Reference/alternate-aware identity is preferred.
-- [ ] Duplicate occurrences remain traceable and emit structured diagnostics.
+- [x] Same normalized input produces the same ID.
+- [x] Reference/alternate-aware identity is preferred.
+- [x] Duplicate occurrences remain traceable and emit structured diagnostics.
 
 **Verification:**
-- [ ] RED/GREEN identity tests include the duplicate TERT example.
-- [ ] Tests cover normalization and collision-warning behavior.
+- [x] RED/GREEN identity tests include the duplicate TERT example.
+- [x] Tests cover normalization and collision-warning behavior.
 
 **Dependencies:** Task 6
 
@@ -163,13 +163,13 @@
 **Description:** Serialize and load validated contracts deterministically without semantic loss.
 
 **Acceptance criteria:**
-- [ ] Output is stable for the same logical model.
-- [ ] Round-trip preserves values, IDs, warnings, and provenance.
-- [ ] Invalid input fails before an internal model is returned.
+- [x] Output is stable for the same logical model.
+- [x] Round-trip preserves values, IDs, warnings, and provenance.
+- [x] Invalid input fails before an internal model is returned.
 
 **Verification:**
-- [ ] RED/GREEN serialization and round-trip tests.
-- [ ] Two serializations of the same model are byte-identical.
+- [x] RED/GREEN serialization and round-trip tests.
+- [x] Two serializations of the same model are byte-identical.
 
 **Dependencies:** Tasks 6–7
 
@@ -184,14 +184,14 @@
 **Description:** Convert one approved existing OUS public fixture into the v1 contract without hard-coded clinical values.
 
 **Acceptance criteria:**
-- [ ] Source fields map with provenance and explicit missing-data warnings.
-- [ ] The approved fixture validates and contains stable IDs.
-- [ ] No value is invented when the source is absent.
+- [x] Source fields map with provenance and explicit missing-data warnings.
+- [x] The approved fixture validates and contains stable IDs.
+- [x] No value is invented when the source is absent.
 
 **Verification:**
-- [ ] RED/GREEN adapter tests against the approved fixture.
-- [ ] Generated JSON validates and round-trips.
-- [ ] Manual comparison with the local reference report's key values.
+- [x] RED/GREEN adapter tests against the approved fixture.
+- [x] Generated JSON validates and round-trips.
+- [x] Manual comparison with the local reference report's key values.
 
 **Dependencies:** Tasks 5–8
 
@@ -205,8 +205,8 @@
 
 ## Checkpoint: Contract
 
-- [ ] Schema, model, identity, serialization, and adapter tests pass.
-- [ ] Approved fixture validates and round-trips deterministically.
+- [x] Schema, model, identity, serialization, and adapter tests pass.
+- [x] Approved fixture validates and round-trips deterministically.
 - [ ] Human reviews the contract example before renderer implementation.
 
 ## Task 10: Accessible renderer shell

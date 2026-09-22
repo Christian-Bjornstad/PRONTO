@@ -1,6 +1,6 @@
 # Spec: Report data contract
 
-Status: Draft for review
+Status: Approved for implementation
 
 Module: `report-data-contract`
 
@@ -17,7 +17,25 @@ The contract must preserve source facts, record provenance, and make user correc
 - Python dataclasses or typed model classes for the in-process domain model.
 - JSON Schema 2020-12 files as the language-neutral serialized contract.
 - Standard JSON serialization with deterministic key ordering for fixtures and hashes.
-- A schema validation library may be added only after dependency review.
+- `jsonschema==4.26.0` validates Draft 2020-12 contracts; `rfc3339-validator==0.1.4` enables timestamp format assertions.
+
+The schemas validate `reportId` independently. Equality between `ReportData.reportId` and `ReviewState.reportId` is a cross-document invariant enforced by the Task 6 boundary validator, because JSON Schema 2020-12 does not compare arbitrary values across separate instances.
+
+## Contract Limits
+
+| Area | v1 limit |
+|---|---:|
+| Variants and variant reviews | 10,000 |
+| Attachments and source files | 100 each |
+| Diagnostics and value corrections | 1,000 each |
+| QC metrics | 500 |
+| Biomarkers | 100 |
+| Report notes | 50,000 characters |
+| General comments/reasons | 10,000 characters |
+
+Nested contract objects are closed with `additionalProperties: false`. Correction values and source raw values are scalar-only, so imported documents cannot create unbounded recursive object trees.
+
+Serialized contracts use UTF-8, lexicographically sorted object keys, compact separators, and one trailing newline. Imports are capped at 25 MiB before parsing and reject duplicate object fields, invalid UTF-8, non-finite numbers, excessive nesting, and schema-invalid content before returning a model.
 
 ## Commands
 
@@ -87,6 +105,10 @@ Reporting decision and clinical classification are separate dimensions. The curr
 - `variantId` is derived from normalized sample ID, reference build, chromosome, position, reference allele, and alternate allele when available.
 - A fallback identity may use the current sample/gene/location/change tuple but must emit a warning and cannot be treated as collision-proof.
 - Duplicate source rows remain representable and receive distinct occurrence identifiers; validation reports duplicates rather than silently dropping them.
+- Identity text is Unicode NFKC-normalized and trimmed. Case-insensitive components are case-folded, alleles and gene symbols are uppercased, and chromosome prefixes are normalized before hashing.
+- `variantId` uses the first 24 hexadecimal characters of SHA-256 over canonical JSON. `occurrenceId` appends a deterministic one-based source-order ordinal.
+- Supplying only part of the preferred allele tuple is an error; it never silently downgrades to fallback identity.
+- Any future identity-algorithm change requires a new contract version or an explicit migration because IDs are observable public behavior.
 
 ## Error Contract
 
