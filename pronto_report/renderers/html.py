@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from hashlib import sha256
 from html import escape
 from pathlib import Path
 import re
@@ -15,6 +16,7 @@ from pronto_report.serialization import serialize_review_state
 
 _PACKAGE_ROOT = Path(__file__).parents[1]
 _TEMPLATE_ROOT = _PACKAGE_ROOT / "templates"
+_STATIC_ROOT = _PACKAGE_ROOT / "static"
 _PANEL_TEMPLATES = (
     "key-findings.html",
     "variant-review.html",
@@ -276,17 +278,49 @@ def _tumour_content(report: ReportData, review: ReviewState | None) -> str:
     )
 
 
+def _inline_assets() -> tuple[str, str, str]:
+    stylesheet = (_STATIC_ROOT / "report.css").read_text(encoding="utf-8")
+    script = (_STATIC_ROOT / "report.js").read_text(encoding="utf-8")
+    if "</style" in stylesheet.casefold() or "</script" in script.casefold():
+        raise ValueError("Unsafe static report asset")
+    style_hash = base64.b64encode(sha256(stylesheet.encode("utf-8")).digest()).decode("ascii")
+    script_hash = base64.b64encode(sha256(script.encode("utf-8")).digest()).decode("ascii")
+    policy = (
+        "default-src 'none'; img-src data:; "
+        f"style-src 'sha256-{style_hash}'; script-src 'sha256-{script_hash}'; "
+        "base-uri 'none'; form-action 'none'; object-src 'none'"
+    )
+    return (
+        f'<meta http-equiv="Content-Security-Policy" content="{escape(policy, quote=True)}">',
+        f"<style>{stylesheet}</style>",
+        f"<script>{script}</script>",
+    )
+
+
+def _provenance(report: ReportData) -> str:
+    details = report.provenance
+    generator = details["generator"]
+    sources = "".join(
+        f'<li>{escape(str(source["name"]))} · SHA-256 {escape(str(source["sha256"]))}</li>'
+        for source in details["sourceFiles"]
+    )
+    return (
+        '<details class="report-provenance"><summary>Kilde og proveniens</summary>'
+        f'<p>Skjema {escape(report.schema_version)} · '
+        f'{escape(str(generator["name"]))} {escape(str(generator["version"]))} · '
+        f'Generert {escape(str(details["generatedAt"]))}</p>'
+        f'<ul>{sources}</ul></details>'
+    )
+
+
 def render_html(
     report: ReportData,
     review: ReviewState | None = None,
     *,
     plot_images: Mapping[str, tuple[tuple[str, bytes], ...]] | None = None,
+    inline_assets: bool = False,
 ) -> str:
-    """Render the development HTML shell from validated contract models.
-
-    Assets remain separate during development. Task 14 will bundle the same
-    templates and assets into the deterministic, self-contained export.
-    """
+    """Render validated contracts as a development page or offline artifact."""
     if review is not None and review.report_id != report.report_id:
         raise ValueError("Review state does not belong to this report")
 
@@ -296,6 +330,11 @@ def render_html(
     if set(plot_images) - known_assets:
         raise ValueError("Plot image does not match a declared attachment")
     status_label = "Endelig" if status == "FINAL" else "Utkast"
+    csp_meta, stylesheet_tag, script_tag = (
+        _inline_assets() if inline_assets else
+        ("", '<link rel="stylesheet" href="/pronto_report/static/report.css">',
+         '<script src="/pronto_report/static/report.js" defer></script>')
+    )
     review_columns = (
         '<th scope="col">Rapporteringsbeslutning</th><th scope="col">Klinisk klassifikasjon</th>'
         if review is not None else ""
@@ -324,8 +363,6 @@ def render_html(
         "report_id": report.report_id,
         "status_code": status.lower(),
         "status_label": status_label,
-        "stylesheet_url": "/pronto_report/static/report.css",
-        "script_url": "/pronto_report/static/report.js",
     }
     html_context = {
         "case_facts": _case_facts(report),
@@ -339,6 +376,10 @@ def render_html(
         "qc_content": _plot_content(report, plot_images, "qc"),
         "qc_metrics": _qc_metrics(report),
         "tumour_content": _tumour_content(report, review),
+        "provenance": _provenance(report),
+        "csp_meta": csp_meta,
+        "stylesheet_tag": stylesheet_tag,
+        "script_tag": script_tag,
     }
     context["variant_count"] = str(len(report.variants))
     return _render_variables(_assemble_template(), context, html_context)

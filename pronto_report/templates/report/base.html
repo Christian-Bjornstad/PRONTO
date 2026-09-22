@@ -4,9 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
+  <link rel="icon" href="data:,">
+  {{ csp_meta }}
   <title>PRONTO-rapport – {{ sample_id }}</title>
-  <link rel="stylesheet" href="{{ stylesheet_url }}">
-  <script src="{{ script_url }}" defer></script>
+  {{ stylesheet_tag }}
 </head>
 <body>
   <a class="skip-link" href="#report-content">Gå til rapportinnhold</a>
@@ -60,6 +61,7 @@
   <footer class="report-footer">
     <p>PRONTO · Rapport {{ report_id }} · Status: {{ status_label }}</p>
     <p>Rapporten er et beslutningsstøtteverktøy og må følge gjeldende kvalitetssikringsprosess.</p>
+    {{ provenance }}
   </footer>
   <dialog id="plot-dialog" aria-label="Forstørret plott">
     <button type="button" id="close-plot">Lukk plott</button>
@@ -67,5 +69,6 @@
     <p id="dialog-plot-caption"></p>
   </dialog>
   {{ review_script }}
+  {{ script_tag }}
 </body>
 </html>
