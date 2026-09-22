@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:inpred:pronto:schema:review-state:v1",
+  "title": "PRONTO ReviewState v1",
+  "description": "Versioned human review activity kept separate from immutable ReportData facts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "reportId",
+    "revision",
+    "status",
+    "reviewer",
+    "createdAt",
+    "updatedAt",
+    "variantReviews",
+    "runQcAssessment",
+    "reportNotes",
+    "valueCorrections"
+  ],
+  "properties": {
+    "schemaVersion": {"const": "1.0"},
+    "reportId": {"$ref": "#/$defs/identifier"},
+    "revision": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+    "status": {"enum": ["DRAFT", "FINAL"]},
+    "reviewer": {"$ref": "#/$defs/reviewer"},
+    "createdAt": {"type": "string", "format": "date-time"},
+    "updatedAt": {"type": "string", "format": "date-time"},
+    "finalizedAt": {"type": "string", "format": "date-time"},
+    "finalizedBy": {"$ref": "#/$defs/identifier"},
+    "variantReviews": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {"$ref": "#/$defs/variantReview"}
+    },
+    "runQcAssessment": {"$ref": "#/$defs/runQcAssessment"},
+    "reportNotes": {"type": "string", "maxLength": 50000},
+    "valueCorrections": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {"$ref": "#/$defs/valueCorrection"}
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "FINAL"}}},
+      "then": {"required": ["finalizedAt", "finalizedBy"]},
+      "else": {
+        "not": {
+          "anyOf": [
+            {"required": ["finalizedAt"]},
+            {"required": ["finalizedBy"]}
+          ]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewerId"],
+      "properties": {
+        "reviewerId": {"$ref": "#/$defs/identifier"},
+        "displayName": {"type": "string", "minLength": 1, "maxLength": 256}
+      }
+    },
+    "variantReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "variantId",
+        "reportingDecision",
+        "clinicalClassification",
+        "igvAssessment"
+      ],
+      "properties": {
+        "variantId": {"$ref": "#/$defs/identifier"},
+        "reportingDecision": {"enum": ["UNREVIEWED", "INCLUDE", "EXCLUDE"]},
+        "clinicalClassification": {
+          "enum": ["UNCLASSIFIED", "PATHOGENIC", "UNCERTAIN", "OTHER"]
+        },
+        "igvAssessment": {
+          "enum": [
+            "NOT_REVIEWED",
+            "SUPPORTS",
+            "DOES_NOT_SUPPORT",
+            "INCONCLUSIVE",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "comment": {"type": "string", "maxLength": 10000}
+      }
+    },
+    "runQcAssessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {"enum": ["NOT_REVIEWED", "PASS", "FAIL", "CONDITIONAL"]},
+        "comment": {"type": "string", "maxLength": 10000}
+      }
+    },
+    "correctionValue": {
+      "type": ["string", "number", "boolean", "null"],
+      "maxLength": 10000
+    },
+    "valueCorrection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "originalValue",
+        "correctedValue",
+        "reason",
+        "author",
+        "timestamp"
+      ],
+      "properties": {
+        "path": {"type": "string", "pattern": "^/", "maxLength": 512},
+        "originalValue": {"$ref": "#/$defs/correctionValue"},
+        "correctedValue": {"$ref": "#/$defs/correctionValue"},
+        "reason": {"type": "string", "minLength": 1, "maxLength": 10000},
+        "author": {"$ref": "#/$defs/identifier"},
+        "timestamp": {"type": "string", "format": "date-time"}
+      }
+    }
+  }
+}
