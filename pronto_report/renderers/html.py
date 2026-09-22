@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from html import escape
 from pathlib import Path
 import re
@@ -167,7 +168,120 @@ def _variant_rows(report: ReportData, review: ReviewState | None) -> str:
     return "".join(rows)
 
 
-def render_html(report: ReportData, review: ReviewState | None = None) -> str:
+def _plot_figure(kind: str, index: int, total: int, media_type: str, payload: bytes, description: str) -> str:
+    if media_type not in {"image/png", "image/jpeg"}:
+        raise ValueError("Unsupported report plot image type")
+    label = f"CNV oversikt – side {index} av {total}" if kind == "cnv" else f"QC-plott {index} av {total}"
+    data_uri = f"data:{media_type};base64,{base64.b64encode(payload).decode('ascii')}"
+    hidden = " hidden" if kind == "cnv" and index != 1 else ""
+    return (
+        f'<figure class="plot-figure" id="{kind}-{index}"{hidden}>'
+        f'<img src="{data_uri}" alt="{escape(label)}. {escape(description)}">'
+        f'<figcaption><strong>{escape(label)}</strong> · {escape(description)}</figcaption>'
+        f'<button type="button" data-enlarge="{kind}-{index}">Forstørr plott</button>'
+        "</figure>"
+    )
+
+
+def _plot_content(
+    report: ReportData,
+    plot_images: Mapping[str, tuple[tuple[str, bytes], ...]],
+    kind: str,
+) -> str:
+    attachments = [
+        item for item in report.attachments
+        if ("cnv" in str(item["name"]).casefold()) == (kind == "cnv")
+        and (kind == "cnv" or "qc" in str(item["name"]).casefold())
+    ]
+    images = [
+        (item, media_type, payload)
+        for item in attachments
+        for media_type, payload in plot_images.get(str(item["assetId"]), ())
+    ]
+    if not images:
+        label = "CNV-plott" if kind == "cnv" else "QC-plott"
+        return f'<p class="empty-state">{label} er ikke tilgjengelig i denne rapporten.</p>'
+    figures = "".join(
+        _plot_figure(kind, index, len(images), media_type, payload, str(item.get("description", "")))
+        for index, (item, media_type, payload) in enumerate(images, start=1)
+    )
+    if kind == "cnv":
+        buttons = "".join(
+            f'<button type="button" data-plot-select="cnv-{index}" aria-pressed="{str(index == 1).lower()}">Side {index}</button>'
+            for index in range(1, len(images) + 1)
+        )
+        return f'<div class="plot-switcher" role="group" aria-label="Velg CNV-side">{buttons}</div>{figures}'
+    return figures
+
+
+def _qc_metrics(report: ReportData) -> str:
+    if not report.qc_metrics:
+        return '<p class="empty-state">Ingen strukturerte QC-målinger tilgjengelig i kildedata.</p>'
+    cards = []
+    for metric in report.qc_metrics:
+        unit = str(metric.get("unit", ""))
+        value = f'{_display(metric["value"])} {unit}'.strip()
+        status = str(metric.get("status", "NOT_AVAILABLE"))
+        thresholds = ", ".join(
+            str(item.get("label") or f'{item["operator"]} {_display(item["value"])}')
+            for item in metric.get("thresholds", ())
+        )
+        cards.append(
+            '<article class="metric-card">'
+            f'<h3>{escape(str(metric["label"]))}</h3>'
+            f'<p class="metric-card__value">{escape(value)}</p>'
+            f'<p>Status: {escape(status)}</p>'
+            + (f'<p>Grense: {escape(thresholds)}</p>' if thresholds else "")
+            + '</article>'
+        )
+    return "".join(cards)
+
+
+def _tumour_content(report: ReportData, review: ReviewState | None) -> str:
+    if review is None:
+        return '<p class="empty-state">Ingen ReviewState er lastet inn. Tumorboard-funn er ikke tilgjengelige.</p>'
+    included = {
+        item["variantId"]: item for item in review.variant_reviews
+        if item["reportingDecision"] == "INCLUDE"
+    }
+    shown = set()
+    findings = []
+    for variant in report.variants:
+        identifier = variant["variantId"]
+        if identifier not in included or identifier in shown:
+            continue
+        shown.add(identifier)
+        activity = included[identifier]
+        findings.append(
+            '<li><strong>{}</strong> · {} · {} · Klassifikasjon: {}</li>'.format(
+                escape(_display(variant.get("gene"))),
+                escape(_display(variant.get("genomicLocation"))),
+                escape(_display(variant.get("dnaChange"))),
+                escape(str(activity["clinicalClassification"])),
+            )
+        )
+    finding_html = (
+        f'<ul class="board-findings">{"".join(findings)}</ul>' if findings else
+        '<p class="empty-state">Ingen funn er markert for rapportering.</p>'
+    )
+    signoff = (
+        f'Signert av {escape(review.finalized_by or "")} {escape(review.finalized_at or "")}'
+        if review.status == "FINAL" else "Ikke signert"
+    )
+    notes = escape(review.report_notes) if review.report_notes else "Ingen notater registrert."
+    return (
+        f'<h3>Funn til diskusjon</h3>{finding_html}'
+        f'<h3>MDT-notater</h3><p class="board-notes">{notes}</p>'
+        f'<p class="board-signoff">Signeringsstatus: {signoff}</p>'
+    )
+
+
+def render_html(
+    report: ReportData,
+    review: ReviewState | None = None,
+    *,
+    plot_images: Mapping[str, tuple[tuple[str, bytes], ...]] | None = None,
+) -> str:
     """Render the development HTML shell from validated contract models.
 
     Assets remain separate during development. Task 14 will bundle the same
@@ -177,6 +291,10 @@ def render_html(report: ReportData, review: ReviewState | None = None) -> str:
         raise ValueError("Review state does not belong to this report")
 
     status = review.status if review is not None else "DRAFT"
+    plot_images = plot_images or {}
+    known_assets = {str(item["assetId"]) for item in report.attachments}
+    if set(plot_images) - known_assets:
+        raise ValueError("Plot image does not match a declared attachment")
     status_label = "Endelig" if status == "FINAL" else "Utkast"
     review_columns = (
         '<th scope="col">Rapporteringsbeslutning</th><th scope="col">Klinisk klassifikasjon</th>'
@@ -217,6 +335,10 @@ def render_html(report: ReportData, review: ReviewState | None = None) -> str:
         "review_toolbar": review_toolbar,
         "review_script": review_script,
         "finalization": finalization,
+        "cnv_content": _plot_content(report, plot_images, "cnv"),
+        "qc_content": _plot_content(report, plot_images, "qc"),
+        "qc_metrics": _qc_metrics(report),
+        "tumour_content": _tumour_content(report, review),
     }
     context["variant_count"] = str(len(report.variants))
     return _render_variables(_assemble_template(), context, html_context)

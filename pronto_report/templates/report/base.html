@@ -61,6 +61,11 @@
     <p>PRONTO · Rapport {{ report_id }} · Status: {{ status_label }}</p>
     <p>Rapporten er et beslutningsstøtteverktøy og må følge gjeldende kvalitetssikringsprosess.</p>
   </footer>
+  <dialog id="plot-dialog" aria-label="Forstørret plott">
+    <button type="button" id="close-plot">Lukk plott</button>
+    <img id="dialog-plot-image" alt="">
+    <p id="dialog-plot-caption"></p>
+  </dialog>
   {{ review_script }}
 </body>
 </html>

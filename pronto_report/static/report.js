@@ -85,6 +85,36 @@
     sorted.forEach(({ row }) => table.tBodies[0].append(row));
   });
 
+  const plotDialog = document.getElementById("plot-dialog");
+  let plotTrigger = null;
+  document.addEventListener("click", (event) => {
+    const selector = event.target.closest("button[data-plot-select]");
+    if (selector) {
+      const targetId = selector.dataset.plotSelect;
+      document.querySelectorAll("#panel-cnv-plots .plot-figure").forEach((figure) => {
+        figure.hidden = figure.id !== targetId;
+      });
+      document.querySelectorAll("button[data-plot-select]").forEach((button) => {
+        button.setAttribute("aria-pressed", String(button === selector));
+      });
+      return;
+    }
+    const enlarge = event.target.closest("button[data-enlarge]");
+    if (!enlarge) return;
+    const figure = document.getElementById(enlarge.dataset.enlarge);
+    const source = figure?.querySelector("img");
+    if (!source) return;
+    plotTrigger = enlarge;
+    const image = document.getElementById("dialog-plot-image");
+    image.src = source.src;
+    image.alt = source.alt;
+    document.getElementById("dialog-plot-caption").textContent = figure.querySelector("figcaption").textContent;
+    plotDialog.showModal();
+    document.getElementById("close-plot").focus();
+  });
+  document.getElementById("close-plot").addEventListener("click", () => plotDialog.close());
+  plotDialog.addEventListener("close", () => plotTrigger?.focus());
+
   const reviewData = document.getElementById("review-state-data");
   if (!reviewData) return;
   const reviewState = JSON.parse(reviewData.textContent);
