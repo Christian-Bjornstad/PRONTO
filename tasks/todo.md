@@ -207,21 +207,21 @@
 
 - [x] Schema, model, identity, serialization, and adapter tests pass.
 - [x] Approved fixture validates and round-trips deterministically.
-- [ ] Human reviews the contract example before renderer implementation.
+- [x] Human reviews the contract example before renderer implementation.
 
 ## Task 10: Accessible renderer shell
 
 **Description:** Create the modular HTML source, design tokens, and five accessible tab panels using the local report as the visual reference.
 
 **Acceptance criteria:**
-- [ ] All five panels render with semantic landmarks and correct tab relationships.
-- [ ] Design tokens preserve the InPreD blue/neutral/status palette.
-- [ ] No whole-page horizontal overflow at target widths.
+- [x] All five panels render with semantic landmarks and correct tab relationships.
+- [x] Design tokens preserve the InPreD blue/neutral/status palette.
+- [x] No whole-page horizontal overflow at target widths.
 
 **Verification:**
-- [ ] RED/GREEN renderer structure tests.
-- [ ] Browser screenshots at 375, 768, 1024, and 1440 px.
-- [ ] Keyboard tab navigation and focus indicators work.
+- [x] RED/GREEN renderer structure tests.
+- [x] Browser screenshots at 375, 768, 1024, and 1440 px.
+- [x] Keyboard tab navigation and focus indicators work.
 
 **Dependencies:** Contract checkpoint
 

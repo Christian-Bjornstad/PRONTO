@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>PRONTO-rapport – {{ sample_id }}</title>
+  <link rel="stylesheet" href="{{ stylesheet_url }}">
+  <script src="{{ script_url }}" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#report-content">Gå til rapportinnhold</a>
+  <header class="report-header">
+    <div class="report-header__inner">
+      <div class="report-brand" aria-label="InPreD PRONTO">
+        <span class="report-brand__mark" aria-hidden="true">P</span>
+        <div>
+          <p class="report-brand__eyebrow">InPreD</p>
+          <h1>PRONTO-rapport</h1>
+        </div>
+      </div>
+      <dl class="report-identity">
+        <div>
+          <dt>Prøve</dt>
+          <dd>{{ sample_id }}</dd>
+        </div>
+        <div>
+          <dt>Rapport-ID</dt>
+          <dd>{{ report_id }}</dd>
+        </div>
+      </dl>
+      <p class="status-badge status-badge--{{ status_code }}">
+        <span class="status-badge__dot" aria-hidden="true"></span>
+        Rapportstatus: {{ status_label }}
+      </p>
+    </div>
+  </header>
+
+  <nav class="report-nav" aria-label="Rapportseksjoner">
+    <div class="report-nav__scroller">
+      <div class="report-tabs" role="tablist" aria-label="Rapportvisninger">
+        <button class="report-tab" type="button" role="tab" id="tab-key-findings" aria-controls="panel-key-findings" aria-selected="true" tabindex="0">Nøkkelfunn</button>
+        <button class="report-tab" type="button" role="tab" id="tab-variant-review" aria-controls="panel-variant-review" aria-selected="false" tabindex="-1">Variantgjennomgang</button>
+        <button class="report-tab" type="button" role="tab" id="tab-cnv-plots" aria-controls="panel-cnv-plots" aria-selected="false" tabindex="-1">CNV-plott</button>
+        <button class="report-tab" type="button" role="tab" id="tab-sequencing-qc" aria-controls="panel-sequencing-qc" aria-selected="false" tabindex="-1">Sekvenserings-QC</button>
+        <button class="report-tab" type="button" role="tab" id="tab-tumour-board" aria-controls="panel-tumour-board" aria-selected="false" tabindex="-1">Molekylært tumorboard</button>
+      </div>
+    </div>
+  </nav>
+
+  <main id="report-content" class="report-main" tabindex="-1">
+    {% include "report/key-findings.html" %}
+    {% include "report/variant-review.html" %}
+    {% include "report/cnv-plots.html" %}
+    {% include "report/sequencing-qc.html" %}
+    {% include "report/tumour-board.html" %}
+  </main>
+
+  <footer class="report-footer">
+    <p>PRONTO · Rapport {{ report_id }} · Status: {{ status_label }}</p>
+    <p>Rapporten er et beslutningsstøtteverktøy og må følge gjeldende kvalitetssikringsprosess.</p>
+  </footer>
+</body>
+</html>
