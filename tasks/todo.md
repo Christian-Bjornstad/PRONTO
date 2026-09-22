@@ -239,14 +239,14 @@
 **Description:** Render contract-derived biomarkers, case facts, searchable variants, sorting, formatting, and explicit empty/error states.
 
 **Acceptance criteria:**
-- [ ] No clinical value or threshold is hard-coded in the browser.
-- [ ] Numeric values use declared display formatting.
-- [ ] Search, filters, and sorting are accessible and deterministic.
+- [x] No clinical value or threshold is hard-coded in the browser.
+- [x] Numeric values use declared display formatting.
+- [x] Search, filters, and sorting are accessible and deterministic.
 
 **Verification:**
-- [ ] Focused renderer tests for normal, missing, and empty data.
-- [ ] Browser test for search and sorting.
-- [ ] Visual comparison with the reference report.
+- [x] Focused renderer tests for normal, missing, and empty data.
+- [x] Browser test for search and sorting.
+- [x] Visual comparison with the reference report.
 
 **Dependencies:** Task 10
 

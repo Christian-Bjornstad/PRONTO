@@ -2,6 +2,7 @@ from html.parser import HTMLParser
 
 from pronto_report.models import ReportData
 from pronto_report.renderers.html import render_html
+from pronto.tests.reporting.test_pronto_output_adapter import build_report as approved_report
 
 
 PANEL_NAMES = (
@@ -103,3 +104,43 @@ def test_renderer_exposes_identity_and_text_status_without_color_only_meaning():
     assert "IPD-TEST-001" in document
     assert "report_test_001" in document
     assert "Rapportstatus: Utkast" in document
+
+
+def test_approved_report_renders_source_biomarkers_and_every_variant_occurrence():
+    document = render_html(approved_report())
+    tags = parse(document)
+
+    assert "14,9 mut/Mb" in document
+    assert "4,13 %" in document
+    assert "IPD2225-D01-P01-A08" in document
+    assert sum(tag == "tr" and "data-occurrence-id" in attrs for tag, attrs in tags) == 30
+    assert document.count("TERT") >= 2
+
+
+def test_empty_report_explains_missing_biomarkers_and_variants():
+    document = render_html(build_report())
+
+    assert "Ingen biomarkørverdier tilgjengelig" in document
+    assert "Ingen varianter tilgjengelig" in document
+
+
+def test_variant_and_measurement_text_is_escaped():
+    report = approved_report()
+    variant = dict(report.variants[0])
+    variant["gene"] = '<img src=x onerror=alert(1)>'
+    report = ReportData(
+        schema_version=report.schema_version,
+        report_id=report.report_id,
+        sample=report.sample,
+        run=report.run,
+        provenance=report.provenance,
+        biomarkers=report.biomarkers,
+        qc_metrics=report.qc_metrics,
+        variants=(variant,),
+        attachments=report.attachments,
+        diagnostics=report.diagnostics,
+    )
+
+    rendered = render_html(report)
+    assert '<img src=x onerror=alert(1)>' not in rendered
+    assert '&lt;img src=x onerror=alert(1)&gt;' in rendered
