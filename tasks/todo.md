@@ -48,14 +48,14 @@
 **Description:** Run unit and non-publishing Docker validation for pull requests while preserving release publishing behavior.
 
 **Acceptance criteria:**
-- [ ] Test workflow runs for pull requests and pushes to `main`.
-- [ ] Pull requests build but never push a Docker image.
-- [ ] Image publishing remains limited to the reviewed release/main policy.
+- [x] Test workflow runs for pull requests and pushes to `main`.
+- [x] Pull requests build but never push a Docker image.
+- [x] Image publishing remains limited to the reviewed release/main policy.
 
 **Verification:**
-- [ ] Workflow syntax parses successfully.
-- [ ] Local unit and Docker commands match workflow commands.
-- [ ] Diff contains no secret values or broadened secret exposure.
+- [x] Workflow syntax parses successfully.
+- [x] Local unit and Docker commands match workflow commands.
+- [x] Diff contains no secret values or broadened secret exposure.
 
 **Dependencies:** Tasks 1–2
 
