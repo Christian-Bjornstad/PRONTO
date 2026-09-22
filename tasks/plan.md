@@ -69,7 +69,7 @@ key/variant UI        plots/QC/MDT UI
 
 - [x] Task 10: Add the renderer shell, design tokens, and five accessible tab panels.
 - [x] Task 11: Render key findings and the variant review table from `ReportData`.
-- [ ] Task 12: Add review-state presentation with separate decision and classification controls.
+- [x] Task 12: Add review-state presentation with separate decision and classification controls.
 - [ ] Task 13: Render CNV plots, sequencing QC, and the tumour-board surface.
 - [ ] Task 14: Produce a deterministic self-contained HTML export.
 - [ ] Task 15: Add browser, accessibility, responsive, print, and console verification.

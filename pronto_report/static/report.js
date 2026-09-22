@@ -84,4 +84,48 @@
     });
     sorted.forEach(({ row }) => table.tBodies[0].append(row));
   });
+
+  const reviewData = document.getElementById("review-state-data");
+  if (!reviewData) return;
+  const reviewState = JSON.parse(reviewData.textContent);
+  const feedback = document.getElementById("review-feedback");
+  const download = document.getElementById("download-review");
+
+  table.tBodies[0].addEventListener("change", (event) => {
+    const control = event.target.closest("select[data-review-field]");
+    if (!control || reviewState.status === "FINAL") return;
+    const variantId = control.dataset.variantId;
+    let activity = reviewState.variantReviews.find((item) => item.variantId === variantId);
+    if (!activity) {
+      activity = {
+        variantId,
+        reportingDecision: "UNREVIEWED",
+        clinicalClassification: "UNCLASSIFIED",
+        igvAssessment: "NOT_REVIEWED",
+      };
+      reviewState.variantReviews.push(activity);
+    }
+    activity[control.dataset.reviewField] = control.value;
+    table.tBodies[0].querySelectorAll("select[data-variant-id]").forEach((peer) => {
+      if (peer.dataset.variantId === variantId && peer.dataset.reviewField === control.dataset.reviewField) {
+        peer.value = control.value;
+      }
+    });
+    feedback.textContent = "Endringer er ikke lagret. Last ned ReviewState for å bevare dem.";
+  });
+
+  download.addEventListener("click", () => {
+    if (reviewState.status !== "FINAL") {
+      reviewState.revision += 1;
+      reviewState.updatedAt = new Date().toISOString();
+    }
+    const blob = new Blob([JSON.stringify(reviewState, null, 2) + "\n"], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${reviewState.reportId}-review-state.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    feedback.textContent = "ReviewState er lastet ned. Oppbevar filen i godkjent lagring.";
+  });
 })();

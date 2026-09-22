@@ -191,6 +191,16 @@ button {
   background: #6ee7b7;
 }
 
+.finalization {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.finalization:empty {
+  display: none;
+}
+
 .report-nav {
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -387,6 +397,53 @@ button {
   margin: 0 0 0 auto;
   color: var(--color-text-muted);
   font-size: 0.875rem;
+}
+
+.review-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.review-toolbar p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.review-toolbar button {
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-brand-700);
+  border-radius: var(--radius-sm);
+  background: var(--color-brand-700);
+  color: #ffffff;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.review-toolbar button:hover {
+  background: var(--color-brand-900);
+}
+
+.table-scroll select {
+  max-width: 12rem;
+  min-height: 2rem;
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.8125rem;
+}
+
+.table-scroll select:disabled {
+  opacity: 1;
+  background: var(--color-canvas);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
 }
 
 .table-scroll {

@@ -33,6 +33,7 @@
         <span class="status-badge__dot" aria-hidden="true"></span>
         Rapportstatus: {{ status_label }}
       </p>
+      <p class="finalization">{{ finalization }}</p>
     </div>
   </header>
 
@@ -60,5 +61,6 @@
     <p>PRONTO · Rapport {{ report_id }} · Status: {{ status_label }}</p>
     <p>Rapporten er et beslutningsstøtteverktøy og må følge gjeldende kvalitetssikringsprosess.</p>
   </footer>
+  {{ review_script }}
 </body>
 </html>

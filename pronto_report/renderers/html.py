@@ -9,6 +9,7 @@ from decimal import Decimal
 from typing import Any, Mapping
 
 from pronto_report.models import ReportData, ReviewState
+from pronto_report.serialization import serialize_review_state
 
 
 _PACKAGE_ROOT = Path(__file__).parents[1]
@@ -95,10 +96,39 @@ def _annotation(variant: Mapping[str, Any], key: str) -> object:
     return None
 
 
-def _variant_rows(report: ReportData) -> str:
+def _review_select(
+    variant_id: str, occurrence_id: str, field: str, selected: str, final: bool
+) -> str:
+    labels = {
+        "reportingDecision": (
+            "Rapporteringsbeslutning",
+            (("UNREVIEWED", "Ikke vurdert"), ("INCLUDE", "Inkluder"), ("EXCLUDE", "Ekskluder")),
+        ),
+        "clinicalClassification": (
+            "Klinisk klassifikasjon",
+            (("UNCLASSIFIED", "Ikke klassifisert"), ("PATHOGENIC", "Patogen"),
+             ("UNCERTAIN", "Usikker"), ("OTHER", "Annet")),
+        ),
+    }
+    label, choices = labels[field]
+    options = "".join(
+        f'<option value="{value}"{" selected" if value == selected else ""}>{text}</option>'
+        for value, text in choices
+    )
+    disabled = " disabled" if final else ""
+    return (
+        f'<select aria-label="{label} for {escape(occurrence_id)}" '
+        f'data-variant-id="{escape(variant_id)}" data-review-field="{field}"{disabled}>'
+        f"{options}</select>"
+    )
+
+
+def _variant_rows(report: ReportData, review: ReviewState | None) -> str:
     if not report.variants:
-        return '<tr><td colspan="7">Ingen varianter tilgjengelig i kildedata.</td></tr>'
+        span = 9 if review is not None else 7
+        return f'<tr><td colspan="{span}">Ingen varianter tilgjengelig i kildedata.</td></tr>'
     rows = []
+    reviews = {item["variantId"]: item for item in review.variant_reviews} if review else {}
     for variant in report.variants:
         gene = _display(variant.get("gene"))
         location = _display(variant.get("genomicLocation"))
@@ -113,13 +143,25 @@ def _variant_rows(report: ReportData) -> str:
         )
         cells = (gene, location, dna, protein, vaf, tier)
         search = " ".join(str(value) for value in cells).casefold()
+        review_cells = ""
+        if review is not None:
+            variant_id = str(variant["variantId"])
+            occurrence_id = str(variant["occurrenceId"])
+            activity = reviews.get(variant_id, {})
+            decision = str(activity.get("reportingDecision", "UNREVIEWED"))
+            classification = str(activity.get("clinicalClassification", "UNCLASSIFIED"))
+            review_cells = (
+                "<td>" + _review_select(variant_id, occurrence_id, "reportingDecision", decision, review.status == "FINAL") + "</td>"
+                + "<td>" + _review_select(variant_id, occurrence_id, "clinicalClassification", classification, review.status == "FINAL") + "</td>"
+            )
         rows.append(
-            '<tr data-occurrence-id="{}" data-search="{}" data-vaf="{}">{}</tr>'.format(
+            '<tr data-occurrence-id="{}" data-search="{}" data-vaf="{}">{}{}</tr>'.format(
                 escape(str(variant["occurrenceId"]), quote=True),
                 escape(search, quote=True),
                 escape(str(frequency) if frequency is not None else "", quote=True),
                 "".join(f"<td>{escape(value)}</td>" for value in cells)
                 + f'<td class="identifier">{escape(str(variant["occurrenceId"]))}</td>',
+                review_cells,
             )
         )
     return "".join(rows)
@@ -136,6 +178,29 @@ def render_html(report: ReportData, review: ReviewState | None = None) -> str:
 
     status = review.status if review is not None else "DRAFT"
     status_label = "Endelig" if status == "FINAL" else "Utkast"
+    review_columns = (
+        '<th scope="col">Rapporteringsbeslutning</th><th scope="col">Klinisk klassifikasjon</th>'
+        if review is not None else ""
+    )
+    if review is None:
+        review_toolbar = '<p class="review-notice">Ingen ReviewState er lastet inn. Gjennomgang er skrivebeskyttet.</p>'
+        review_script = ""
+        finalization = ""
+    else:
+        review_toolbar = (
+            '<button id="download-review" type="button">Last ned ReviewState</button>'
+            '<p id="review-feedback" role="status" aria-live="polite">'
+            + ("Endelig rapport er låst." if status == "FINAL" else "Endringer lagres når ReviewState lastes ned.")
+            + "</p>"
+        )
+        payload = serialize_review_state(review).decode("utf-8").strip()
+        payload = payload.replace("<", r"\u003c").replace(">", r"\u003e").replace("&", r"\u0026")
+        review_script = f'<script type="application/json" id="review-state-data">{payload}</script>'
+        finalization = (
+            f'Ferdigstilt av {escape(review.finalized_by or "")} '
+            f'<time datetime="{escape(review.finalized_at or "")}">{escape(review.finalized_at or "")}</time>'
+            if status == "FINAL" else ""
+        )
     context = {
         "sample_id": str(report.sample["sampleId"]),
         "report_id": report.report_id,
@@ -147,7 +212,11 @@ def render_html(report: ReportData, review: ReviewState | None = None) -> str:
     html_context = {
         "case_facts": _case_facts(report),
         "biomarker_cards": _biomarker_cards(report),
-        "variant_rows": _variant_rows(report),
+        "variant_rows": _variant_rows(report, review),
+        "review_columns": review_columns,
+        "review_toolbar": review_toolbar,
+        "review_script": review_script,
+        "finalization": finalization,
     }
     context["variant_count"] = str(len(report.variants))
     return _render_variables(_assemble_template(), context, html_context)

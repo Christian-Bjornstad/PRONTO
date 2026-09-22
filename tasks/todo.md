@@ -263,13 +263,13 @@
 **Description:** Present and edit validated `ReviewState` with independent reporting decision and clinical classification controls.
 
 **Acceptance criteria:**
-- [ ] Decision and classification can vary independently.
-- [ ] FINAL state disables editing and shows provenance/status clearly.
-- [ ] Mismatched report state is rejected without an override prompt.
+- [x] Decision and classification can vary independently.
+- [x] FINAL state disables editing and shows provenance/status clearly.
+- [x] Mismatched report state is rejected without an override prompt.
 
 **Verification:**
-- [ ] RED/GREEN state validation and rendering tests.
-- [ ] Browser test covers edit, validation feedback, and FINAL lock.
+- [x] RED/GREEN state validation and rendering tests.
+- [x] Browser test covers edit, validation feedback, and FINAL lock.
 
 **Dependencies:** Task 11
 
