@@ -1,1 +1,30 @@
-__pycache__
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Generated PRONTO output and local review state
+Out/**
+*_review.json
+/report.html
+
+# Build and editor artifacts
+build/
+dist/
+*.egg-info/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,10 +1,14 @@
 name: Docker Build
+
 on:
   push:
     branches:
       - main
     tags:
       - '*.*.*'
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -13,7 +17,7 @@ jobs:
     steps:
       - 
         name: Check out the repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - 
         name: Lint Dockerfile
         uses: hadolint/hadolint-action@v3.1.0
