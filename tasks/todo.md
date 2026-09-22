@@ -163,13 +163,13 @@
 **Description:** Serialize and load validated contracts deterministically without semantic loss.
 
 **Acceptance criteria:**
-- [ ] Output is stable for the same logical model.
-- [ ] Round-trip preserves values, IDs, warnings, and provenance.
-- [ ] Invalid input fails before an internal model is returned.
+- [x] Output is stable for the same logical model.
+- [x] Round-trip preserves values, IDs, warnings, and provenance.
+- [x] Invalid input fails before an internal model is returned.
 
 **Verification:**
-- [ ] RED/GREEN serialization and round-trip tests.
-- [ ] Two serializations of the same model are byte-identical.
+- [x] RED/GREEN serialization and round-trip tests.
+- [x] Two serializations of the same model are byte-identical.
 
 **Dependencies:** Tasks 6–7
 

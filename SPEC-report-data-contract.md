@@ -35,6 +35,8 @@ The schemas validate `reportId` independently. Equality between `ReportData.repo
 
 Nested contract objects are closed with `additionalProperties: false`. Correction values and source raw values are scalar-only, so imported documents cannot create unbounded recursive object trees.
 
+Serialized contracts use UTF-8, lexicographically sorted object keys, compact separators, and one trailing newline. Imports are capped at 25 MiB before parsing and reject duplicate object fields, invalid UTF-8, non-finite numbers, excessive nesting, and schema-invalid content before returning a model.
+
 ## Commands
 
 Target commands after implementation:
