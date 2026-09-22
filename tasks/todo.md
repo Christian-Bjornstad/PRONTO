@@ -5,14 +5,14 @@
 **Description:** Add a concise contributor setup and safe ignore rules so the repository can be installed and tested in an isolated environment without manual path changes.
 
 **Acceptance criteria:**
-- [ ] Windows and Linux setup commands are documented.
-- [ ] Virtual environments, generated reports, local state, and secrets are ignored without hiding approved fixtures.
-- [ ] The documented focused and full test commands match CI.
+- [x] Windows and Linux setup commands are documented.
+- [x] Virtual environments, generated reports, local state, and secrets are ignored without hiding approved fixtures.
+- [x] The documented focused and full test commands match CI.
 
 **Verification:**
-- [ ] Create a clean virtual environment and install committed requirements.
-- [ ] `python -m pytest -q` reaches test execution.
-- [ ] `git status --ignored --short` confirms the intended exclusions.
+- [x] Create a clean virtual environment and install committed requirements.
+- [x] `python -m pytest -q` reaches test execution.
+- [x] `git status --ignored --short` confirms the intended exclusions.
 
 **Dependencies:** None
 
