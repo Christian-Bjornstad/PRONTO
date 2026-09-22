@@ -103,6 +103,10 @@ Reporting decision and clinical classification are separate dimensions. The curr
 - `variantId` is derived from normalized sample ID, reference build, chromosome, position, reference allele, and alternate allele when available.
 - A fallback identity may use the current sample/gene/location/change tuple but must emit a warning and cannot be treated as collision-proof.
 - Duplicate source rows remain representable and receive distinct occurrence identifiers; validation reports duplicates rather than silently dropping them.
+- Identity text is Unicode NFKC-normalized and trimmed. Case-insensitive components are case-folded, alleles and gene symbols are uppercased, and chromosome prefixes are normalized before hashing.
+- `variantId` uses the first 24 hexadecimal characters of SHA-256 over canonical JSON. `occurrenceId` appends a deterministic one-based source-order ordinal.
+- Supplying only part of the preferred allele tuple is an error; it never silently downgrades to fallback identity.
+- Any future identity-algorithm change requires a new contract version or an explicit migration because IDs are observable public behavior.
 
 ## Error Contract
 

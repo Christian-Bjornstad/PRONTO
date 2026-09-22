@@ -142,13 +142,13 @@
 **Description:** Generate deterministic report, variant, and occurrence identifiers while preserving duplicate source rows and warning about fallback identity.
 
 **Acceptance criteria:**
-- [ ] Same normalized input produces the same ID.
-- [ ] Reference/alternate-aware identity is preferred.
-- [ ] Duplicate occurrences remain traceable and emit structured diagnostics.
+- [x] Same normalized input produces the same ID.
+- [x] Reference/alternate-aware identity is preferred.
+- [x] Duplicate occurrences remain traceable and emit structured diagnostics.
 
 **Verification:**
-- [ ] RED/GREEN identity tests include the duplicate TERT example.
-- [ ] Tests cover normalization and collision-warning behavior.
+- [x] RED/GREEN identity tests include the duplicate TERT example.
+- [x] Tests cover normalization and collision-warning behavior.
 
 **Dependencies:** Task 6
 
