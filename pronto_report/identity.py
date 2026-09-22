@@ -136,6 +136,21 @@ def _digest(canonical_key: str) -> str:
     return hashlib.sha256(canonical_key.encode("utf-8")).hexdigest()[:24]
 
 
+def make_report_id(sample_id: str, run_id: str) -> str:
+    """Return the stable ID for one normalized sample/run report context."""
+    normalized_sample = _text(sample_id)
+    normalized_run = _text(run_id)
+    if not normalized_sample or not normalized_run:
+        raise ValueError("Report identity fields are incomplete or invalid")
+    canonical = json.dumps(
+        {"runId": normalized_run, "sampleId": normalized_sample},
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return f"report_{_digest(canonical)}"
+
+
 def assign_variant_identities(
     records: Iterable[VariantIdentityInput],
 ) -> tuple[VariantIdentity, ...]:

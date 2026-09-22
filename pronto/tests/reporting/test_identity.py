@@ -5,6 +5,7 @@ from pronto_report.identity import (
     IdentityInputError,
     VariantIdentityInput,
     assign_variant_identities,
+    make_report_id,
 )
 
 
@@ -38,6 +39,20 @@ def fallback_input(**changes):
 
 def diagnostic_codes(result):
     return {diagnostic.code for diagnostic in result.diagnostics}
+
+
+def test_report_id_is_stable_for_normalized_sample_and_run():
+    first = make_report_id(" SAMPLE-001 ", "RUN-001")
+    second = make_report_id("sample-001", "run-001")
+
+    assert first == second
+    assert first.startswith("report_")
+
+
+def test_report_id_changes_for_a_different_logical_context():
+    assert make_report_id("sample-001", "run-001") != make_report_id(
+        "sample-001", "run-002"
+    )
 
 
 def test_same_normalized_alleles_produce_same_variant_id():
