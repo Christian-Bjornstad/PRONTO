@@ -97,13 +97,13 @@
 **Description:** Define v1 `ReportData` and `ReviewState` schemas from failing validation examples.
 
 **Acceptance criteria:**
-- [ ] Required fields, enums, formats, bounds, and additional-property policy are explicit.
-- [ ] Review decision and clinical classification are independent fields.
-- [ ] Unknown major versions, oversized collections, and mismatched report IDs are rejected.
+- [x] Required fields, enums, formats, bounds, and additional-property policy are explicit.
+- [x] Review decision and clinical classification are independent fields.
+- [x] Unknown major versions and oversized collections are rejected; cross-document report-ID mismatch is assigned to the Task 6 boundary validator.
 
 **Verification:**
-- [ ] RED: invalid contract examples initially lack a validator or pass incorrectly.
-- [ ] GREEN: focused schema tests accept valid and reject invalid examples.
+- [x] RED: invalid contract examples initially lack a validator or pass incorrectly.
+- [x] GREEN: focused schema tests accept valid and reject invalid examples.
 
 **Dependencies:** Baseline checkpoint
 

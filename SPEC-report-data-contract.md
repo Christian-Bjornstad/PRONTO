@@ -1,6 +1,6 @@
 # Spec: Report data contract
 
-Status: Draft for review
+Status: Approved for implementation
 
 Module: `report-data-contract`
 
@@ -17,7 +17,23 @@ The contract must preserve source facts, record provenance, and make user correc
 - Python dataclasses or typed model classes for the in-process domain model.
 - JSON Schema 2020-12 files as the language-neutral serialized contract.
 - Standard JSON serialization with deterministic key ordering for fixtures and hashes.
-- A schema validation library may be added only after dependency review.
+- `jsonschema==4.26.0` validates Draft 2020-12 contracts; `rfc3339-validator==0.1.4` enables timestamp format assertions.
+
+The schemas validate `reportId` independently. Equality between `ReportData.reportId` and `ReviewState.reportId` is a cross-document invariant enforced by the Task 6 boundary validator, because JSON Schema 2020-12 does not compare arbitrary values across separate instances.
+
+## Contract Limits
+
+| Area | v1 limit |
+|---|---:|
+| Variants and variant reviews | 10,000 |
+| Attachments and source files | 100 each |
+| Diagnostics and value corrections | 1,000 each |
+| QC metrics | 500 |
+| Biomarkers | 100 |
+| Report notes | 50,000 characters |
+| General comments/reasons | 10,000 characters |
+
+Nested contract objects are closed with `additionalProperties: false`. Correction values and source raw values are scalar-only, so imported documents cannot create unbounded recursive object trees.
 
 ## Commands
 
