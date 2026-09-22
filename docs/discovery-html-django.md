@@ -5,11 +5,12 @@ Date: 2026-09-22
 ## Repository and branch state
 
 - The working repository is the `repos/PRONTO` checkout in the local research workspace.
-- `origin` is `https://github.com/InPreD/PRONTO.git`.
+- `origin` is the writable fork, `https://github.com/Christian-Bjornstad/PRONTO.git`.
+- `upstream` is the canonical repository, `https://github.com/InPreD/PRONTO.git`.
 - Both linked GitHub repositories currently resolve `main` to commit `d20a6ba`.
 - GitHub identifies `Christian-Bjornstad/PRONTO` as a fork of `InPreD/PRONTO`, not the reverse.
 - The local `main` was at `872a1bd`; this discovery branch was created from current `origin/main` as `feature/html-reporting-foundation`.
-- No second remote was added because the two repositories currently have identical `main` tips and the proposed parent/upstream direction would conflict with GitHub's recorded fork relationship.
+- The remotes use the conventional fork layout even while both `main` tips are identical: feature branches push to `origin`, while updates are fetched from `upstream`.
 
 ## Existing PRONTO architecture
 
