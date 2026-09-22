@@ -41,14 +41,14 @@ key/variant UI        plots/QC/MDT UI
 - [x] Task 1: Document and automate the isolated Python development setup.
 - [x] Task 2: Make existing tests platform-independent and establish a green unit-test baseline.
 - [x] Task 3: Add pull-request CI without publishing Docker images.
-- [ ] Task 4: Record the approved fixture/privacy policy and local artifact boundaries.
+- [x] Task 4: Record the approved fixture/privacy policy and local artifact boundaries.
 
 ### Checkpoint: Baseline
 
-- [ ] Clean environment installs successfully.
+- [x] Clean environment installs successfully.
 - [ ] Existing unit tests pass on Windows and CI Linux.
 - [ ] Existing OUS/HUS behavior remains unchanged.
-- [ ] No generated report or unapproved artifact is tracked.
+- [x] No generated report or unapproved artifact is tracked.
 
 ### Phase 2: Report data contract
 

@@ -70,13 +70,13 @@
 **Description:** Document which repository fixtures are approved, which local artifact classes are excluded by default, and how new fixtures are approved.
 
 **Acceptance criteria:**
-- [ ] Approved public fixtures are named.
-- [ ] Generated HTML, Office files, screenshots, and extracted derivatives have explicit handling rules.
-- [ ] The approval owner and staged-data review process are documented.
+- [x] Approved public fixtures are named.
+- [x] Generated HTML, Office files, screenshots, and extracted derivatives have explicit handling rules.
+- [x] The approval owner and staged-data review process are documented.
 
 **Verification:**
-- [ ] Manual review against `docs/discovery-html-django.md`.
-- [ ] Staged files contain no unique local report artifact.
+- [x] Manual review against `docs/discovery-html-django.md`.
+- [x] Staged files contain no unique local report artifact.
 
 **Dependencies:** Task 1
 
