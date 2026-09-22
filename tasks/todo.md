@@ -90,7 +90,7 @@
 - [x] Unit suite passes in a clean environment.
 - [x] Docker fixture command succeeds where Docker is available.
 - [x] CI and documentation agree on commands.
-- [ ] Human reviews the baseline before contract implementation.
+- [x] Human reviews the baseline before contract implementation.
 
 ## Task 5: JSON Schema contracts
 
