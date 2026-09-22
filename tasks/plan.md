@@ -56,14 +56,14 @@ key/variant UI        plots/QC/MDT UI
 - [x] Task 6: Implement typed models and structured validation errors.
 - [x] Task 7: Implement stable report/variant identity and duplicate diagnostics.
 - [x] Task 8: Implement deterministic JSON serialization and round-trip tests.
-- [ ] Task 9: Adapt one approved public fixture into valid `ReportData`.
+- [x] Task 9: Adapt one approved public fixture into valid `ReportData`.
 
 ### Checkpoint: Contract
 
-- [ ] Approved fixture validates and round-trips deterministically.
-- [ ] Invalid, oversized, mismatched, and duplicate-ID cases produce structured issues.
-- [ ] Review decision and clinical classification vary independently.
-- [ ] No hard-coded clinical value is introduced in the new package.
+- [x] Approved fixture validates and round-trips deterministically.
+- [x] Invalid, oversized, mismatched, and duplicate-ID cases produce structured issues.
+- [x] Review decision and clinical classification vary independently.
+- [x] No hard-coded clinical value is introduced in the new package.
 
 ### Phase 3: Clean HTML renderer
 

@@ -184,14 +184,14 @@
 **Description:** Convert one approved existing OUS public fixture into the v1 contract without hard-coded clinical values.
 
 **Acceptance criteria:**
-- [ ] Source fields map with provenance and explicit missing-data warnings.
-- [ ] The approved fixture validates and contains stable IDs.
-- [ ] No value is invented when the source is absent.
+- [x] Source fields map with provenance and explicit missing-data warnings.
+- [x] The approved fixture validates and contains stable IDs.
+- [x] No value is invented when the source is absent.
 
 **Verification:**
-- [ ] RED/GREEN adapter tests against the approved fixture.
-- [ ] Generated JSON validates and round-trips.
-- [ ] Manual comparison with the local reference report's key values.
+- [x] RED/GREEN adapter tests against the approved fixture.
+- [x] Generated JSON validates and round-trips.
+- [x] Manual comparison with the local reference report's key values.
 
 **Dependencies:** Tasks 5–8
 
@@ -205,8 +205,8 @@
 
 ## Checkpoint: Contract
 
-- [ ] Schema, model, identity, serialization, and adapter tests pass.
-- [ ] Approved fixture validates and round-trips deterministically.
+- [x] Schema, model, identity, serialization, and adapter tests pass.
+- [x] Approved fixture validates and round-trips deterministically.
 - [ ] Human reviews the contract example before renderer implementation.
 
 ## Task 10: Accessible renderer shell
