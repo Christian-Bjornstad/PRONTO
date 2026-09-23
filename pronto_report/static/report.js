@@ -186,18 +186,55 @@
   const rows = Array.from(table.tBodies[0].querySelectorAll("tr[data-occurrence-id]"));
   const count = document.getElementById("variant-count");
   const noMatch = document.getElementById("variant-no-match");
+  const decisionButtons = Array.from(document.querySelectorAll("[data-decision-filter]"));
+  let decisionFilter = "all";
+
+  function decisionForRow(row) {
+    return row.querySelector('select[data-review-field="reportingDecision"]')?.value || "UNREVIEWED";
+  }
 
   function filterRows() {
     const query = search.value.trim().toLocaleLowerCase("nb");
     let visible = 0;
     rows.forEach((row) => {
-      row.hidden = !row.dataset.search.includes(query);
+      row.hidden = !row.dataset.search.includes(query) ||
+        (decisionFilter !== "all" && decisionForRow(row) !== decisionFilter);
       if (!row.hidden) visible += 1;
     });
-    count.textContent = `${visible} av ${rows.length} varianter`;
+    count.textContent = `${visible} av ${rows.length} forekomster`;
     noMatch.hidden = visible !== 0 || rows.length === 0;
   }
   search.addEventListener("input", filterRows);
+
+  function updateReviewSummary() {
+    if (!decisionButtons.length) return;
+    const counts = { all: rows.length, INCLUDE: 0, EXCLUDE: 0, UNREVIEWED: 0 };
+    const uniqueDecisions = new Map();
+    rows.forEach((row) => {
+      const decision = decisionForRow(row);
+      counts[decision] += 1;
+      const variantId = row.querySelector("select[data-variant-id]").dataset.variantId;
+      uniqueDecisions.set(variantId, decision);
+    });
+    decisionButtons.forEach((button) => {
+      button.querySelector("span").textContent = String(counts[button.dataset.decisionFilter]);
+    });
+    const reviewed = Array.from(uniqueDecisions.values()).filter((decision) => decision !== "UNREVIEWED").length;
+    const progress = document.getElementById("review-progress-bar");
+    progress.max = Math.max(uniqueDecisions.size, 1);
+    progress.value = reviewed;
+    document.getElementById("review-progress").textContent =
+      `${reviewed} av ${uniqueDecisions.size} varianter vurdert`;
+    filterRows();
+  }
+
+  decisionButtons.forEach((button) => button.addEventListener("click", () => {
+    decisionFilter = button.dataset.decisionFilter;
+    decisionButtons.forEach((item) => {
+      item.setAttribute("aria-pressed", String(item === button));
+    });
+    filterRows();
+  }));
 
   table.tHead.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-sort]");
@@ -252,6 +289,7 @@
   const reviewState = JSON.parse(reviewData.textContent);
   const feedback = document.getElementById("review-feedback");
   const download = document.getElementById("download-review");
+  updateReviewSummary();
 
   table.tBodies[0].addEventListener("change", (event) => {
     const control = event.target.closest("select[data-review-field]");
@@ -275,6 +313,7 @@
         peer.value = control.value;
       }
     });
+    updateReviewSummary();
     feedback.textContent = "Endringer er ikke lagret. Last ned ReviewState for å bevare dem.";
   });
 

@@ -470,9 +470,22 @@ def render_html(
     )
     if review is None:
         review_toolbar = '<p class="review-notice">Ingen ReviewState er lastet inn. Gjennomgang er skrivebeskyttet.</p>'
+        review_filters = ""
         review_script = ""
         finalization = ""
     else:
+        review_filters = (
+            '<div class="review-filters" role="group" aria-label="Filtrer etter rapporteringsbeslutning">'
+            '<button type="button" data-decision-filter="all" aria-pressed="true">Alle <span>0</span></button>'
+            '<button type="button" data-decision-filter="INCLUDE" aria-pressed="false">Inkludert <span>0</span></button>'
+            '<button type="button" data-decision-filter="EXCLUDE" aria-pressed="false">Ekskludert <span>0</span></button>'
+            '<button type="button" data-decision-filter="UNREVIEWED" aria-pressed="false">Ikke vurdert <span>0</span></button>'
+            '</div>'
+            '<div class="review-progress">'
+            '<progress id="review-progress-bar" value="0" max="1" aria-label="Andel varianter vurdert"></progress>'
+            '<p id="review-progress" role="status" aria-live="polite">0 varianter vurdert</p>'
+            '</div>'
+        )
         review_toolbar = (
             '<button id="download-review" type="button">Last ned ReviewState</button>'
             '<p id="review-feedback" role="status" aria-live="polite">'
@@ -501,6 +514,7 @@ def render_html(
         "variant_rows": _variant_rows(report, review),
         "review_columns": review_columns,
         "review_toolbar": review_toolbar,
+        "review_filters": review_filters,
         "edit_button": (
             '<button id="edit-btn" type="button" aria-pressed="false">Edit mode: OFF</button>'
             if editable else
