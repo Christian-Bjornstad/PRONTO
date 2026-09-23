@@ -94,7 +94,7 @@ key/variant UI        plots/QC/MDT UI
 ### Phase 5: Reference-faithful report UI
 
 - [ ] Task 16: Inventory original controls, screen states, and source-field gaps.
-- [ ] Task 17: Extend review contract for distinct notes and migrate v1 without data loss.
+- [x] Task 17: Extend review contract for distinct notes and migrate v1 without data loss.
 - [ ] Task 18: Project validated report and review snapshots into the reference UI model.
 - [ ] Task 19: Rebuild the original top bar, tabs, cards, patient strip, and visual tokens.
 - [ ] Task 20: Restore key-findings editing and the accessible TMB gauge.

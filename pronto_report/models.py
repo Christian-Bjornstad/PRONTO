@@ -81,6 +81,7 @@ class ReviewState(_ContractSnapshot):
     run_qc_assessment: FrozenJsonObject
     report_notes: str
     value_corrections: tuple[FrozenJsonValue, ...]
+    notes: FrozenJsonObject | None = None
     finalized_at: str | None = None
     finalized_by: str | None = None
 
@@ -97,8 +98,9 @@ class ReviewState(_ContractSnapshot):
             updated_at=cast(str, document["updatedAt"]),
             variant_reviews=_array(document["variantReviews"]),
             run_qc_assessment=_object(document["runQcAssessment"]),
-            report_notes=cast(str, document["reportNotes"]),
+            report_notes=cast(str, document.get("reportNotes", "")),
             value_corrections=_array(document["valueCorrections"]),
+            notes=_object(document["notes"]) if "notes" in document else None,
             finalized_at=cast(str | None, document.get("finalizedAt")),
             finalized_by=cast(str | None, document.get("finalizedBy")),
         )

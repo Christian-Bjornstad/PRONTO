@@ -381,9 +381,9 @@ PR #4 on the strength of Tasks 10–15 alone. Follow Tasks 16–29 below.
 **Description:** Extend `ReviewState` to hold the reference's separate summary, biomarker context, and additional comments while preserving v1 decisions and text.
 
 **Acceptance criteria:**
-- [ ] A new schema version validates distinct notes and the existing independent decision/classification fields.
-- [ ] v1 import retains its `reportNotes` as labeled imported text rather than guessing a destination.
-- [ ] Round-trip and malformed-input tests reject silent data loss.
+- [x] A new schema version validates distinct notes and the existing independent decision/classification fields.
+- [x] v1 import retains its `reportNotes` as labeled imported text rather than guessing a destination.
+- [x] Round-trip and malformed-input tests reject silent data loss.
 
 **Verification:** RED/GREEN schema, migration, validation, and serialization tests; `python -m pytest -q pronto/tests/reporting`.
 
