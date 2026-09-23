@@ -48,32 +48,137 @@
     if (hashTab) activateTab(hashTab, { focus: false, updateHash: false });
   }
 
+  const editButton = document.getElementById("edit-btn");
+  const editControls = Array.from(document.querySelectorAll(".report-edit-controls"));
+  const dirtyLabel = document.getElementById("dirty-lbl");
+  const reviewDownload = document.getElementById("download-review");
+  const corrections = new Map();
+  let reviewDirty = false;
+
+  function refreshDirty() {
+    const sourceDirty = corrections.size > 0;
+    dirtyLabel.textContent = sourceDirty ? "Ulagrede kildekorreksjoner" :
+      reviewDirty ? "Ulagret gjennomgang" : "Kun lokal visning";
+    if (reviewDownload) reviewDownload.disabled = sourceDirty;
+  }
+
+  if (editButton && !editButton.disabled) {
+    editButton.addEventListener("click", () => {
+      const editing = editButton.getAttribute("aria-pressed") !== "true";
+      editButton.setAttribute("aria-pressed", String(editing));
+      editButton.textContent = `Edit mode: ${editing ? "ON" : "OFF"}`;
+      editControls.forEach((control) => { control.hidden = !editing; });
+    });
+  }
+
   const tmbGauge = document.getElementById("tmb-gauge");
   if (tmbGauge) {
     const number = document.getElementById("tmb-edit-value");
     const reason = document.getElementById("tmb-correction-reason");
+    const status = document.getElementById("tmb-correction-status");
     const display = document.querySelector('[data-metric="tmb"] .metric-card__value');
-    const dirtyLabel = document.getElementById("dirty-lbl");
-    const reviewDownload = document.getElementById("download-review");
     const original = Number(tmbGauge.dataset.originalValue);
-    let pendingTmbCorrection = null;
+    const path = tmbGauge.dataset.correctionPath;
+    let currentValue = original;
 
     function updateTmb(raw) {
       const value = Number(raw);
-      if (!Number.isFinite(value) || value < 0) return;
-      pendingTmbCorrection = value === original ? null : { originalValue: original, correctedValue: value };
+      if (raw === "" || !Number.isFinite(value) || value < 0) {
+        number.value = String(currentValue);
+        return;
+      }
+      currentValue = value;
+      const changed = value !== original;
+      if (changed) {
+        corrections.set(path, {
+          path, originalValue: original, correctedValue: value, reason: reason.value.trim(),
+        });
+      } else {
+        corrections.delete(path);
+      }
       number.value = String(value);
       tmbGauge.value = String(Math.min(value, Number(tmbGauge.max)));
       display.textContent = `${new Intl.NumberFormat("nb-NO", { maximumFractionDigits: 1 }).format(value)} mut/Mb`;
-      reason.disabled = pendingTmbCorrection === null;
-      if (!pendingTmbCorrection) reason.value = "";
-      dirtyLabel.textContent = pendingTmbCorrection ? "Ulagret TMB-korreksjon" : "Kun lokal visning";
-      if (reviewDownload) reviewDownload.disabled = pendingTmbCorrection !== null;
+      reason.disabled = !changed;
+      reason.required = changed;
+      status.hidden = !changed;
+      if (!changed) reason.value = "";
+      refreshDirty();
     }
 
     tmbGauge.addEventListener("input", () => updateTmb(tmbGauge.value));
     number.addEventListener("change", () => updateTmb(number.value));
+    reason.addEventListener("input", () => {
+      const correction = corrections.get(path);
+      if (correction) correction.reason = reason.value.trim();
+    });
   }
+
+  document.querySelectorAll("input[data-metric-correction-path]").forEach((input) => {
+    const card = input.closest("[data-metric]");
+    const reason = document.getElementById(`${card.dataset.metric}-correction-reason`);
+    const original = Number(input.dataset.originalValue);
+    const path = input.dataset.metricCorrectionPath;
+    input.addEventListener("change", () => {
+      const value = Number(input.value);
+      if (!input.value || !Number.isFinite(value) || value < 0 || value > 100) {
+        input.setCustomValidity("Oppgi en verdi mellom 0 og 100");
+        input.reportValidity();
+        return;
+      }
+      input.setCustomValidity("");
+      const changed = value !== original;
+      card.querySelector(".metric-card__value").textContent =
+        `${new Intl.NumberFormat("nb-NO", { maximumFractionDigits: 2 }).format(value)} %`;
+      card.dataset.correctionPending = String(changed);
+      if (changed) {
+        corrections.set(path, {
+          path, originalValue: original, correctedValue: value, reason: reason.value.trim(),
+        });
+      } else {
+        corrections.delete(path);
+        reason.value = "";
+      }
+      reason.disabled = !changed;
+      reason.required = changed;
+      refreshDirty();
+    });
+    reason.addEventListener("input", () => {
+      const correction = corrections.get(path);
+      if (correction) correction.reason = reason.value.trim();
+    });
+  });
+
+  document.querySelectorAll("[data-fact] input[data-correction-path]").forEach((input) => {
+    const field = input.closest("[data-fact]");
+    const reason = document.getElementById(`${field.dataset.fact}-correction-reason`);
+    const path = input.dataset.correctionPath;
+    const original = input.dataset.originalValue;
+    input.addEventListener("input", () => {
+      const proposed = input.value.trim();
+      const changed = proposed !== original;
+      field.querySelector("dd").textContent = proposed || "Ikke oppgitt";
+      field.dataset.correctionPending = String(changed);
+      if (changed) {
+        corrections.set(path, {
+          path,
+          originalValue: field.dataset.availability === "UNAVAILABLE" ? null : original,
+          correctedValue: proposed || null,
+          reason: reason.value.trim(),
+        });
+      } else {
+        corrections.delete(path);
+        reason.value = "";
+      }
+      reason.disabled = !changed;
+      reason.required = changed;
+      refreshDirty();
+    });
+    reason.addEventListener("input", () => {
+      const correction = corrections.get(path);
+      if (correction) correction.reason = reason.value.trim();
+    });
+  });
 
   const table = document.getElementById("variant-table");
   const search = document.getElementById("variant-search");
@@ -163,6 +268,8 @@
       reviewState.variantReviews.push(activity);
     }
     activity[control.dataset.reviewField] = control.value;
+    reviewDirty = true;
+    refreshDirty();
     table.tBodies[0].querySelectorAll("select[data-variant-id]").forEach((peer) => {
       if (peer.dataset.variantId === variantId && peer.dataset.reviewField === control.dataset.reviewField) {
         peer.value = control.value;

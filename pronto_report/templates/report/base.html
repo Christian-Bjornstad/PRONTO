@@ -21,7 +21,7 @@
       <span class="status-badge status-badge--{{ status_code }}">Rapportstatus: {{ status_label }}</span>
       <div class="report-topbar__actions">
         <span class="report-topbar__saved" id="dirty-lbl" role="status" aria-live="polite">Kun lokal visning</span>
-        <button id="edit-btn" type="button" disabled title="Redigering aktiveres når database-lagring er klar">Edit mode: OFF</button>
+        {{ edit_button }}
         <button id="save-btn" type="button" disabled title="Lagring i databasen kommer i neste steg">Lagre</button>
         <button id="load-btn" type="button" disabled title="Import av gjennomgang er ikke aktivert">Laster</button>
         <button id="reset-btn" type="button" disabled title="Tilbakestilling er ikke aktivert">Reset</button>

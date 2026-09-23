@@ -58,11 +58,12 @@ def _display(value: object) -> str:
     if value is None or value == "":
         return "Ikke oppgitt"
     if isinstance(value, float):
-        return format(Decimal(str(value)), "f").rstrip("0").rstrip(".").replace(".", ",")
+        rendered = format(Decimal(str(value)), "f")
+        return (rendered.rstrip("0").rstrip(".") if "." in rendered else rendered).replace(".", ",")
     return str(value)
 
 
-def _case_facts(ui: Mapping[str, Any]) -> str:
+def _case_facts(ui: Mapping[str, Any], editable: bool) -> str:
     facts = (
         ("sampleId", "Sample"),
         ("patientPseudonym", "Patient code"),
@@ -72,17 +73,40 @@ def _case_facts(ui: Mapping[str, Any]) -> str:
         ("tumourContent", "Tumour content"),
         ("runId", "Sequencing run"),
     )
-    return "".join(
-        f'<div class="patient-strip__fact" data-fact="{name}" '
-        f'data-availability="{ui["facts"][name]["availability"]}">'
-        f"<dt>{label}</dt><dd>{escape(_display(ui['facts'][name]['value']))}</dd></div>"
-        for name, label in facts
-    )
-
-
-def _biomarker_cards(ui: Mapping[str, Any], has_biomarkers: bool, editable: bool) -> str:
     cards = []
-    primary = (("tmb", "TMB"), ("msi", "MSI"), ("localapp_tmb", "LocalApp TMB"))
+    for name, label in facts:
+        fact = ui["facts"][name]
+        original = _display(fact["value"])
+        controls = ""
+        if editable and name in {"tumourType", "specimenType"}:
+            path = f"/sample/{name}"
+            field_value = "" if fact["value"] is None else str(fact["value"])
+            controls = (
+                f'<small class="patient-strip__source" data-source-value="{escape(original, quote=True)}">'
+                f'Kilde: {escape(original)}</small>'
+                '<div class="patient-strip__edit report-edit-controls" hidden>'
+                f'<label for="{name}-edit">Foreslått verdi</label>'
+                f'<input id="{name}-edit" type="text" maxlength="512" '
+                f'value="{escape(field_value, quote=True)}" '
+                f'data-correction-path="{path}" data-original-value="{escape(field_value, quote=True)}">'
+                f'<label for="{name}-correction-reason">Begrunnelse for korreksjon</label>'
+                f'<input id="{name}-correction-reason" type="text" maxlength="10000" '
+                'placeholder="Påkrevd før lagring" disabled>'
+                '</div>'
+            )
+        cards.append(
+            f'<div class="patient-strip__fact" data-fact="{name}" '
+            f'data-availability="{fact["availability"]}">'
+            f'<dt>{label}</dt><dd>{escape(original)}</dd>{controls}</div>'
+        )
+    return "".join(cards)
+
+
+def _biomarker_cards(
+    ui: Mapping[str, Any], report: ReportData, review: ReviewState | None, editable: bool
+) -> str:
+    cards = []
+    primary = (("tmb", "TMB"), ("msi", "MSI"))
     extra = (
         (key, str(item["label"])) for key, item in ui["biomarkers"].items()
         if key not in {"tmb", "msi", "localapp_tmb"}
@@ -95,20 +119,46 @@ def _biomarker_cards(ui: Mapping[str, Any], has_biomarkers: bool, editable: bool
         source = biomarker.get("source") or {}
         raw = source.get("rawValue")
         detail = f'Kildeverdi: {escape(str(raw))}' if raw is not None else "Ikke oppgitt i kildedata"
+        localapp = (
+            '<p class="metric-card__detail" data-metric="localapp_tmb" '
+            'data-availability="UNAVAILABLE">LocalApp TMB: Ikke oppgitt</p>'
+            if metric_id == "tmb" else ""
+        )
         gauge = ""
         if metric_id == "tmb" and editable and isinstance(biomarker["value"], (int, float)):
             original = escape(str(biomarker["value"]), quote=True)
+            index = next(
+                i for i, item in enumerate(report.biomarkers) if item["metricId"] == "tmb"
+            )
             gauge = (
-                '<div class="tmb-gauge">'
+                '<div class="tmb-gauge report-edit-controls" hidden>'
                 f'<label for="tmb-gauge">Juster TMB (mut/Mb)</label>'
                 f'<input id="tmb-gauge" type="range" min="0" max="30" step="0.1" '
-                f'value="{original}" data-original-value="{original}">'
+                f'value="{original}" data-original-value="{original}" '
+                f'data-correction-path="/biomarkers/{index}/value">'
                 '<div class="tmb-gauge__legend"><span>0</span><span>5</span>'
                 '<span>20</span><span>30+</span></div>'
                 '<label for="tmb-edit-value">TMB-verdi</label>'
                 f'<input id="tmb-edit-value" type="number" min="0" step="0.1" value="{original}">'
                 '<label for="tmb-correction-reason">Begrunnelse for korreksjon</label>'
                 '<input id="tmb-correction-reason" type="text" maxlength="10000" '
+                'placeholder="Påkrevd før lagring" disabled>'
+                '<p id="tmb-correction-status" hidden>Foreslått korreksjon – kildetallet over er uendret.</p>'
+                '</div>'
+            )
+        elif metric_id == "msi" and editable and isinstance(biomarker["value"], (int, float)):
+            original = escape(str(biomarker["value"]), quote=True)
+            index = next(
+                i for i, item in enumerate(report.biomarkers) if item["metricId"] == "msi"
+            )
+            gauge = (
+                '<div class="metric-edit report-edit-controls" hidden>'
+                '<label for="msi-edit-value">Foreslått MSI-verdi (%)</label>'
+                f'<input id="msi-edit-value" type="number" min="0" max="100" step="0.01" '
+                f'value="{original}" data-original-value="{original}" '
+                f'data-metric-correction-path="/biomarkers/{index}/value">'
+                '<label for="msi-correction-reason">Begrunnelse for korreksjon</label>'
+                '<input id="msi-correction-reason" type="text" maxlength="10000" '
                 'placeholder="Påkrevd før lagring" disabled>'
                 '</div>'
             )
@@ -118,10 +168,33 @@ def _biomarker_cards(ui: Mapping[str, Any], has_biomarkers: bool, editable: bool
             f'<h3>{escape(label)}</h3>'
             f'<p class="metric-card__value">{escape(shown)}</p>'
             f'<p class="metric-card__detail">{detail}</p>'
+            f'{localapp}'
             f'{gauge}'
             '</article>'
         )
-    empty = '<p class="empty-state">Ingen biomarkørverdier tilgjengelig i kildedata.</p>' if not has_biomarkers else ""
+    included = sum(item["reportingDecision"] == "INCLUDE" for item in review.variant_reviews) if review else 0
+    excluded = sum(item["reportingDecision"] == "EXCLUDE" for item in review.variant_reviews) if review else 0
+    decision_value = str(included) if review else "Ikke vurdert"
+    decision_detail = (
+        f"{excluded} ekskludert · fra gjennomgang revisjon {review.revision}"
+        if review else "Ingen gjennomgang lastet"
+    )
+    cards.append(
+        '<article class="metric-card" data-origin="REVIEW_STATE">'
+        '<h3>Variants · include</h3>'
+        f'<p class="metric-card__value" id="kpi-inc">{decision_value}</p>'
+        f'<p class="metric-card__detail" id="kpi-exc">{decision_detail}</p>'
+        '</article>'
+    )
+    for label in ("CNV / amplifications", "Fusions / splicing"):
+        cards.append(
+            '<article class="metric-card" data-availability="UNAVAILABLE">'
+            f'<h3>{label}</h3>'
+            '<p class="metric-card__value">Ikke oppgitt</p>'
+            '<p class="metric-card__detail">Ingen strukturert, validert verdi</p>'
+            '</article>'
+        )
+    empty = '<p class="empty-state">Ingen biomarkørverdier tilgjengelig i kildedata.</p>' if not report.biomarkers else ""
     return "".join(cards) + empty
 
 
@@ -130,6 +203,28 @@ def _annotation(variant: Mapping[str, Any], key: str) -> object:
         if annotation["key"] == key:
             return annotation["value"]
     return None
+
+
+def _key_variant_rows(report: ReportData) -> str:
+    rows = []
+    for variant in report.variants:
+        protein = variant.get("proteinChange")
+        if not protein:
+            continue
+        frequency = variant.get("alleleFrequency")
+        vaf = (
+            _display(float(Decimal(str(frequency)) * 100)) + " %"
+            if isinstance(frequency, (int, float))
+            else "Ikke oppgitt"
+        )
+        cells = (_display(variant.get("gene")), str(protein), vaf)
+        rows.append(
+            '<tr class="key-variant-row" data-occurrence-id="{}">{}</tr>'.format(
+                escape(str(variant["occurrenceId"]), quote=True),
+                "".join(f"<td>{escape(value)}</td>" for value in cells),
+            )
+        )
+    return "".join(rows) if rows else '<tr><td colspan="3">Ingen varianter med oppgitt proteinendring.</td></tr>'
 
 
 def _review_select(
@@ -392,6 +487,7 @@ def render_html(
             f'<time datetime="{escape(review.finalized_at or "")}">{escape(review.finalized_at or "")}</time>'
             if status == "FINAL" else ""
         )
+    editable = review is not None and status == "DRAFT"
     context = {
         "sample_id": str(report.sample["sampleId"]),
         "report_id": report.report_id,
@@ -399,13 +495,17 @@ def render_html(
         "status_label": status_label,
     }
     html_context = {
-        "case_facts": _case_facts(ui),
-        "biomarker_cards": _biomarker_cards(
-            ui, bool(report.biomarkers), review is not None and review.status == "DRAFT"
-        ),
+        "case_facts": _case_facts(ui, editable),
+        "biomarker_cards": _biomarker_cards(ui, report, review, editable),
+        "key_variant_rows": _key_variant_rows(report),
         "variant_rows": _variant_rows(report, review),
         "review_columns": review_columns,
         "review_toolbar": review_toolbar,
+        "edit_button": (
+            '<button id="edit-btn" type="button" aria-pressed="false">Edit mode: OFF</button>'
+            if editable else
+            '<button id="edit-btn" type="button" disabled title="Rapporten er skrivebeskyttet">Edit mode: OFF</button>'
+        ),
         "review_script": review_script,
         "finalization": finalization,
         "cnv_content": _plot_content(report, plot_images, "cnv"),

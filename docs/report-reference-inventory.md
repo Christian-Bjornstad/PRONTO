@@ -33,6 +33,12 @@ Reference: `C:/Users/molpa/Documents/Inpred/report.html` (964 lines; `prototype/
 
 Variant rows are keyed by `occurrenceId`, while their human review is joined by `variantId`. Annotated facts remain separate from core fields, so an annotation cannot overwrite a gene or allele-frequency value. Value corrections remain a separate list with original value, corrected value, reason, author, and timestamp; projection never replaces the source fact. The validator enforces the audit fields before data reaches this function. The projector rejects duplicate biomarker IDs and unknown/duplicate variant reviews rather than silently hiding them.
 
+## Current key-findings working copy
+
+In a DRAFT preview, **Edit mode** reveals local correction controls for source-backed TMB/MSI and the supported `sample.tumourType`/`sample.specimenType` fields. A correction keeps the original source value visible and requires a reason; it is held only in page memory. The legacy JSON download is disabled while source corrections are pending because that file cannot yet represent/save them reliably. The top-bar **Lagre** button remains disabled until the authenticated database workflow in Tasks 24–27 is implemented. Unmapped LocalApp TMB, CNV/amplification, fusion/splicing and patient-context fields remain explicitly unavailable, rather than accepting invented values.
+
+The key-findings table lists source occurrences with a non-empty `proteinChange`, retaining their occurrence IDs and source allele frequency. The reference's "coding status" filter is not reproduced: that field is not in the validated contract. Review decisions are kept in Variantgjennomgang instead of being inferred from source annotations.
+
 ## Follow-up visual baseline
 
 The original HTML file is local and outside the repository; neither the file nor masked screenshots should be committed automatically. A browser navigation to its `file:` URL was blocked by the active browser security policy. No alternative browser route was used to bypass that restriction. Desktop/mobile screenshots therefore remain an open Task 16 item for an approved, permitted capture workflow or user-supplied screenshots. Code-level interaction inventory and source-gap checks can proceed meanwhile; visual parity cannot be signed off without the screenshots and clinical-user review.

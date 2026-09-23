@@ -114,19 +114,84 @@ def test_tmb_gauge_edits_only_page_memory_and_blocks_stale_download(browser):
         context, page, diagnostics, requests = _page(browser, html)
         try:
             page.goto(url)
+            page.locator("#edit-btn").click()
             gauge = page.locator("#tmb-gauge")
             gauge.focus()
             gauge.press("ArrowRight")
             assert page.locator('[data-metric="tmb"] .metric-card__value').inner_text() == "15 mut/Mb"
-            assert page.locator("#dirty-lbl").inner_text() == "Ulagret TMB-korreksjon"
+            assert page.locator("#dirty-lbl").inner_text() == "Ulagrede kildekorreksjoner"
             assert page.locator("#tmb-correction-reason").is_enabled()
             assert page.locator("#download-review").is_disabled()
+            assert page.locator("#tmb-correction-reason").get_attribute("required") is not None
+            assert page.locator("#tmb-correction-status").is_visible()
             gauge.click(position={"x": 12, "y": 10})
             assert gauge.input_value() != "14.9"
             assert requests == [url]
             assert diagnostics == []
             page.reload()
             assert page.locator('[data-metric="tmb"] .metric-card__value').inner_text() == "14,9 mut/Mb"
+        finally:
+            context.close()
+
+
+def test_empty_tmb_number_cannot_become_zero_correction(browser):
+    report = build_report()
+    html = render_html(report, draft_review(report), inline_assets=True)
+    with _serve(html) as url:
+        context, page, diagnostics, requests = _page(browser, html)
+        try:
+            page.goto(url)
+            page.locator("#edit-btn").click()
+            number = page.locator("#tmb-edit-value")
+            number.fill("")
+            number.blur()
+            assert page.locator('[data-metric="tmb"] .metric-card__value').inner_text() == "14,9 mut/Mb"
+            assert page.locator("#download-review").is_enabled()
+            assert requests == [url]
+            assert diagnostics == []
+        finally:
+            context.close()
+
+
+def test_patient_context_edit_keeps_source_visible_and_needs_reason(browser):
+    report = build_report()
+    html = render_html(report, draft_review(report), inline_assets=True)
+    with _serve(html) as url:
+        context, page, diagnostics, requests = _page(browser, html)
+        try:
+            page.goto(url)
+            page.locator("#edit-btn").click()
+            field = page.locator('[data-fact="tumourType"]')
+            assert field.locator('[data-source-value="Ikke oppgitt"]').count() == 1
+            field.locator('[data-correction-path="/sample/tumourType"]').fill("Lunge")
+            field.locator('[data-correction-path="/sample/tumourType"]').blur()
+            assert field.locator("dd").inner_text() == "Lunge"
+            assert field.locator("#tumourType-correction-reason").is_enabled()
+            assert field.get_attribute("data-availability") == "UNAVAILABLE"
+            assert page.locator("#download-review").is_disabled()
+            assert requests == [url]
+            assert diagnostics == []
+        finally:
+            context.close()
+
+
+def test_msi_kpi_edit_is_local_and_does_not_change_source_label(browser):
+    report = build_report()
+    html = render_html(report, draft_review(report), inline_assets=True)
+    with _serve(html) as url:
+        context, page, diagnostics, requests = _page(browser, html)
+        try:
+            page.goto(url)
+            page.locator("#edit-btn").click()
+            page.locator("#msi-edit-value").fill("5.2")
+            page.locator("#msi-edit-value").blur()
+            card = page.locator('[data-metric="msi"]')
+            assert card.locator(".metric-card__value").inner_text() == "5,2 %"
+            assert "4.13 (5/121)" in card.locator(".metric-card__detail").inner_text()
+            assert page.locator("#msi-correction-reason").is_enabled()
+            assert page.locator("#download-review").is_disabled()
+            assert requests == [url]
+            assert diagnostics == []
         finally:
             context.close()
 

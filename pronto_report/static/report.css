@@ -390,6 +390,36 @@ button {
   font-size: 0.75rem;
 }
 
+.metric-edit {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.metric-edit input {
+  min-height: 2.25rem;
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  background: #fffbeb;
+}
+
+.metric-card[data-correction-pending="true"] .metric-card__value {
+  color: var(--color-warning);
+}
+
+.report-edit-controls[hidden] {
+  display: none;
+}
+
+.tmb-gauge #tmb-correction-status {
+  margin: 0.25rem 0 0;
+  color: var(--color-warning);
+  font-size: 0.75rem;
+}
+
 .tmb-gauge input[type="range"] {
   width: 100%;
   margin: 0.25rem 0;
@@ -426,6 +456,14 @@ button {
   margin: 0 0 1rem;
 }
 
+.key-variants {
+  margin-top: var(--space-5);
+}
+
+.key-variants .section-heading {
+  margin-bottom: var(--space-3);
+}
+
 .patient-strip__fact {
   min-width: 0;
   padding: 0.5rem 0.75rem;
@@ -451,6 +489,34 @@ button {
 
 .patient-strip__fact[data-availability="UNAVAILABLE"] dd {
   color: var(--color-text-muted);
+}
+
+.patient-strip__fact[data-correction-pending="true"] dd {
+  color: var(--color-warning);
+  font-weight: 700;
+}
+
+.patient-strip__source {
+  display: block;
+  margin-top: 0.125rem;
+  color: var(--color-text-muted);
+  font-size: 0.625rem;
+}
+
+.patient-strip__edit {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  font-size: 0.6875rem;
+}
+
+.patient-strip__edit input {
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  background: #fffbeb;
 }
 
 .table-toolbar {
@@ -720,6 +786,10 @@ button {
 
   .table-scroll table {
     min-width: 52rem;
+  }
+
+  .key-variants .table-scroll table {
+    min-width: 24rem;
   }
 
   .report-tabs {
