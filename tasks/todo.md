@@ -286,14 +286,14 @@
 **Description:** Render the remaining reference-report surfaces from declared assets and review notes.
 
 **Acceptance criteria:**
-- [ ] Plot switcher, captions, enlargement, and focus return work.
-- [ ] QC cards include text status and declared thresholds.
-- [ ] Tumour-board view shows only eligible reviewed findings and explicit sign-off state.
+- [x] Plot switcher, captions, enlargement, and focus return work.
+- [x] QC cards include text status and declared thresholds.
+- [x] Tumour-board view shows only eligible reviewed findings and explicit sign-off state.
 
 **Verification:**
-- [ ] Renderer tests cover missing and present plots/QC.
-- [ ] Browser keyboard and focus tests pass.
-- [ ] Print preview contains the required report sections.
+- [x] Renderer tests cover missing and present plots/QC.
+- [x] Browser keyboard and focus tests pass.
+- [x] Print preview contains the required report sections.
 
 **Dependencies:** Tasks 10–12
 
@@ -311,14 +311,14 @@
 **Description:** Bundle validated data, review state, styles, scripts, and approved assets into a deterministic offline HTML artifact.
 
 **Acceptance criteria:**
-- [ ] Export makes no external network request.
-- [ ] Content is escaped and CSP-compatible.
-- [ ] Output includes schema/generator/source provenance.
+- [x] Export makes no external network request.
+- [x] Content is escaped and CSP-compatible.
+- [x] Output includes schema/generator/source provenance.
 
 **Verification:**
-- [ ] RED/GREEN bundling tests.
-- [ ] Repeat exports are byte-identical apart from declared timestamp fields.
-- [ ] Browser network log shows no external request.
+- [x] RED/GREEN bundling tests.
+- [x] Repeat exports are byte-identical apart from declared timestamp fields.
+- [x] Browser network log shows no external request.
 
 **Dependencies:** Tasks 10–13
 
@@ -334,14 +334,14 @@
 **Description:** Establish the automated and manual quality gate for the standalone renderer before Django work begins.
 
 **Acceptance criteria:**
-- [ ] Critical keyboard, responsive, print, console, and accessibility flows are automated.
-- [ ] Key PPTX and HTML values are compared from the same fixture.
-- [ ] Known intentional presentation differences are documented.
+- [x] Critical keyboard, responsive, print, console, and accessibility flows are automated.
+- [x] Key PPTX and HTML values are compared from the same fixture.
+- [x] Known intentional presentation differences are documented.
 
 **Verification:**
-- [ ] Full pytest suite passes.
-- [ ] Browser suite passes with zero console errors/warnings.
-- [ ] Existing OUS/HUS flow still succeeds.
+- [x] Full pytest suite passes.
+- [x] Browser suite passes with zero console errors/warnings.
+- [x] Existing OUS/HUS flow still succeeds.
 
 **Dependencies:** Tasks 9–14
 
@@ -354,6 +354,6 @@
 
 ## Checkpoint: Standalone HTML complete
 
-- [ ] All approved module success criteria are met.
-- [ ] Definition of Done passes.
+- [x] All approved module success criteria are met.
+- [ ] Definition of Done passes (venter på menneskelig gjennomgang før merge).
 - [ ] Human approves the standalone renderer before `review-workflow` and Django specifications begin.

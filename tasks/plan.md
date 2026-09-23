@@ -70,18 +70,18 @@ key/variant UI        plots/QC/MDT UI
 - [x] Task 10: Add the renderer shell, design tokens, and five accessible tab panels.
 - [x] Task 11: Render key findings and the variant review table from `ReportData`.
 - [x] Task 12: Add review-state presentation with separate decision and classification controls.
-- [ ] Task 13: Render CNV plots, sequencing QC, and the tumour-board surface.
-- [ ] Task 14: Produce a deterministic self-contained HTML export.
-- [ ] Task 15: Add browser, accessibility, responsive, print, and console verification.
+- [x] Task 13: Render CNV plots, sequencing QC, and the tumour-board surface.
+- [x] Task 14: Produce a deterministic self-contained HTML export.
+- [x] Task 15: Add browser, accessibility, responsive, print, and console verification.
 
 ### Checkpoint: Standalone HTML
 
-- [ ] The approved fixture renders all five surfaces from the contract.
-- [ ] The visual hierarchy is recognizably based on the local reference report.
-- [ ] No whole-page horizontal overflow at 375, 768, 1024, or 1440 px.
-- [ ] Keyboard tabs, filtering, sorting, plots, focus return, and print mode work.
-- [ ] FINAL output is read-only and carries provenance.
-- [ ] Existing PPTX output remains available.
+- [x] The approved fixture renders all five surfaces from the contract.
+- [x] The visual hierarchy is recognizably based on the local reference report.
+- [x] No whole-page horizontal overflow at 375, 768, 1024, or 1440 px.
+- [x] Keyboard tabs, filtering, sorting, plots, focus return, and print mode work.
+- [x] FINAL output is read-only and carries provenance.
+- [x] Existing PPTX output remains available.
 
 ### Phase 4: Next approved planning gate
 
