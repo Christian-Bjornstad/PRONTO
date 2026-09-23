@@ -48,6 +48,33 @@
     if (hashTab) activateTab(hashTab, { focus: false, updateHash: false });
   }
 
+  const tmbGauge = document.getElementById("tmb-gauge");
+  if (tmbGauge) {
+    const number = document.getElementById("tmb-edit-value");
+    const reason = document.getElementById("tmb-correction-reason");
+    const display = document.querySelector('[data-metric="tmb"] .metric-card__value');
+    const dirtyLabel = document.getElementById("dirty-lbl");
+    const reviewDownload = document.getElementById("download-review");
+    const original = Number(tmbGauge.dataset.originalValue);
+    let pendingTmbCorrection = null;
+
+    function updateTmb(raw) {
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value < 0) return;
+      pendingTmbCorrection = value === original ? null : { originalValue: original, correctedValue: value };
+      number.value = String(value);
+      tmbGauge.value = String(Math.min(value, Number(tmbGauge.max)));
+      display.textContent = `${new Intl.NumberFormat("nb-NO", { maximumFractionDigits: 1 }).format(value)} mut/Mb`;
+      reason.disabled = pendingTmbCorrection === null;
+      if (!pendingTmbCorrection) reason.value = "";
+      dirtyLabel.textContent = pendingTmbCorrection ? "Ulagret TMB-korreksjon" : "Kun lokal visning";
+      if (reviewDownload) reviewDownload.disabled = pendingTmbCorrection !== null;
+    }
+
+    tmbGauge.addEventListener("input", () => updateTmb(tmbGauge.value));
+    number.addEventListener("change", () => updateTmb(number.value));
+  }
+
   const table = document.getElementById("variant-table");
   const search = document.getElementById("variant-search");
   if (!table || !search) return;

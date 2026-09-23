@@ -99,12 +99,36 @@ def test_offline_export_is_responsive_and_makes_no_external_requests(browser):
             context, page, diagnostics, requests = _page(browser, html, width)
             try:
                 page.goto(url)
-                assert page.get_by_role("heading", name="PRONTO-rapport").is_visible()
+                assert page.get_by_role("heading", name="InPreD · MTB Report").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
                 assert requests == [url]
                 assert diagnostics == []
             finally:
                 context.close()
+
+
+def test_tmb_gauge_edits_only_page_memory_and_blocks_stale_download(browser):
+    report = build_report()
+    html = render_html(report, draft_review(report), inline_assets=True)
+    with _serve(html) as url:
+        context, page, diagnostics, requests = _page(browser, html)
+        try:
+            page.goto(url)
+            gauge = page.locator("#tmb-gauge")
+            gauge.focus()
+            gauge.press("ArrowRight")
+            assert page.locator('[data-metric="tmb"] .metric-card__value').inner_text() == "15 mut/Mb"
+            assert page.locator("#dirty-lbl").inner_text() == "Ulagret TMB-korreksjon"
+            assert page.locator("#tmb-correction-reason").is_enabled()
+            assert page.locator("#download-review").is_disabled()
+            gauge.click(position={"x": 12, "y": 10})
+            assert gauge.input_value() != "14.9"
+            assert requests == [url]
+            assert diagnostics == []
+            page.reload()
+            assert page.locator('[data-metric="tmb"] .metric-card__value').inner_text() == "14,9 mut/Mb"
+        finally:
+            context.close()
 
 
 def test_keyboard_table_plots_focus_and_print(browser):
@@ -123,6 +147,7 @@ def test_keyboard_table_plots_focus_and_print(browser):
             page.goto(url)
             tab = page.get_by_role("tab", name="Nøkkelfunn")
             tab.focus()
+            assert tab.evaluate("element => getComputedStyle(element).outlineStyle !== 'none'")
             tab.press("ArrowRight")
             assert page.get_by_role("tab", name="Variantgjennomgang").get_attribute("aria-selected") == "true"
             page.locator("#variant-search").fill("TERT")

@@ -394,9 +394,9 @@ PR #4 on the strength of Tasks 10–15 alone. Follow Tasks 16–29 below.
 **Description:** Map immutable report facts, review fields, and stable variant/occurrence IDs into a frontend display model shaped for the original interaction flow.
 
 **Acceptance criteria:**
-- [ ] All projected clinical facts carry source provenance or an unavailable marker.
-- [ ] Duplicate occurrences remain visible while shared decisions use stable `variantId`.
-- [ ] Corrections remain separate from source facts and require reason/author/time at save.
+- [x] All projected clinical facts carry source provenance or an unavailable marker.
+- [x] Duplicate occurrences remain visible while shared decisions use stable `variantId`.
+- [x] Corrections remain separate from source facts and require reason/author/time at save.
 
 **Verification:** Fixture-based projection tests including missing fields, duplicate TERT occurrences, and corrections.
 
@@ -407,9 +407,9 @@ PR #4 on the strength of Tasks 10–15 alone. Follow Tasks 16–29 below.
 **Description:** Replace PR #4's simplified shell with maintainable templates and CSS matching the reference top bar, tabs, spacing, palette, density, KPI cards, and patient strip.
 
 **Acceptance criteria:**
-- [ ] Five familiar tabs and header controls appear in the original hierarchy.
+- [x] Five familiar tabs and header controls appear in the original hierarchy.
 - [ ] Desktop/mobile masked comparisons show no unexplained layout drift.
-- [ ] Keyboard tab navigation and focus visibility meet the existing accessibility bar.
+- [x] Keyboard tab navigation and focus visibility meet the existing accessibility bar.
 
 **Verification:** Browser screenshots at 375, 768, 1024, and 1440 px; tab/console/accessibility checks; owner-visible comparison.
 

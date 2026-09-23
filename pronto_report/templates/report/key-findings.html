@@ -1,19 +1,5 @@
 <section class="report-panel" role="tabpanel" id="panel-key-findings" aria-labelledby="tab-key-findings">
-  <div class="section-heading">
-    <div>
-      <p class="section-heading__eyebrow">Oversikt</p>
-      <h2>Nøkkelfunn</h2>
-    </div>
-    <p class="section-heading__description">Prioriterte funn, biomarkører og prøvekontekst.</p>
-  </div>
-  <div class="findings-grid">
-    <div>
-      <h3>Prøve og analyse</h3>
-      <dl class="facts-list">{{ case_facts }}</dl>
-    </div>
-    <div>
-      <h3>Biomarkører fra kilde</h3>
-      <div class="metrics-grid">{{ biomarker_cards }}</div>
-    </div>
-  </div>
+  <h2 class="visually-hidden">Nøkkelfunn</h2>
+  <div class="metrics-grid">{{ biomarker_cards }}</div>
+  <dl class="patient-strip">{{ case_facts }}</dl>
 </section>
