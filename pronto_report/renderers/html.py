@@ -80,7 +80,7 @@ def _case_facts(ui: Mapping[str, Any]) -> str:
     )
 
 
-def _biomarker_cards(ui: Mapping[str, Any], has_biomarkers: bool) -> str:
+def _biomarker_cards(ui: Mapping[str, Any], has_biomarkers: bool, editable: bool) -> str:
     cards = []
     primary = (("tmb", "TMB"), ("msi", "MSI"), ("localapp_tmb", "LocalApp TMB"))
     extra = (
@@ -95,12 +95,30 @@ def _biomarker_cards(ui: Mapping[str, Any], has_biomarkers: bool) -> str:
         source = biomarker.get("source") or {}
         raw = source.get("rawValue")
         detail = f'Kildeverdi: {escape(str(raw))}' if raw is not None else "Ikke oppgitt i kildedata"
+        gauge = ""
+        if metric_id == "tmb" and editable and isinstance(biomarker["value"], (int, float)):
+            original = escape(str(biomarker["value"]), quote=True)
+            gauge = (
+                '<div class="tmb-gauge">'
+                f'<label for="tmb-gauge">Juster TMB (mut/Mb)</label>'
+                f'<input id="tmb-gauge" type="range" min="0" max="30" step="0.1" '
+                f'value="{original}" data-original-value="{original}">'
+                '<div class="tmb-gauge__legend"><span>0</span><span>5</span>'
+                '<span>20</span><span>30+</span></div>'
+                '<label for="tmb-edit-value">TMB-verdi</label>'
+                f'<input id="tmb-edit-value" type="number" min="0" step="0.1" value="{original}">'
+                '<label for="tmb-correction-reason">Begrunnelse for korreksjon</label>'
+                '<input id="tmb-correction-reason" type="text" maxlength="10000" '
+                'placeholder="Påkrevd før lagring" disabled>'
+                '</div>'
+            )
         cards.append(
             f'<article class="metric-card" data-metric="{metric_id}" '
             f'data-availability="{biomarker["availability"]}">'
             f'<h3>{escape(label)}</h3>'
             f'<p class="metric-card__value">{escape(shown)}</p>'
             f'<p class="metric-card__detail">{detail}</p>'
+            f'{gauge}'
             '</article>'
         )
     empty = '<p class="empty-state">Ingen biomarkørverdier tilgjengelig i kildedata.</p>' if not has_biomarkers else ""
@@ -382,7 +400,9 @@ def render_html(
     }
     html_context = {
         "case_facts": _case_facts(ui),
-        "biomarker_cards": _biomarker_cards(ui, bool(report.biomarkers)),
+        "biomarker_cards": _biomarker_cards(
+            ui, bool(report.biomarkers), review is not None and review.status == "DRAFT"
+        ),
         "variant_rows": _variant_rows(report, review),
         "review_columns": review_columns,
         "review_toolbar": review_toolbar,

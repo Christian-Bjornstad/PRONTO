@@ -107,6 +107,30 @@ def test_offline_export_is_responsive_and_makes_no_external_requests(browser):
                 context.close()
 
 
+def test_tmb_gauge_edits_only_page_memory_and_blocks_stale_download(browser):
+    report = build_report()
+    html = render_html(report, draft_review(report), inline_assets=True)
+    with _serve(html) as url:
+        context, page, diagnostics, requests = _page(browser, html)
+        try:
+            page.goto(url)
+            gauge = page.locator("#tmb-gauge")
+            gauge.focus()
+            gauge.press("ArrowRight")
+            assert page.locator('[data-metric="tmb"] .metric-card__value').inner_text() == "15 mut/Mb"
+            assert page.locator("#dirty-lbl").inner_text() == "Ulagret TMB-korreksjon"
+            assert page.locator("#tmb-correction-reason").is_enabled()
+            assert page.locator("#download-review").is_disabled()
+            gauge.click(position={"x": 12, "y": 10})
+            assert gauge.input_value() != "14.9"
+            assert requests == [url]
+            assert diagnostics == []
+            page.reload()
+            assert page.locator('[data-metric="tmb"] .metric-card__value').inner_text() == "14,9 mut/Mb"
+        finally:
+            context.close()
+
+
 def test_keyboard_table_plots_focus_and_print(browser):
     report = build_report()
     cnv = next(asset for asset in report.attachments if "cnv" in asset["name"].lower())

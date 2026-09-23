@@ -383,6 +383,42 @@ button {
   font-size: 0.75rem;
 }
 
+.tmb-gauge {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.tmb-gauge input[type="range"] {
+  width: 100%;
+  margin: 0.25rem 0;
+  accent-color: var(--color-brand-900);
+  background: linear-gradient(90deg, #dcfce7 0 16.6%, #fef3c7 16.6% 66.6%, #fee2e2 66.6% 100%);
+}
+
+.tmb-gauge__legend {
+  display: flex;
+  justify-content: space-between;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+}
+
+.tmb-gauge input[type="number"],
+.tmb-gauge input[type="text"] {
+  min-height: 2.25rem;
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  background: #fffbeb;
+}
+
+.tmb-gauge input:disabled {
+  background: var(--color-brand-050);
+}
+
 .patient-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9.375rem, 1fr));
@@ -744,6 +780,10 @@ button {
 }
 
 @media print {
+  .tmb-gauge {
+    display: none;
+  }
+
   .visually-hidden {
     position: static;
     width: auto;
