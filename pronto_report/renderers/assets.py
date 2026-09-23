@@ -5,6 +5,7 @@ from __future__ import annotations
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
+from typing import Mapping
 
 from pronto_report.models import ReportData
 
@@ -56,6 +57,31 @@ def load_plot_images(report: ReportData, root: Path) -> dict[str, tuple[tuple[st
         if sha256(payload).hexdigest() != attachment["sha256"]:
             raise ValueError("Declared attachment hash mismatch")
         asset_id = str(attachment["assetId"])
+        images[asset_id] = (
+            _pdf_pages(payload) if media_type == "application/pdf" else ((media_type, payload),)
+        )
+    return images
+
+
+def load_plot_images_from_bytes(
+    report: ReportData, blobs: Mapping[str, bytes]
+) -> dict[str, tuple[tuple[str, bytes], ...]]:
+    """Verify private stored assets before embedding them in an authorized page."""
+    declared = {str(item["assetId"]): item for item in report.attachments}
+    if set(blobs) - set(declared):
+        raise ValueError("Stored asset is not declared by the report")
+    images = {}
+    for asset_id, attachment in declared.items():
+        media_type = str(attachment["mediaType"])
+        if media_type not in {"image/png", "image/jpeg", "application/pdf"}:
+            continue
+        if asset_id not in blobs:
+            raise ValueError("Declared report asset is missing")
+        payload = bytes(blobs[asset_id])
+        if len(payload) > _MAX_ATTACHMENT_BYTES:
+            raise ValueError("Declared attachment exceeds size limit")
+        if sha256(payload).hexdigest() != attachment["sha256"]:
+            raise ValueError("Declared attachment hash mismatch")
         images[asset_id] = (
             _pdf_pages(payload) if media_type == "application/pdf" else ((media_type, payload),)
         )

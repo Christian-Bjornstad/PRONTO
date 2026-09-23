@@ -498,9 +498,12 @@ atomicity, CSRF, and HTTP authorization are implemented in Tasks 25–28.
 **Description:** Add a minimal Django project that serves one approved report and its latest saved review through the reference-style UI, without a write path yet.
 
 **Acceptance criteria:**
-- [ ] Unauthenticated users and users without report access cannot retrieve report, review, or assets.
-- [ ] An authorized user sees the validated fixture in the familiar UI.
-- [ ] Django delegates projection/rendering to `pronto_report` rather than duplicating clinical calculations.
+- [x] Unauthenticated users and users without report access cannot retrieve report, review, or assets.
+- [x] An authorized user sees the validated fixture in the familiar UI.
+- [x] Django delegates projection/rendering to `pronto_report` rather than duplicating clinical calculations.
+
+The first slice is read-only. Fixture data is seeded only by Django tests; see
+`docs/django-read-slice.md` for setup and deployment limitations.
 
 **Verification:** Django request tests for authentication, report-level authorization, fixture rendering, and asset access; existing tests still pass.
 
