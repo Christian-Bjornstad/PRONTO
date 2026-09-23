@@ -184,40 +184,60 @@
   const search = document.getElementById("variant-search");
   if (!table || !search) return;
   const rows = Array.from(table.tBodies[0].querySelectorAll("tr[data-occurrence-id]"));
+  const commentsByVariant = new Map();
+  rows.forEach((row) => {
+    const comment = row.querySelector('textarea[data-review-field="comment"]');
+    if (!comment) return;
+    const peers = commentsByVariant.get(comment.dataset.variantId) || [];
+    peers.push(comment);
+    commentsByVariant.set(comment.dataset.variantId, peers);
+  });
   const count = document.getElementById("variant-count");
   const noMatch = document.getElementById("variant-no-match");
-  const decisionButtons = Array.from(document.querySelectorAll("[data-decision-filter]"));
-  let decisionFilter = "all";
+  const reviewFilterButtons = Array.from(document.querySelectorAll("[data-review-filter]"));
+  const bulkButtons = Array.from(document.querySelectorAll("[data-bulk-decision]"));
+  let reviewFilter = "all";
 
   function decisionForRow(row) {
     return row.querySelector('select[data-review-field="reportingDecision"]')?.value || "UNREVIEWED";
+  }
+
+  function classificationForRow(row) {
+    return row.querySelector('select[data-review-field="clinicalClassification"]')?.value || "UNCLASSIFIED";
   }
 
   function filterRows() {
     const query = search.value.trim().toLocaleLowerCase("nb");
     let visible = 0;
     rows.forEach((row) => {
-      row.hidden = !row.dataset.search.includes(query) ||
-        (decisionFilter !== "all" && decisionForRow(row) !== decisionFilter);
+      const matchesReview = reviewFilter === "all" ||
+        (reviewFilter === "PATHOGENIC" || reviewFilter === "UNCERTAIN"
+          ? classificationForRow(row) === reviewFilter
+          : decisionForRow(row) === reviewFilter);
+      row.hidden = !row.dataset.search.includes(query) || !matchesReview;
       if (!row.hidden) visible += 1;
     });
     count.textContent = `${visible} av ${rows.length} forekomster`;
     noMatch.hidden = visible !== 0 || rows.length === 0;
+    const hasEligible = rows.some((row) => !row.hidden && decisionForRow(row) === "UNREVIEWED");
+    bulkButtons.forEach((button) => { button.disabled = !hasEligible; });
   }
   search.addEventListener("input", filterRows);
 
   function updateReviewSummary() {
-    if (!decisionButtons.length) return;
-    const counts = { all: rows.length, INCLUDE: 0, EXCLUDE: 0, UNREVIEWED: 0 };
+    if (!reviewFilterButtons.length) return;
+    const counts = { all: rows.length, INCLUDE: 0, EXCLUDE: 0, UNREVIEWED: 0, PATHOGENIC: 0, UNCERTAIN: 0 };
     const uniqueDecisions = new Map();
     rows.forEach((row) => {
       const decision = decisionForRow(row);
       counts[decision] += 1;
+      const classification = classificationForRow(row);
+      if (classification in counts) counts[classification] += 1;
       const variantId = row.querySelector("select[data-variant-id]").dataset.variantId;
       uniqueDecisions.set(variantId, decision);
     });
-    decisionButtons.forEach((button) => {
-      button.querySelector("span").textContent = String(counts[button.dataset.decisionFilter]);
+    reviewFilterButtons.forEach((button) => {
+      button.querySelector("span").textContent = String(counts[button.dataset.reviewFilter]);
     });
     const reviewed = Array.from(uniqueDecisions.values()).filter((decision) => decision !== "UNREVIEWED").length;
     const progress = document.getElementById("review-progress-bar");
@@ -228,9 +248,9 @@
     filterRows();
   }
 
-  decisionButtons.forEach((button) => button.addEventListener("click", () => {
-    decisionFilter = button.dataset.decisionFilter;
-    decisionButtons.forEach((item) => {
+  reviewFilterButtons.forEach((button) => button.addEventListener("click", () => {
+    reviewFilter = button.dataset.reviewFilter;
+    reviewFilterButtons.forEach((item) => {
       item.setAttribute("aria-pressed", String(item === button));
     });
     filterRows();
@@ -287,15 +307,13 @@
   const reviewData = document.getElementById("review-state-data");
   if (!reviewData) return;
   const reviewState = JSON.parse(reviewData.textContent);
+  const activities = new Map(reviewState.variantReviews.map((item) => [item.variantId, item]));
   const feedback = document.getElementById("review-feedback");
   const download = document.getElementById("download-review");
   updateReviewSummary();
 
-  table.tBodies[0].addEventListener("change", (event) => {
-    const control = event.target.closest("select[data-review-field]");
-    if (!control || reviewState.status === "FINAL") return;
-    const variantId = control.dataset.variantId;
-    let activity = reviewState.variantReviews.find((item) => item.variantId === variantId);
+  function activityFor(variantId) {
+    let activity = activities.get(variantId);
     if (!activity) {
       activity = {
         variantId,
@@ -303,8 +321,38 @@
         clinicalClassification: "UNCLASSIFIED",
         igvAssessment: "NOT_REVIEWED",
       };
+      activities.set(variantId, activity);
       reviewState.variantReviews.push(activity);
     }
+    return activity;
+  }
+
+  bulkButtons.forEach((button) => button.addEventListener("click", () => {
+    if (reviewState.status !== "DRAFT") return;
+    const eligible = new Set(rows.filter((row) => !row.hidden && decisionForRow(row) === "UNREVIEWED")
+      .map((row) => row.querySelector("select[data-variant-id]").dataset.variantId));
+    if (!eligible.size) return;
+    const noun = eligible.size === 1 ? "unik variant" : "unike varianter";
+    const action = button.dataset.bulkDecision === "INCLUDE" ? "inkludert" : "ekskludert";
+    if (!window.confirm(`Merk ${eligible.size} ${noun} som ${action}? Kun synlige, ikke-vurderte varianter endres. Kodende status er ikke verifisert.`)) return;
+    eligible.forEach((variantId) => {
+      activityFor(variantId).reportingDecision = button.dataset.bulkDecision;
+    });
+    rows.forEach((row) => {
+      const select = row.querySelector('select[data-review-field="reportingDecision"]');
+      if (eligible.has(select.dataset.variantId)) select.value = button.dataset.bulkDecision;
+    });
+    reviewDirty = true;
+    refreshDirty();
+    updateReviewSummary();
+    feedback.textContent = `${eligible.size} ${noun} endret lokalt. Endringene er ikke lagret.`;
+  }));
+
+  table.tBodies[0].addEventListener("change", (event) => {
+    const control = event.target.closest("select[data-review-field]");
+    if (!control || reviewState.status === "FINAL") return;
+    const variantId = control.dataset.variantId;
+    const activity = activityFor(variantId);
     activity[control.dataset.reviewField] = control.value;
     reviewDirty = true;
     refreshDirty();
@@ -314,6 +362,19 @@
       }
     });
     updateReviewSummary();
+    feedback.textContent = "Endringer er ikke lagret. Last ned ReviewState for å bevare dem.";
+  });
+
+  table.tBodies[0].addEventListener("input", (event) => {
+    const control = event.target.closest('textarea[data-review-field="comment"]');
+    if (!control || reviewState.status === "FINAL") return;
+    const variantId = control.dataset.variantId;
+    activityFor(variantId).comment = control.value;
+    (commentsByVariant.get(variantId) || []).forEach((peer) => {
+      if (peer !== control && peer.dataset.variantId === variantId) peer.value = control.value;
+    });
+    reviewDirty = true;
+    refreshDirty();
     feedback.textContent = "Endringer er ikke lagret. Last ned ReviewState for å bevare dem.";
   });
 

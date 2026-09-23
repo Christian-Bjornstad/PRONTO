@@ -433,9 +433,9 @@ PR #4 on the strength of Tasks 10–15 alone. Follow Tasks 16–29 below.
 **Description:** Restore the reference's chips, search, sort, per-variant judgements/comments, progress, and confirmed bulk include/exclude.
 
 **Acceptance criteria:**
-- [ ] Decision and clinical classification remain independent, including duplicate occurrences.
-- [ ] Filters and sorting never change the underlying occurrence/review IDs.
-- [ ] Bulk actions affect only eligible unreviewed variants and require confirmation.
+- [x] Decision and clinical classification remain independent, including duplicate occurrences.
+- [x] Filters and sorting never change the underlying occurrence/review IDs.
+- [x] Bulk actions affect only eligible unreviewed variants and require confirmation.
 
 **Verification:** Focused browser tests for search, chips, sorting, duplicate TERT rows, progress, bulk confirmation, and dirty state.
 
