@@ -108,7 +108,8 @@ def test_renderer_exposes_identity_and_text_status_without_color_only_meaning():
 
 def test_approved_report_renders_source_biomarkers_and_every_variant_occurrence():
     document = render_html(approved_report())
-    tags = parse(document)
+    review_panel = document.split('id="panel-variant-review"', 1)[1].split("</section>", 1)[0]
+    tags = parse(review_panel)
 
     assert "14,9 mut/Mb" in document
     assert "4,13 %" in document

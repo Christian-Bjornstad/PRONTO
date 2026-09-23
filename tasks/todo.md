@@ -420,9 +420,9 @@ PR #4 on the strength of Tasks 10–15 alone. Follow Tasks 16–29 below.
 **Description:** Restore original KPI, patient/context, and gauge interactions using a page-memory working copy, not browser storage or network writes.
 
 **Acceptance criteria:**
-- [ ] KPI/patient edits and pointer/keyboard gauge changes update the view and dirty indicator only.
+- [x] KPI/patient edits and pointer/keyboard gauge changes update the view and dirty indicator only.
 - [ ] Source-derived changes are distinguishable from immutable `ReportData` and prompt for a correction reason at save.
-- [ ] Missing fixture facts remain labeled unavailable.
+- [x] Missing fixture facts remain labeled unavailable.
 
 **Verification:** Browser tests assert live interaction, zero write requests before **Lagre**, keyboard gauge access, and no console errors.
 

@@ -1,5 +1,6 @@
 """The report shell keeps the recognizable reference hierarchy without fake facts."""
 
+from dataclasses import replace
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -41,8 +42,45 @@ def test_patient_strip_and_kpis_use_approved_facts_with_explicit_gaps():
     assert "14,9 mut/Mb" in html
     assert "4,13 %" in html
     assert "LocalApp TMB" in html
+    assert "Variants · include" in html
+    assert "CNV / amplifications" in html
+    assert "Fusions / splicing" in html
     assert "Ikke oppgitt" in html
     assert "CNS/Brain" not in html
+
+
+def test_key_findings_summary_uses_only_source_backed_protein_changes():
+    report = build_report()
+    html = render_html(report)
+    panel = html.split('id="panel-key-findings"', 1)[1].split("</section>", 1)[0]
+    expected = [variant for variant in report.variants if variant.get("proteinChange")]
+
+    assert "Varianter med oppgitt proteinendring" in panel
+    assert "Coding status" not in panel
+    assert panel.count('class="key-variant-row"') == len(expected)
+    for variant in expected:
+        assert f'data-occurrence-id="{variant["occurrenceId"]}"' in panel
+
+
+def test_key_findings_summary_handles_missing_protein_changes():
+    report = build_report()
+    report = replace(report, variants=tuple({**variant, "proteinChange": ""} for variant in report.variants))
+    html = render_html(report)
+    panel = html.split('id="panel-key-findings"', 1)[1].split("</section>", 1)[0]
+
+    assert 'class="key-variant-row"' not in panel
+    assert "Ingen varianter med oppgitt proteinendring" in panel
+
+
+def test_key_findings_summary_displays_zero_frequency_as_zero_percent():
+    report = build_report()
+    variants = list(report.variants)
+    variants[0] = {**variants[0], "proteinChange": "p.Test", "alleleFrequency": 0.0}
+    panel = render_html(replace(report, variants=tuple(variants))).split(
+        'id="panel-key-findings"', 1
+    )[1].split("</section>", 1)[0]
+
+    assert "p.Test</td><td>0 %" in panel
 
 
 def test_reference_visual_tokens_are_used_without_remote_font_dependency():
