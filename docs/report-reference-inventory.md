@@ -25,7 +25,13 @@ Reference: `C:/Users/molpa/Documents/Inpred/report.html` (964 lines; `prototype/
 | CNV and sample-QC images | Three declared, SHA-256-verified attachments: one CNV PDF and two QC PNGs. Structured QC metrics are absent in this fixture. |
 | Patient sex/age, tumour type, sample type/material, tumour content, study/hospitals, batch, pipeline | Present in prototype sample JSON or its slide-derived data, but absent from the approved `ReportData` mapping. Show unavailable until a source and policy-approved mapping are added. The pseudonym is **not** a substitute for a clinical identity field. |
 | LocalApp TMB, TMB/MSI category, amplifications, fusions/splicing, detailed QC thresholds | Reference/prototype displays values and derived labels not currently traceable to the four mapped sources. Do not transplant their demo values, `1.27 Mb` denominator, category cutoffs, or green/red QC outcomes into `ReportData`. |
-| Summary, biomarker/therapeutic context, additional comments, sign-off | Human review state. The v1 `ReviewState.reportNotes` field cannot represent the original three distinct notes without a versioned extension. |
+| Summary, biomarker/therapeutic context, additional comments, sign-off | Human `ReviewState` v2. A v1 `reportNotes` value migrates to `notes.importedLegacyNote`, separate from the three new fields. |
+
+## UI projection contract
+
+`pronto_report.renderers.projection.project_reference_ui` accepts validated, immutable `ReportData` and optional `ReviewState` snapshots. It returns JSON-ready UI data; it does not mutate either contract or infer missing clinical facts. Each displayed fact has an `availability` state, value, and source. Sample/run facts carry `REPORT_PROVENANCE` (report-level source files, **not** a claim of field-level lineage); biomarker and variant facts retain their more specific source references. Missing reference fields are `UNAVAILABLE` with no value or source. The frontend must render that state explicitly.
+
+Variant rows are keyed by `occurrenceId`, while their human review is joined by `variantId`. Annotated facts remain separate from core fields, so an annotation cannot overwrite a gene or allele-frequency value. Value corrections remain a separate list with original value, corrected value, reason, author, and timestamp; projection never replaces the source fact. The validator enforces the audit fields before data reaches this function. The projector rejects duplicate biomarker IDs and unknown/duplicate variant reviews rather than silently hiding them.
 
 ## Follow-up visual baseline
 

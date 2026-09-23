@@ -394,9 +394,9 @@ PR #4 on the strength of Tasks 10–15 alone. Follow Tasks 16–29 below.
 **Description:** Map immutable report facts, review fields, and stable variant/occurrence IDs into a frontend display model shaped for the original interaction flow.
 
 **Acceptance criteria:**
-- [ ] All projected clinical facts carry source provenance or an unavailable marker.
-- [ ] Duplicate occurrences remain visible while shared decisions use stable `variantId`.
-- [ ] Corrections remain separate from source facts and require reason/author/time at save.
+- [x] All projected clinical facts carry source provenance or an unavailable marker.
+- [x] Duplicate occurrences remain visible while shared decisions use stable `variantId`.
+- [x] Corrections remain separate from source facts and require reason/author/time at save.
 
 **Verification:** Fixture-based projection tests including missing fields, duplicate TERT occurrences, and corrections.
 
