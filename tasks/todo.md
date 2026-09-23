@@ -368,8 +368,8 @@ PR #4 on the strength of Tasks 10–15 alone. Follow Tasks 16–29 below.
 **Description:** Inventory each visible control and state in the local reference, and map every displayed value to an approved `ReportData` field, a review field, or an explicit unavailable state.
 
 **Acceptance criteria:**
-- [ ] A control matrix covers all five tabs, editing, filters, plots, notes, sign-off, and print.
-- [ ] A source-gap table identifies reference-only example values without copying them into the adapter.
+- [x] A control matrix covers all five tabs, editing, filters, plots, notes, sign-off, and print.
+- [x] A source-gap table identifies reference-only example values without copying them into the adapter.
 - [ ] Masked local screenshots are captured for desktop and mobile comparison without committing patient-like output.
 
 **Verification:** Review the matrix against `C:/Users/molpa/Documents/Inpred/report.html`; assert fixture field mapping with a focused pytest test; check the staged diff for generated reports.
