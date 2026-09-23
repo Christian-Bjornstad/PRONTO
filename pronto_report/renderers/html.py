@@ -240,6 +240,12 @@ def _review_select(
             (("UNCLASSIFIED", "Ikke klassifisert"), ("PATHOGENIC", "Patogen"),
              ("UNCERTAIN", "Usikker"), ("OTHER", "Annet")),
         ),
+        "igvAssessment": (
+            "IGV-vurdering",
+            (("NOT_REVIEWED", "Ikke vurdert"), ("SUPPORTS", "Støtter"),
+             ("DOES_NOT_SUPPORT", "Støtter ikke"), ("INCONCLUSIVE", "Uavklart"),
+             ("NOT_APPLICABLE", "Ikke relevant")),
+        ),
     }
     label, choices = labels[field]
     options = "".join(
@@ -256,7 +262,7 @@ def _review_select(
 
 def _variant_rows(report: ReportData, review: ReviewState | None) -> str:
     if not report.variants:
-        span = 9 if review is not None else 7
+        span = 11 if review is not None else 7
         return f'<tr><td colspan="{span}">Ingen varianter tilgjengelig i kildedata.</td></tr>'
     rows = []
     reviews = {item["variantId"]: item for item in review.variant_reviews} if review else {}
@@ -281,9 +287,18 @@ def _variant_rows(report: ReportData, review: ReviewState | None) -> str:
             activity = reviews.get(variant_id, {})
             decision = str(activity.get("reportingDecision", "UNREVIEWED"))
             classification = str(activity.get("clinicalClassification", "UNCLASSIFIED"))
+            igv = str(activity.get("igvAssessment", "NOT_REVIEWED"))
+            comment = str(activity.get("comment", ""))
+            disabled = " disabled" if review.status == "FINAL" else ""
             review_cells = (
                 "<td>" + _review_select(variant_id, occurrence_id, "reportingDecision", decision, review.status == "FINAL") + "</td>"
                 + "<td>" + _review_select(variant_id, occurrence_id, "clinicalClassification", classification, review.status == "FINAL") + "</td>"
+                + "<td>" + _review_select(variant_id, occurrence_id, "igvAssessment", igv, review.status == "FINAL") + "</td>"
+                + '<td><textarea aria-label="Vurderingskommentar for {}" data-variant-id="{}" '
+                  'data-review-field="comment" maxlength="10000" rows="2"{}>{}</textarea></td>'.format(
+                      escape(occurrence_id, quote=True), escape(variant_id, quote=True),
+                      disabled, escape(comment),
+                  )
             )
         rows.append(
             '<tr data-occurrence-id="{}" data-search="{}" data-vaf="{}">{}{}</tr>'.format(
@@ -466,13 +481,39 @@ def render_html(
     )
     review_columns = (
         '<th scope="col">Rapporteringsbeslutning</th><th scope="col">Klinisk klassifikasjon</th>'
+        '<th scope="col">IGV-vurdering</th>'
+        '<th scope="col">Vurderingskommentar</th>'
         if review is not None else ""
     )
     if review is None:
         review_toolbar = '<p class="review-notice">Ingen ReviewState er lastet inn. Gjennomgang er skrivebeskyttet.</p>'
+        review_filters = ""
+        review_actions = ""
         review_script = ""
         finalization = ""
     else:
+        review_filters = (
+            '<div class="review-filters" role="group" aria-label="Filtrer etter vurdering">'
+            '<button type="button" data-review-filter="all" aria-pressed="true">Alle <span>0</span></button>'
+            '<button type="button" data-review-filter="INCLUDE" aria-pressed="false">Inkludert <span>0</span></button>'
+            '<button type="button" data-review-filter="EXCLUDE" aria-pressed="false">Ekskludert <span>0</span></button>'
+            '<button type="button" data-review-filter="PATHOGENIC" aria-pressed="false">Patogen <span>0</span></button>'
+            '<button type="button" data-review-filter="UNCERTAIN" aria-pressed="false">Usikker <span>0</span></button>'
+            '<button type="button" data-review-filter="UNREVIEWED" aria-pressed="false">Ikke vurdert <span>0</span></button>'
+            '</div>'
+            '<p class="review-count-note">Filtertall viser forekomster; fremdrift teller unike varianter.</p>'
+            '<div class="review-progress">'
+            '<progress id="review-progress-bar" value="0" max="1" aria-label="Andel varianter vurdert"></progress>'
+            '<p id="review-progress" role="status" aria-live="polite">0 varianter vurdert</p>'
+            '</div>'
+        )
+        review_actions = (
+            '<div class="review-bulk-actions" role="group" aria-label="Massevurdering">'
+            '<button type="button" data-bulk-decision="INCLUDE">Merk synlige, ikke vurderte som inkludert</button>'
+            '<button type="button" data-bulk-decision="EXCLUDE">Merk synlige, ikke vurderte som ekskludert</button>'
+            '</div>'
+            if status == "DRAFT" else ""
+        )
         review_toolbar = (
             '<button id="download-review" type="button">Last ned ReviewState</button>'
             '<p id="review-feedback" role="status" aria-live="polite">'
@@ -501,6 +542,8 @@ def render_html(
         "variant_rows": _variant_rows(report, review),
         "review_columns": review_columns,
         "review_toolbar": review_toolbar,
+        "review_filters": review_filters,
+        "review_actions": review_actions,
         "edit_button": (
             '<button id="edit-btn" type="button" aria-pressed="false">Edit mode: OFF</button>'
             if editable else

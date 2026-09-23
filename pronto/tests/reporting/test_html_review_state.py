@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -63,6 +64,19 @@ def test_final_review_locks_controls_and_shows_finalization_provenance():
     assert "Ferdigstilt av reviewer-002" in html
     assert 'data-review-field="reportingDecision" disabled' in html
     assert 'data-review-field="clinicalClassification" disabled' in html
+    assert 'data-review-field="igvAssessment" disabled' in html
+    assert 'data-review-field="comment" maxlength="10000" rows="2" disabled' in html
+    assert 'data-bulk-decision=' not in html
+
+
+def test_review_comment_is_html_escaped_in_textarea():
+    report = build_report()
+    review = draft_review(report)
+    activity = {**review.variant_reviews[0], "comment": '</textarea><script>alert(1)</script>'}
+    html = render_html(report, replace(review, variant_reviews=(activity,)))
+
+    assert '</textarea><script>alert(1)</script>' not in html
+    assert '&lt;/textarea&gt;&lt;script&gt;alert(1)&lt;/script&gt;' in html
 
 
 def test_review_for_another_report_is_rejected_before_rendering():

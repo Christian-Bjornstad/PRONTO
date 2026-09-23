@@ -9,8 +9,10 @@
   <div class="table-toolbar">
     <label for="variant-search">Søk i varianter</label>
     <input id="variant-search" type="search" autocomplete="off" placeholder="Gen, lokasjon eller endring">
-    <p id="variant-count" role="status" aria-live="polite">{{ variant_count }} varianter</p>
+    <p id="variant-count" role="status" aria-live="polite">{{ variant_count }} av {{ variant_count }} forekomster</p>
   </div>
+  {{ review_filters }}
+  {{ review_actions }}
   <div class="review-toolbar">{{ review_toolbar }}</div>
   <div class="table-scroll" role="region" aria-label="Varianttabell" tabindex="0">
     <table id="variant-table">
