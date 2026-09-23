@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import Any, Mapping
 
 from pronto_report.models import ReportData, ReviewState
+from pronto_report.renderers.projection import project_reference_ui
 from pronto_report.serialization import serialize_review_state
 
 
@@ -61,35 +62,49 @@ def _display(value: object) -> str:
     return str(value)
 
 
-def _case_facts(report: ReportData) -> str:
+def _case_facts(ui: Mapping[str, Any]) -> str:
     facts = (
-        ("Pasientkode", report.sample.get("patientPseudonym")),
-        ("Referansegenom", report.sample.get("referenceBuild")),
-        ("Tumortype", report.sample.get("tumourType")),
-        ("Prøvemateriale", report.sample.get("specimenType")),
-        ("Sekvenseringskjøring", report.run.get("runId")),
+        ("sampleId", "Sample"),
+        ("patientPseudonym", "Patient code"),
+        ("referenceBuild", "Reference genome"),
+        ("tumourType", "Tumour type"),
+        ("specimenType", "Sample type"),
+        ("tumourContent", "Tumour content"),
+        ("runId", "Sequencing run"),
     )
     return "".join(
-        f"<div><dt>{label}</dt><dd>{escape(_display(value))}</dd></div>"
-        for label, value in facts
+        f'<div class="patient-strip__fact" data-fact="{name}" '
+        f'data-availability="{ui["facts"][name]["availability"]}">'
+        f"<dt>{label}</dt><dd>{escape(_display(ui['facts'][name]['value']))}</dd></div>"
+        for name, label in facts
     )
 
 
-def _biomarker_cards(report: ReportData) -> str:
-    if not report.biomarkers:
-        return '<p class="empty-state">Ingen biomarkørverdier tilgjengelig i kildedata.</p>'
+def _biomarker_cards(ui: Mapping[str, Any], has_biomarkers: bool) -> str:
     cards = []
-    for biomarker in report.biomarkers:
+    primary = (("tmb", "TMB"), ("msi", "MSI"), ("localapp_tmb", "LocalApp TMB"))
+    extra = (
+        (key, str(item["label"])) for key, item in ui["biomarkers"].items()
+        if key not in {"tmb", "msi", "localapp_tmb"}
+    )
+    for metric_id, label in (*primary, *extra):
+        biomarker = ui["biomarkers"][metric_id]
         value = _display(biomarker["value"])
         unit = str(biomarker.get("unit", ""))
         shown = f"{value} {unit}".strip()
+        source = biomarker.get("source") or {}
+        raw = source.get("rawValue")
+        detail = f'Kildeverdi: {escape(str(raw))}' if raw is not None else "Ikke oppgitt i kildedata"
         cards.append(
-            '<article class="metric-card">'
-            f'<h4>{escape(str(biomarker["label"]))}</h4>'
+            f'<article class="metric-card" data-metric="{metric_id}" '
+            f'data-availability="{biomarker["availability"]}">'
+            f'<h3>{escape(label)}</h3>'
             f'<p class="metric-card__value">{escape(shown)}</p>'
+            f'<p class="metric-card__detail">{detail}</p>'
             '</article>'
         )
-    return "".join(cards)
+    empty = '<p class="empty-state">Ingen biomarkørverdier tilgjengelig i kildedata.</p>' if not has_biomarkers else ""
+    return "".join(cards) + empty
 
 
 def _annotation(variant: Mapping[str, Any], key: str) -> object:
@@ -323,6 +338,7 @@ def render_html(
     """Render validated contracts as a development page or offline artifact."""
     if review is not None and review.report_id != report.report_id:
         raise ValueError("Review state does not belong to this report")
+    ui = project_reference_ui(report, review)
 
     status = review.status if review is not None else "DRAFT"
     plot_images = plot_images or {}
@@ -365,8 +381,8 @@ def render_html(
         "status_label": status_label,
     }
     html_context = {
-        "case_facts": _case_facts(report),
-        "biomarker_cards": _biomarker_cards(report),
+        "case_facts": _case_facts(ui),
+        "biomarker_cards": _biomarker_cards(ui, bool(report.biomarkers)),
         "variant_rows": _variant_rows(report, review),
         "review_columns": review_columns,
         "review_toolbar": review_toolbar,

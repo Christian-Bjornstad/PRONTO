@@ -99,7 +99,7 @@ def test_offline_export_is_responsive_and_makes_no_external_requests(browser):
             context, page, diagnostics, requests = _page(browser, html, width)
             try:
                 page.goto(url)
-                assert page.get_by_role("heading", name="PRONTO-rapport").is_visible()
+                assert page.get_by_role("heading", name="InPreD · MTB Report").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
                 assert requests == [url]
                 assert diagnostics == []
@@ -123,6 +123,7 @@ def test_keyboard_table_plots_focus_and_print(browser):
             page.goto(url)
             tab = page.get_by_role("tab", name="Nøkkelfunn")
             tab.focus()
+            assert tab.evaluate("element => getComputedStyle(element).outlineStyle !== 'none'")
             tab.press("ArrowRight")
             assert page.get_by_role("tab", name="Variantgjennomgang").get_attribute("aria-selected") == "true"
             page.locator("#variant-search").fill("TERT")

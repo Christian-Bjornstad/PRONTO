@@ -11,38 +11,30 @@
 </head>
 <body>
   <a class="skip-link" href="#report-content">Gå til rapportinnhold</a>
-  <header class="report-header">
-    <div class="report-header__inner">
-      <div class="report-brand" aria-label="InPreD PRONTO">
-        <span class="report-brand__mark" aria-hidden="true">P</span>
-        <div>
-          <p class="report-brand__eyebrow">InPreD</p>
-          <h1>PRONTO-rapport</h1>
-        </div>
+  <header class="report-topbar">
+    <div class="report-topbar__inner">
+      <div class="report-topbar__brand">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/></svg>
+        <h1>InPreD · MTB Report</h1>
       </div>
-      <dl class="report-identity">
-        <div>
-          <dt>Prøve</dt>
-          <dd>{{ sample_id }}</dd>
-        </div>
-        <div>
-          <dt>Rapport-ID</dt>
-          <dd>{{ report_id }}</dd>
-        </div>
-      </dl>
-      <p class="status-badge status-badge--{{ status_code }}">
-        <span class="status-badge__dot" aria-hidden="true"></span>
-        Rapportstatus: {{ status_label }}
-      </p>
-      <p class="finalization">{{ finalization }}</p>
+      <span class="report-topbar__sample">{{ sample_id }}</span>
+      <span class="status-badge status-badge--{{ status_code }}">Rapportstatus: {{ status_label }}</span>
+      <div class="report-topbar__actions">
+        <span class="report-topbar__saved" id="dirty-lbl">Kun lokal visning</span>
+        <button id="edit-btn" type="button" disabled title="Redigering aktiveres når database-lagring er klar">Edit mode: OFF</button>
+        <button id="save-btn" type="button" disabled title="Lagring i databasen kommer i neste steg">Lagre</button>
+        <button id="load-btn" type="button" disabled title="Import av gjennomgang er ikke aktivert">Laster</button>
+        <button id="reset-btn" type="button" disabled title="Tilbakestilling er ikke aktivert">Reset</button>
+      </div>
     </div>
+    <p class="report-topbar__meta">Rapport-ID {{ report_id }} <span>{{ finalization }}</span></p>
   </header>
 
   <nav class="report-nav" aria-label="Rapportseksjoner">
     <div class="report-nav__scroller">
       <div class="report-tabs" role="tablist" aria-label="Rapportvisninger">
         <button class="report-tab" type="button" role="tab" id="tab-key-findings" aria-controls="panel-key-findings" aria-selected="true" tabindex="0">Nøkkelfunn</button>
-        <button class="report-tab" type="button" role="tab" id="tab-variant-review" aria-controls="panel-variant-review" aria-selected="false" tabindex="-1">Variantgjennomgang</button>
+        <button class="report-tab" type="button" role="tab" id="tab-variant-review" aria-controls="panel-variant-review" aria-selected="false" tabindex="-1">Variantgjennomgang <span class="report-tab__count">{{ variant_count }}</span></button>
         <button class="report-tab" type="button" role="tab" id="tab-cnv-plots" aria-controls="panel-cnv-plots" aria-selected="false" tabindex="-1">CNV-plott</button>
         <button class="report-tab" type="button" role="tab" id="tab-sequencing-qc" aria-controls="panel-sequencing-qc" aria-selected="false" tabindex="-1">Sekvenserings-QC</button>
         <button class="report-tab" type="button" role="tab" id="tab-tumour-board" aria-controls="panel-tumour-board" aria-selected="false" tabindex="-1">Molekylært tumorboard</button>
