@@ -812,6 +812,20 @@ button {
   background: var(--color-canvas);
 }
 
+.board-note-readonly,
+.review-comment-readonly {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.board-note-readonly {
+  min-height: 9rem;
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
 .board-note-print {
   display: none;
   white-space: pre-wrap;

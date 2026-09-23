@@ -71,7 +71,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         asset_root = arguments.asset_root or arguments.report_data.parent
         plots = load_plot_images(report, asset_root)
-        rendered = render_html(report, review, plot_images=plots, inline_assets=True)
+        rendered = render_html(report, review, plot_images=plots, inline_assets=True, snapshot=True)
         arguments.output.parent.mkdir(parents=True, exist_ok=True)
         arguments.output.write_bytes(rendered.encode("utf-8"))
         return 0

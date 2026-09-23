@@ -20,14 +20,10 @@
       <span class="report-topbar__sample">{{ sample_id }}</span>
       <span class="status-badge status-badge--{{ status_code }}">Rapportstatus: {{ status_label }}</span>
       <div class="report-topbar__actions">
-        <span class="report-topbar__saved" id="dirty-lbl" role="status" aria-live="polite">Kun lokal visning</span>
-        {{ edit_button }}
-        <button id="save-btn" type="button" disabled title="Lagring i databasen kommer i neste steg">Lagre</button>
-        <button id="load-btn" type="button" disabled title="Import av gjennomgang er ikke aktivert">Laster</button>
-        <button id="reset-btn" type="button" disabled title="Tilbakestilling er ikke aktivert">Reset</button>
+        {{ topbar_actions }}
       </div>
     </div>
-    <p class="report-topbar__meta">Rapport-ID {{ report_id }} <span>{{ finalization }}</span></p>
+    <p class="report-topbar__meta">Rapport-ID {{ report_id }} <span>{{ revision_label }}</span> <span>{{ finalization }}</span></p>
   </header>
 
   <nav class="report-nav" aria-label="Rapportseksjoner">
