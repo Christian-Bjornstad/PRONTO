@@ -446,9 +446,11 @@ PR #4 on the strength of Tasks 10–15 alone. Follow Tasks 16–29 below.
 **Description:** Restore the original CNV/QC controls, enlargement, three note fields, sign-off surface, and generated MDT print layout.
 
 **Acceptance criteria:**
-- [ ] Declared, hash-verified plots switch and enlarge with focus return.
+- [x] Declared, hash-verified plots switch and enlarge with focus return.
 - [ ] Notes/sign-off edit the page working copy; print includes only included reviewed findings.
-- [ ] Missing QC values are explicit and do not borrow demo thresholds or categories.
+- [x] Missing QC values are explicit and do not borrow demo thresholds or categories.
+
+Three v2 notes and live MDT print are implemented. Sign-off stays read-only until authenticated save/finalization in Tasks 26–28; the draft print is explicitly labeled unsigned.
 
 **Verification:** Renderer and browser tests for plots, notes, focus, print-PDF contents, and console/network behavior.
 

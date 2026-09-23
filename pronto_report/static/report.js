@@ -304,6 +304,15 @@
   document.getElementById("close-plot").addEventListener("click", () => plotDialog.close());
   plotDialog.addEventListener("close", () => plotTrigger?.focus());
 
+  const printMdt = document.getElementById("print-mdt-btn");
+  if (printMdt) {
+    printMdt.addEventListener("click", () => {
+      document.body.classList.add("print-mdt");
+      window.print();
+    });
+    window.addEventListener("afterprint", () => document.body.classList.remove("print-mdt"));
+  }
+
   const reviewData = document.getElementById("review-state-data");
   if (!reviewData) return;
   const reviewState = JSON.parse(reviewData.textContent);
@@ -311,6 +320,43 @@
   const feedback = document.getElementById("review-feedback");
   const download = document.getElementById("download-review");
   updateReviewSummary();
+
+  function updateBoardFindings() {
+    const list = document.getElementById("board-findings");
+    if (!list) return;
+    list.replaceChildren();
+    const shown = new Set();
+    rows.forEach((row) => {
+      if (decisionForRow(row) !== "INCLUDE") return;
+      const variantId = row.querySelector("select[data-variant-id]").dataset.variantId;
+      if (shown.has(variantId)) return;
+      shown.add(variantId);
+      const item = document.createElement("li");
+      const gene = document.createElement("strong");
+      gene.textContent = row.cells[0].textContent;
+      item.append(gene);
+      item.append(` · ${row.cells[1].textContent} · ${row.cells[2].textContent} · Klassifikasjon: `);
+      item.append(row.querySelector('select[data-review-field="clinicalClassification"]').selectedOptions[0].textContent);
+      const comment = row.querySelector('textarea[data-review-field="comment"]').value.trim();
+      if (comment) item.append(` · Kommentar: ${comment}`);
+      list.append(item);
+    });
+    list.hidden = shown.size === 0;
+    document.getElementById("board-empty").hidden = shown.size !== 0;
+  }
+  updateBoardFindings();
+
+  document.querySelectorAll("textarea[data-review-note]").forEach((input) => {
+    input.addEventListener("input", () => {
+      if (reviewState.status !== "DRAFT") return;
+      const key = input.dataset.reviewNote;
+      reviewState.notes[key] = input.value;
+      document.querySelector(`[data-print-note="${key}"]`).textContent = input.value;
+      reviewDirty = true;
+      refreshDirty();
+      feedback.textContent = "Endringer er ikke lagret. Last ned ReviewState for å bevare dem.";
+    });
+  });
 
   function activityFor(variantId) {
     let activity = activities.get(variantId);
@@ -345,6 +391,7 @@
     reviewDirty = true;
     refreshDirty();
     updateReviewSummary();
+    updateBoardFindings();
     feedback.textContent = `${eligible.size} ${noun} endret lokalt. Endringene er ikke lagret.`;
   }));
 
@@ -362,6 +409,7 @@
       }
     });
     updateReviewSummary();
+    updateBoardFindings();
     feedback.textContent = "Endringer er ikke lagret. Last ned ReviewState for å bevare dem.";
   });
 
@@ -375,6 +423,7 @@
     });
     reviewDirty = true;
     refreshDirty();
+    updateBoardFindings();
     feedback.textContent = "Endringer er ikke lagret. Last ned ReviewState for å bevare dem.";
   });
 

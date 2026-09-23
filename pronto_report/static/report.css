@@ -775,7 +775,49 @@ button {
   margin: var(--space-2) 0;
 }
 
-.board-notes {
+.board-note-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+}
+
+.board-note-card,
+.board-legacy-note {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.board-note-card label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-weight: 700;
+}
+
+.board-note {
+  width: 100%;
+  min-height: 9rem;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  resize: vertical;
+}
+
+.board-note:disabled {
+  background: var(--color-canvas);
+}
+
+.board-note-print {
+  display: none;
+  white-space: pre-wrap;
+}
+
+.board-legacy-note p {
   white-space: pre-wrap;
 }
 
@@ -783,6 +825,25 @@ button {
   padding: var(--space-3);
   border-left: 0.25rem solid var(--color-brand-700);
   background: var(--color-brand-050);
+  font-weight: 700;
+}
+
+#print-mdt-btn {
+  min-height: 2.75rem;
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-brand-700);
+  border-radius: var(--radius-sm);
+  background: var(--color-brand-700);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.board-warning {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #fffbeb;
   font-weight: 700;
 }
 
@@ -939,6 +1000,30 @@ button {
 }
 
 @media print {
+  @page {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+
+  body.print-mdt .report-footer,
+  body.print-mdt .report-panel:not(#panel-tumour-board) {
+    display: none;
+  }
+
+  body.print-mdt #panel-tumour-board {
+    display: block;
+  }
+
+  #print-mdt-btn {
+    display: none;
+  }
+  .board-note {
+    display: none;
+  }
+
+  .board-note-print {
+    display: block;
+  }
   .tmb-gauge {
     display: none;
   }
