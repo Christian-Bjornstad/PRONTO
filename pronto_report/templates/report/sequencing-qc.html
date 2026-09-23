@@ -6,8 +6,8 @@
     </div>
     <p class="section-heading__description">Måleverdier, status og kildeplott for sekvenseringskjøringen.</p>
   </div>
-  <div class="empty-state" role="status">
-    <h3>Ingen strukturerte QC-data er presentert</h3>
-    <p>Manglende data skal vises eksplisitt, ikke erstattes med antatte verdier.</p>
-  </div>
+  <h3>QC-målinger</h3>
+  <div class="metrics-grid">{{ qc_metrics }}</div>
+  <h3>Kildeplott</h3>
+  <div class="plot-content">{{ qc_content }}</div>
 </section>

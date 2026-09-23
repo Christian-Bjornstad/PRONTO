@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+import base64
+from hashlib import sha256
 from html import escape
 from pathlib import Path
-from typing import Mapping
+import re
+from decimal import Decimal
+from typing import Any, Mapping
 
 from pronto_report.models import ReportData, ReviewState
+from pronto_report.serialization import serialize_review_state
 
 
 _PACKAGE_ROOT = Path(__file__).parents[1]
 _TEMPLATE_ROOT = _PACKAGE_ROOT / "templates"
+_STATIC_ROOT = _PACKAGE_ROOT / "static"
 _PANEL_TEMPLATES = (
     "key-findings.html",
     "variant-review.html",
@@ -18,6 +24,7 @@ _PANEL_TEMPLATES = (
     "sequencing-qc.html",
     "tumour-board.html",
 )
+_PLACEHOLDER = re.compile(r"{{\s*([a-z_]+)\s*}}")
 
 
 def _read_template(relative_path: str) -> str:
@@ -32,30 +39,347 @@ def _assemble_template() -> str:
     return document
 
 
-def _render_variables(template: str, context: Mapping[str, str]) -> str:
-    document = template
-    for name, value in context.items():
-        document = document.replace(f"{{{{ {name} }}}}", escape(value, quote=True))
-    return document
+def _render_variables(
+    template: str, context: Mapping[str, str], html_context: Mapping[str, str]
+) -> str:
+    def substitute(match: re.Match[str]) -> str:
+        name = match.group(1)
+        if name in html_context:
+            return html_context[name]
+        if name in context:
+            return escape(context[name], quote=True)
+        raise ValueError(f"Unknown report template field: {name}")
+
+    return _PLACEHOLDER.sub(substitute, template)
 
 
-def render_html(report: ReportData, review: ReviewState | None = None) -> str:
-    """Render the development HTML shell from validated contract models.
+def _display(value: object) -> str:
+    if value is None or value == "":
+        return "Ikke oppgitt"
+    if isinstance(value, float):
+        return format(Decimal(str(value)), "f").rstrip("0").rstrip(".").replace(".", ",")
+    return str(value)
 
-    Assets remain separate during development. Task 14 will bundle the same
-    templates and assets into the deterministic, self-contained export.
-    """
+
+def _case_facts(report: ReportData) -> str:
+    facts = (
+        ("Pasientkode", report.sample.get("patientPseudonym")),
+        ("Referansegenom", report.sample.get("referenceBuild")),
+        ("Tumortype", report.sample.get("tumourType")),
+        ("Prøvemateriale", report.sample.get("specimenType")),
+        ("Sekvenseringskjøring", report.run.get("runId")),
+    )
+    return "".join(
+        f"<div><dt>{label}</dt><dd>{escape(_display(value))}</dd></div>"
+        for label, value in facts
+    )
+
+
+def _biomarker_cards(report: ReportData) -> str:
+    if not report.biomarkers:
+        return '<p class="empty-state">Ingen biomarkørverdier tilgjengelig i kildedata.</p>'
+    cards = []
+    for biomarker in report.biomarkers:
+        value = _display(biomarker["value"])
+        unit = str(biomarker.get("unit", ""))
+        shown = f"{value} {unit}".strip()
+        cards.append(
+            '<article class="metric-card">'
+            f'<h4>{escape(str(biomarker["label"]))}</h4>'
+            f'<p class="metric-card__value">{escape(shown)}</p>'
+            '</article>'
+        )
+    return "".join(cards)
+
+
+def _annotation(variant: Mapping[str, Any], key: str) -> object:
+    for annotation in variant["annotations"]:
+        if annotation["key"] == key:
+            return annotation["value"]
+    return None
+
+
+def _review_select(
+    variant_id: str, occurrence_id: str, field: str, selected: str, final: bool
+) -> str:
+    labels = {
+        "reportingDecision": (
+            "Rapporteringsbeslutning",
+            (("UNREVIEWED", "Ikke vurdert"), ("INCLUDE", "Inkluder"), ("EXCLUDE", "Ekskluder")),
+        ),
+        "clinicalClassification": (
+            "Klinisk klassifikasjon",
+            (("UNCLASSIFIED", "Ikke klassifisert"), ("PATHOGENIC", "Patogen"),
+             ("UNCERTAIN", "Usikker"), ("OTHER", "Annet")),
+        ),
+    }
+    label, choices = labels[field]
+    options = "".join(
+        f'<option value="{value}"{" selected" if value == selected else ""}>{text}</option>'
+        for value, text in choices
+    )
+    disabled = " disabled" if final else ""
+    return (
+        f'<select aria-label="{label} for {escape(occurrence_id)}" '
+        f'data-variant-id="{escape(variant_id)}" data-review-field="{field}"{disabled}>'
+        f"{options}</select>"
+    )
+
+
+def _variant_rows(report: ReportData, review: ReviewState | None) -> str:
+    if not report.variants:
+        span = 9 if review is not None else 7
+        return f'<tr><td colspan="{span}">Ingen varianter tilgjengelig i kildedata.</td></tr>'
+    rows = []
+    reviews = {item["variantId"]: item for item in review.variant_reviews} if review else {}
+    for variant in report.variants:
+        gene = _display(variant.get("gene"))
+        location = _display(variant.get("genomicLocation"))
+        dna = _display(variant.get("dnaChange"))
+        protein = _display(variant.get("proteinChange"))
+        tier = _display(_annotation(variant, "tier"))
+        frequency = variant.get("alleleFrequency")
+        vaf = (
+            _display(float(Decimal(str(frequency)) * 100)) + " %"
+            if isinstance(frequency, (int, float))
+            else "Ikke oppgitt"
+        )
+        cells = (gene, location, dna, protein, vaf, tier)
+        search = " ".join(str(value) for value in cells).casefold()
+        review_cells = ""
+        if review is not None:
+            variant_id = str(variant["variantId"])
+            occurrence_id = str(variant["occurrenceId"])
+            activity = reviews.get(variant_id, {})
+            decision = str(activity.get("reportingDecision", "UNREVIEWED"))
+            classification = str(activity.get("clinicalClassification", "UNCLASSIFIED"))
+            review_cells = (
+                "<td>" + _review_select(variant_id, occurrence_id, "reportingDecision", decision, review.status == "FINAL") + "</td>"
+                + "<td>" + _review_select(variant_id, occurrence_id, "clinicalClassification", classification, review.status == "FINAL") + "</td>"
+            )
+        rows.append(
+            '<tr data-occurrence-id="{}" data-search="{}" data-vaf="{}">{}{}</tr>'.format(
+                escape(str(variant["occurrenceId"]), quote=True),
+                escape(search, quote=True),
+                escape(str(frequency) if frequency is not None else "", quote=True),
+                "".join(f"<td>{escape(value)}</td>" for value in cells)
+                + f'<td class="identifier">{escape(str(variant["occurrenceId"]))}</td>',
+                review_cells,
+            )
+        )
+    return "".join(rows)
+
+
+def _plot_figure(kind: str, index: int, total: int, media_type: str, payload: bytes, description: str) -> str:
+    if media_type not in {"image/png", "image/jpeg"}:
+        raise ValueError("Unsupported report plot image type")
+    label = f"CNV oversikt – side {index} av {total}" if kind == "cnv" else f"QC-plott {index} av {total}"
+    data_uri = f"data:{media_type};base64,{base64.b64encode(payload).decode('ascii')}"
+    hidden = " hidden" if kind == "cnv" and index != 1 else ""
+    return (
+        f'<figure class="plot-figure" id="{kind}-{index}"{hidden}>'
+        f'<img src="{data_uri}" alt="{escape(label)}. {escape(description)}">'
+        f'<figcaption><strong>{escape(label)}</strong> · {escape(description)}</figcaption>'
+        f'<button type="button" data-enlarge="{kind}-{index}">Forstørr plott</button>'
+        "</figure>"
+    )
+
+
+def _plot_content(
+    report: ReportData,
+    plot_images: Mapping[str, tuple[tuple[str, bytes], ...]],
+    kind: str,
+) -> str:
+    attachments = [
+        item for item in report.attachments
+        if ("cnv" in str(item["name"]).casefold()) == (kind == "cnv")
+        and (kind == "cnv" or "qc" in str(item["name"]).casefold())
+    ]
+    images = [
+        (item, media_type, payload)
+        for item in attachments
+        for media_type, payload in plot_images.get(str(item["assetId"]), ())
+    ]
+    if not images:
+        label = "CNV-plott" if kind == "cnv" else "QC-plott"
+        return f'<p class="empty-state">{label} er ikke tilgjengelig i denne rapporten.</p>'
+    figures = "".join(
+        _plot_figure(kind, index, len(images), media_type, payload, str(item.get("description", "")))
+        for index, (item, media_type, payload) in enumerate(images, start=1)
+    )
+    if kind == "cnv":
+        buttons = "".join(
+            f'<button type="button" data-plot-select="cnv-{index}" aria-pressed="{str(index == 1).lower()}">Side {index}</button>'
+            for index in range(1, len(images) + 1)
+        )
+        return f'<div class="plot-switcher" role="group" aria-label="Velg CNV-side">{buttons}</div>{figures}'
+    return figures
+
+
+def _qc_metrics(report: ReportData) -> str:
+    if not report.qc_metrics:
+        return '<p class="empty-state">Ingen strukturerte QC-målinger tilgjengelig i kildedata.</p>'
+    cards = []
+    for metric in report.qc_metrics:
+        unit = str(metric.get("unit", ""))
+        value = f'{_display(metric["value"])} {unit}'.strip()
+        status = str(metric.get("status", "NOT_AVAILABLE"))
+        thresholds = ", ".join(
+            str(item.get("label") or f'{item["operator"]} {_display(item["value"])}')
+            for item in metric.get("thresholds", ())
+        )
+        cards.append(
+            '<article class="metric-card">'
+            f'<h3>{escape(str(metric["label"]))}</h3>'
+            f'<p class="metric-card__value">{escape(value)}</p>'
+            f'<p>Status: {escape(status)}</p>'
+            + (f'<p>Grense: {escape(thresholds)}</p>' if thresholds else "")
+            + '</article>'
+        )
+    return "".join(cards)
+
+
+def _tumour_content(report: ReportData, review: ReviewState | None) -> str:
+    if review is None:
+        return '<p class="empty-state">Ingen ReviewState er lastet inn. Tumorboard-funn er ikke tilgjengelige.</p>'
+    included = {
+        item["variantId"]: item for item in review.variant_reviews
+        if item["reportingDecision"] == "INCLUDE"
+    }
+    shown = set()
+    findings = []
+    for variant in report.variants:
+        identifier = variant["variantId"]
+        if identifier not in included or identifier in shown:
+            continue
+        shown.add(identifier)
+        activity = included[identifier]
+        findings.append(
+            '<li><strong>{}</strong> · {} · {} · Klassifikasjon: {}</li>'.format(
+                escape(_display(variant.get("gene"))),
+                escape(_display(variant.get("genomicLocation"))),
+                escape(_display(variant.get("dnaChange"))),
+                escape(str(activity["clinicalClassification"])),
+            )
+        )
+    finding_html = (
+        f'<ul class="board-findings">{"".join(findings)}</ul>' if findings else
+        '<p class="empty-state">Ingen funn er markert for rapportering.</p>'
+    )
+    signoff = (
+        f'Signert av {escape(review.finalized_by or "")} {escape(review.finalized_at or "")}'
+        if review.status == "FINAL" else "Ikke signert"
+    )
+    notes = escape(review.report_notes) if review.report_notes else "Ingen notater registrert."
+    return (
+        f'<h3>Funn til diskusjon</h3>{finding_html}'
+        f'<h3>MDT-notater</h3><p class="board-notes">{notes}</p>'
+        f'<p class="board-signoff">Signeringsstatus: {signoff}</p>'
+    )
+
+
+def _inline_assets() -> tuple[str, str, str]:
+    stylesheet = (_STATIC_ROOT / "report.css").read_text(encoding="utf-8")
+    script = (_STATIC_ROOT / "report.js").read_text(encoding="utf-8")
+    if "</style" in stylesheet.casefold() or "</script" in script.casefold():
+        raise ValueError("Unsafe static report asset")
+    style_hash = base64.b64encode(sha256(stylesheet.encode("utf-8")).digest()).decode("ascii")
+    script_hash = base64.b64encode(sha256(script.encode("utf-8")).digest()).decode("ascii")
+    policy = (
+        "default-src 'none'; img-src data:; "
+        f"style-src 'sha256-{style_hash}'; script-src 'sha256-{script_hash}'; "
+        "base-uri 'none'; form-action 'none'; object-src 'none'"
+    )
+    return (
+        f'<meta http-equiv="Content-Security-Policy" content="{escape(policy, quote=True)}">',
+        f"<style>{stylesheet}</style>",
+        f"<script>{script}</script>",
+    )
+
+
+def _provenance(report: ReportData) -> str:
+    details = report.provenance
+    generator = details["generator"]
+    sources = "".join(
+        f'<li>{escape(str(source["name"]))} · SHA-256 {escape(str(source["sha256"]))}</li>'
+        for source in details["sourceFiles"]
+    )
+    return (
+        '<details class="report-provenance"><summary>Kilde og proveniens</summary>'
+        f'<p>Skjema {escape(report.schema_version)} · '
+        f'{escape(str(generator["name"]))} {escape(str(generator["version"]))} · '
+        f'Generert {escape(str(details["generatedAt"]))}</p>'
+        f'<ul>{sources}</ul></details>'
+    )
+
+
+def render_html(
+    report: ReportData,
+    review: ReviewState | None = None,
+    *,
+    plot_images: Mapping[str, tuple[tuple[str, bytes], ...]] | None = None,
+    inline_assets: bool = False,
+) -> str:
+    """Render validated contracts as a development page or offline artifact."""
     if review is not None and review.report_id != report.report_id:
         raise ValueError("Review state does not belong to this report")
 
     status = review.status if review is not None else "DRAFT"
+    plot_images = plot_images or {}
+    known_assets = {str(item["assetId"]) for item in report.attachments}
+    if set(plot_images) - known_assets:
+        raise ValueError("Plot image does not match a declared attachment")
     status_label = "Endelig" if status == "FINAL" else "Utkast"
+    csp_meta, stylesheet_tag, script_tag = (
+        _inline_assets() if inline_assets else
+        ("", '<link rel="stylesheet" href="/pronto_report/static/report.css">',
+         '<script src="/pronto_report/static/report.js" defer></script>')
+    )
+    review_columns = (
+        '<th scope="col">Rapporteringsbeslutning</th><th scope="col">Klinisk klassifikasjon</th>'
+        if review is not None else ""
+    )
+    if review is None:
+        review_toolbar = '<p class="review-notice">Ingen ReviewState er lastet inn. Gjennomgang er skrivebeskyttet.</p>'
+        review_script = ""
+        finalization = ""
+    else:
+        review_toolbar = (
+            '<button id="download-review" type="button">Last ned ReviewState</button>'
+            '<p id="review-feedback" role="status" aria-live="polite">'
+            + ("Endelig rapport er låst." if status == "FINAL" else "Endringer lagres når ReviewState lastes ned.")
+            + "</p>"
+        )
+        payload = serialize_review_state(review).decode("utf-8").strip()
+        payload = payload.replace("<", r"\u003c").replace(">", r"\u003e").replace("&", r"\u0026")
+        review_script = f'<script type="application/json" id="review-state-data">{payload}</script>'
+        finalization = (
+            f'Ferdigstilt av {escape(review.finalized_by or "")} '
+            f'<time datetime="{escape(review.finalized_at or "")}">{escape(review.finalized_at or "")}</time>'
+            if status == "FINAL" else ""
+        )
     context = {
         "sample_id": str(report.sample["sampleId"]),
         "report_id": report.report_id,
         "status_code": status.lower(),
         "status_label": status_label,
-        "stylesheet_url": "/pronto_report/static/report.css",
-        "script_url": "/pronto_report/static/report.js",
     }
-    return _render_variables(_assemble_template(), context)
+    html_context = {
+        "case_facts": _case_facts(report),
+        "biomarker_cards": _biomarker_cards(report),
+        "variant_rows": _variant_rows(report, review),
+        "review_columns": review_columns,
+        "review_toolbar": review_toolbar,
+        "review_script": review_script,
+        "finalization": finalization,
+        "cnv_content": _plot_content(report, plot_images, "cnv"),
+        "qc_content": _plot_content(report, plot_images, "qc"),
+        "qc_metrics": _qc_metrics(report),
+        "tumour_content": _tumour_content(report, review),
+        "provenance": _provenance(report),
+        "csp_meta": csp_meta,
+        "stylesheet_tag": stylesheet_tag,
+        "script_tag": script_tag,
+    }
+    context["variant_count"] = str(len(report.variants))
+    return _render_variables(_assemble_template(), context, html_context)

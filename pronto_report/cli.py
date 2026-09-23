@@ -8,7 +8,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from pronto_report.adapters.pronto_output import adapt_pronto_output
-from pronto_report.serialization import serialize_report_data
+from pronto_report.renderers.assets import load_plot_images
+from pronto_report.renderers.html import render_html
+from pronto_report.serialization import (
+    deserialize_report_data,
+    deserialize_review_state,
+    serialize_report_data,
+)
 
 
 _REPOSITORY_ROOT = Path(__file__).parents[1]
@@ -35,6 +41,11 @@ def _parser() -> argparse.ArgumentParser:
     export.add_argument("--output", type=Path, required=True)
     export.add_argument("--generated-at", default=None)
     export.add_argument("--generator-version", default="1.0.0")
+    html = commands.add_parser("render-html", help="Render an offline HTML report")
+    html.add_argument("report_data", type=Path)
+    html.add_argument("--output", type=Path, required=True)
+    html.add_argument("--review", type=Path)
+    html.add_argument("--asset-root", type=Path)
     return parser
 
 
@@ -51,6 +62,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         arguments.output.parent.mkdir(parents=True, exist_ok=True)
         arguments.output.write_bytes(serialize_report_data(report))
+        return 0
+    if arguments.command == "render-html":
+        report = deserialize_report_data(arguments.report_data.read_bytes())
+        review = (
+            deserialize_review_state(arguments.review.read_bytes(), report=report)
+            if arguments.review else None
+        )
+        asset_root = arguments.asset_root or arguments.report_data.parent
+        plots = load_plot_images(report, asset_root)
+        rendered = render_html(report, review, plot_images=plots, inline_assets=True)
+        arguments.output.parent.mkdir(parents=True, exist_ok=True)
+        arguments.output.write_bytes(rendered.encode("utf-8"))
         return 0
     raise AssertionError("Unknown command")
 

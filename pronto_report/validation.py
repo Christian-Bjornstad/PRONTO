@@ -46,7 +46,7 @@ class ContractValidationError(ValueError):
         }
 
 
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=3)
 def _validator(schema_name: str) -> Draft202012Validator:
     schema_resource = resources.files("pronto_report.schemas").joinpath(schema_name)
     schema = json.loads(schema_resource.read_text(encoding="utf-8"))
@@ -149,7 +149,13 @@ def validate_review_state(
     document: Any, *, report: ReportData | None = None
 ) -> ReviewState:
     """Validate untrusted ReviewState input and optionally bind it to a report."""
-    issues = list(_schema_issues(document, "review-state-v1.schema.json"))
+    version = document.get("schemaVersion") if isinstance(document, Mapping) else None
+    schema_name = (
+        "review-state-v2.schema.json"
+        if version == "2.0"
+        else "review-state-v1.schema.json"
+    )
+    issues = list(_schema_issues(document, schema_name))
     if not issues and report is not None and document["reportId"] != report.report_id:
         issues.append(
             ValidationIssue(

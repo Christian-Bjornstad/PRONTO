@@ -239,14 +239,14 @@
 **Description:** Render contract-derived biomarkers, case facts, searchable variants, sorting, formatting, and explicit empty/error states.
 
 **Acceptance criteria:**
-- [ ] No clinical value or threshold is hard-coded in the browser.
-- [ ] Numeric values use declared display formatting.
-- [ ] Search, filters, and sorting are accessible and deterministic.
+- [x] No clinical value or threshold is hard-coded in the browser.
+- [x] Numeric values use declared display formatting.
+- [x] Search, filters, and sorting are accessible and deterministic.
 
 **Verification:**
-- [ ] Focused renderer tests for normal, missing, and empty data.
-- [ ] Browser test for search and sorting.
-- [ ] Visual comparison with the reference report.
+- [x] Focused renderer tests for normal, missing, and empty data.
+- [x] Browser test for search and sorting.
+- [x] Visual comparison with the reference report.
 
 **Dependencies:** Task 10
 
@@ -263,13 +263,13 @@
 **Description:** Present and edit validated `ReviewState` with independent reporting decision and clinical classification controls.
 
 **Acceptance criteria:**
-- [ ] Decision and classification can vary independently.
-- [ ] FINAL state disables editing and shows provenance/status clearly.
-- [ ] Mismatched report state is rejected without an override prompt.
+- [x] Decision and classification can vary independently.
+- [x] FINAL state disables editing and shows provenance/status clearly.
+- [x] Mismatched report state is rejected without an override prompt.
 
 **Verification:**
-- [ ] RED/GREEN state validation and rendering tests.
-- [ ] Browser test covers edit, validation feedback, and FINAL lock.
+- [x] RED/GREEN state validation and rendering tests.
+- [x] Browser test covers edit, validation feedback, and FINAL lock.
 
 **Dependencies:** Task 11
 
@@ -286,14 +286,14 @@
 **Description:** Render the remaining reference-report surfaces from declared assets and review notes.
 
 **Acceptance criteria:**
-- [ ] Plot switcher, captions, enlargement, and focus return work.
-- [ ] QC cards include text status and declared thresholds.
-- [ ] Tumour-board view shows only eligible reviewed findings and explicit sign-off state.
+- [x] Plot switcher, captions, enlargement, and focus return work.
+- [x] QC cards include text status and declared thresholds.
+- [x] Tumour-board view shows only eligible reviewed findings and explicit sign-off state.
 
 **Verification:**
-- [ ] Renderer tests cover missing and present plots/QC.
-- [ ] Browser keyboard and focus tests pass.
-- [ ] Print preview contains the required report sections.
+- [x] Renderer tests cover missing and present plots/QC.
+- [x] Browser keyboard and focus tests pass.
+- [x] Print preview contains the required report sections.
 
 **Dependencies:** Tasks 10–12
 
@@ -311,14 +311,14 @@
 **Description:** Bundle validated data, review state, styles, scripts, and approved assets into a deterministic offline HTML artifact.
 
 **Acceptance criteria:**
-- [ ] Export makes no external network request.
-- [ ] Content is escaped and CSP-compatible.
-- [ ] Output includes schema/generator/source provenance.
+- [x] Export makes no external network request.
+- [x] Content is escaped and CSP-compatible.
+- [x] Output includes schema/generator/source provenance.
 
 **Verification:**
-- [ ] RED/GREEN bundling tests.
-- [ ] Repeat exports are byte-identical apart from declared timestamp fields.
-- [ ] Browser network log shows no external request.
+- [x] RED/GREEN bundling tests.
+- [x] Repeat exports are byte-identical apart from declared timestamp fields.
+- [x] Browser network log shows no external request.
 
 **Dependencies:** Tasks 10–13
 
@@ -334,14 +334,14 @@
 **Description:** Establish the automated and manual quality gate for the standalone renderer before Django work begins.
 
 **Acceptance criteria:**
-- [ ] Critical keyboard, responsive, print, console, and accessibility flows are automated.
-- [ ] Key PPTX and HTML values are compared from the same fixture.
-- [ ] Known intentional presentation differences are documented.
+- [x] Critical keyboard, responsive, print, console, and accessibility flows are automated.
+- [x] Key PPTX and HTML values are compared from the same fixture.
+- [x] Known intentional presentation differences are documented.
 
 **Verification:**
-- [ ] Full pytest suite passes.
-- [ ] Browser suite passes with zero console errors/warnings.
-- [ ] Existing OUS/HUS flow still succeeds.
+- [x] Full pytest suite passes.
+- [x] Browser suite passes with zero console errors/warnings.
+- [x] Existing OUS/HUS flow still succeeds.
 
 **Dependencies:** Tasks 9–14
 
@@ -354,6 +354,205 @@
 
 ## Checkpoint: Standalone HTML complete
 
-- [ ] All approved module success criteria are met.
-- [ ] Definition of Done passes.
+- [x] All approved module success criteria are met.
+- [ ] Definition of Done passes (venter på menneskelig gjennomgang før merge).
 - [ ] Human approves the standalone renderer before `review-workflow` and Django specifications begin.
+
+The owner has superseded that UI approval checkpoint: the contract and export
+work remain useful, but the local `report.html` is now the required visual and
+behavioral baseline. Do not mark the old standalone renderer approved or merge
+PR #4 on the strength of Tasks 10–15 alone. Follow Tasks 16–29 below.
+
+## Task 16: Reference inventory and source-gap map
+
+**Description:** Inventory each visible control and state in the local reference, and map every displayed value to an approved `ReportData` field, a review field, or an explicit unavailable state.
+
+**Acceptance criteria:**
+- [x] A control matrix covers all five tabs, editing, filters, plots, notes, sign-off, and print.
+- [x] A source-gap table identifies reference-only example values without copying them into the adapter.
+- [ ] Masked local screenshots are captured for desktop and mobile comparison without committing patient-like output.
+
+**Verification:** Review the matrix against `C:/Users/molpa/Documents/Inpred/report.html`; assert fixture field mapping with a focused pytest test; check the staged diff for generated reports.
+
+**Dependencies:** Tasks 9–15. **Files likely touched:** `docs/report-reference-inventory.md`, `pronto/tests/reporting/test_reference_projection.py`. **Estimated scope:** Small: 2 files.
+
+## Task 17: Versioned review notes and v1 migration
+
+**Description:** Extend `ReviewState` to hold the reference's separate summary, biomarker context, and additional comments while preserving v1 decisions and text.
+
+**Acceptance criteria:**
+- [x] A new schema version validates distinct notes and the existing independent decision/classification fields.
+- [x] v1 import retains its `reportNotes` as labeled imported text rather than guessing a destination.
+- [x] Round-trip and malformed-input tests reject silent data loss.
+
+**Verification:** RED/GREEN schema, migration, validation, and serialization tests; `python -m pytest -q pronto/tests/reporting`.
+
+**Dependencies:** Task 16. **Files likely touched:** `pronto_report/schemas/review-state-v2.schema.json`, `pronto_report/models.py`, `pronto_report/validation.py`, `pronto_report/serialization.py`, `pronto/tests/reporting/test_review_migration.py`. **Estimated scope:** Medium: 5 files.
+
+## Task 18: Validated UI projection
+
+**Description:** Map immutable report facts, review fields, and stable variant/occurrence IDs into a frontend display model shaped for the original interaction flow.
+
+**Acceptance criteria:**
+- [ ] All projected clinical facts carry source provenance or an unavailable marker.
+- [ ] Duplicate occurrences remain visible while shared decisions use stable `variantId`.
+- [ ] Corrections remain separate from source facts and require reason/author/time at save.
+
+**Verification:** Fixture-based projection tests including missing fields, duplicate TERT occurrences, and corrections.
+
+**Dependencies:** Tasks 16–17. **Files likely touched:** `pronto_report/renderers/projection.py`, `pronto/tests/reporting/test_reference_projection.py`, `docs/report-reference-inventory.md`. **Estimated scope:** Medium: 3 files.
+
+## Task 19: Reference shell and visual tokens
+
+**Description:** Replace PR #4's simplified shell with maintainable templates and CSS matching the reference top bar, tabs, spacing, palette, density, KPI cards, and patient strip.
+
+**Acceptance criteria:**
+- [ ] Five familiar tabs and header controls appear in the original hierarchy.
+- [ ] Desktop/mobile masked comparisons show no unexplained layout drift.
+- [ ] Keyboard tab navigation and focus visibility meet the existing accessibility bar.
+
+**Verification:** Browser screenshots at 375, 768, 1024, and 1440 px; tab/console/accessibility checks; owner-visible comparison.
+
+**Dependencies:** Task 18. **Files likely touched:** `pronto_report/templates/report/base.html`, `pronto_report/static/report.css`, `pronto_report/renderers/html.py`, `pronto/tests/reporting/browser/test_report.py`. **Estimated scope:** Medium: 4 files.
+
+## Task 20: Key findings and editable TMB gauge
+
+**Description:** Restore original KPI, patient/context, and gauge interactions using a page-memory working copy, not browser storage or network writes.
+
+**Acceptance criteria:**
+- [ ] KPI/patient edits and pointer/keyboard gauge changes update the view and dirty indicator only.
+- [ ] Source-derived changes are distinguishable from immutable `ReportData` and prompt for a correction reason at save.
+- [ ] Missing fixture facts remain labeled unavailable.
+
+**Verification:** Browser tests assert live interaction, zero write requests before **Lagre**, keyboard gauge access, and no console errors.
+
+**Dependencies:** Task 19. **Files likely touched:** `pronto_report/templates/report/key-findings.html`, `pronto_report/static/report.js`, `pronto_report/static/report.css`, `pronto/tests/reporting/browser/test_key_findings.py`. **Estimated scope:** Medium: 4 files.
+
+## Task 21: Variant review interaction parity
+
+**Description:** Restore the reference's chips, search, sort, per-variant judgements/comments, progress, and confirmed bulk include/exclude.
+
+**Acceptance criteria:**
+- [ ] Decision and clinical classification remain independent, including duplicate occurrences.
+- [ ] Filters and sorting never change the underlying occurrence/review IDs.
+- [ ] Bulk actions affect only eligible unreviewed variants and require confirmation.
+
+**Verification:** Focused browser tests for search, chips, sorting, duplicate TERT rows, progress, bulk confirmation, and dirty state.
+
+**Dependencies:** Task 20. **Files likely touched:** `pronto_report/templates/report/variant-review.html`, `pronto_report/static/report.js`, `pronto_report/static/report.css`, `pronto/tests/reporting/browser/test_variant_workflow.py`. **Estimated scope:** Medium: 4 files.
+
+## Task 22: Plots, notes, sign-off, and print parity
+
+**Description:** Restore the original CNV/QC controls, enlargement, three note fields, sign-off surface, and generated MDT print layout.
+
+**Acceptance criteria:**
+- [ ] Declared, hash-verified plots switch and enlarge with focus return.
+- [ ] Notes/sign-off edit the page working copy; print includes only included reviewed findings.
+- [ ] Missing QC values are explicit and do not borrow demo thresholds or categories.
+
+**Verification:** Renderer and browser tests for plots, notes, focus, print-PDF contents, and console/network behavior.
+
+**Dependencies:** Tasks 17 and 21. **Files likely touched:** `pronto_report/templates/report/cnv-plots.html`, `pronto_report/templates/report/sequencing-qc.html`, `pronto_report/templates/report/tumour-board.html`, `pronto_report/static/report.js`, `pronto/tests/reporting/browser/test_plots_and_print.py`. **Estimated scope:** Medium: 5 files.
+
+## Task 23: Reference-style offline snapshot
+
+**Description:** Reuse the new UI projection for a self-contained, read-only export of a saved review revision.
+
+**Acceptance criteria:**
+- [ ] Export keeps reference appearance but has no editable or server-save controls.
+- [ ] It embeds approved assets, provenance, status, and saved revision without external requests.
+- [ ] Same validated inputs generate byte-identical output.
+
+**Verification:** Determinism/escaping/CSP tests and a browser network log; full reporting and legacy PPTX tests.
+
+**Dependencies:** Tasks 18–22. **Files likely touched:** `pronto_report/renderers/html.py`, `pronto_report/cli.py`, `pronto/tests/reporting/test_html_export.py`, `pronto/tests/reporting/browser/test_report.py`. **Estimated scope:** Medium: 4 files.
+
+## Checkpoint: Visual and interaction parity
+
+- [ ] All Task 16–23 acceptance criteria and tests pass.
+- [ ] Molecular-biologist review confirms that layout and interactions match the reference apart from documented safety changes and unavailable source data.
+- [ ] PR #4 remains unmerged if any clinically important behavior is missing.
+
+## Task 24: Review commands and audit contract
+
+**Description:** Define framework-neutral save/finalize commands with versioned request/response shapes, authorization context, revision checks, and structured errors.
+
+**Acceptance criteria:**
+- [ ] Save accepts a full validated draft and base revision; stale revisions produce conflict without mutation.
+- [ ] Finalize accepts only a saved, clean latest revision and locks further writes.
+- [ ] Audit records identify actor, action, revision, and timestamp in the same logical operation.
+
+**Verification:** Service tests with a fake repository for success, 409-equivalent conflicts, validation errors, repeated requests, and FINAL lock.
+
+**Dependencies:** Tasks 17 and 23. **Files likely touched:** `pronto_report/review/service.py`, `pronto_report/review/contracts.py`, `pronto_report/review/repository.py`, `pronto/tests/reporting/test_review_service.py`. **Estimated scope:** Medium: 4 files.
+
+## Task 25: Authenticated Django read slice
+
+**Description:** Add a minimal Django project that serves one approved report and its latest saved review through the reference-style UI, without a write path yet.
+
+**Acceptance criteria:**
+- [ ] Unauthenticated users and users without report access cannot retrieve report, review, or assets.
+- [ ] An authorized user sees the validated fixture in the familiar UI.
+- [ ] Django delegates projection/rendering to `pronto_report` rather than duplicating clinical calculations.
+
+**Verification:** Django request tests for authentication, report-level authorization, fixture rendering, and asset access; existing tests still pass.
+
+**Dependencies:** Task 24. **Files likely touched:** `pronto_web/settings.py`, `pronto_web/urls.py`, `pronto_web/reports/views.py`, `pronto_web/reports/models.py`, `pronto/tests/reporting/test_django_read.py`. **Estimated scope:** Medium: 5 files.
+
+## Task 26: Atomic draft-save endpoint
+
+**Description:** Persist revisions and audit rows in one database transaction when an authorized user presses **Lagre**.
+
+**Acceptance criteria:**
+- [ ] CSRF-protected save checks report access and the submitted base revision atomically.
+- [ ] One successful request creates one new revision and audit event; stale request returns HTTP 409 with the current revision.
+- [ ] Invalid corrections, mismatched report IDs, and FINAL writes make no database change.
+
+**Verification:** Django transaction/request tests, including two clients saving from one base revision; inspect migration behavior.
+
+**Dependencies:** Task 25. **Files likely touched:** `pronto_web/reports/views.py`, `pronto_web/reports/models.py`, `pronto_web/reports/migrations/0001_initial.py`, `pronto_report/review/service.py`, `pronto/tests/reporting/test_django_save.py`. **Estimated scope:** Medium: 5 files.
+
+## Task 27: Explicit frontend save and conflict states
+
+**Description:** Connect the original **Lagre** button to the save endpoint and accurately represent dirty, saving, saved, failure, and conflict states.
+
+**Acceptance criteria:**
+- [ ] Typing and local interaction send no write; clicking **Lagre** sends exactly one write with base revision.
+- [ ] Success alone clears dirty state and updates revision; network/validation errors preserve unsaved edits.
+- [ ] Conflict shows current revision and safe reload/local-draft-export choices without silent overwrite.
+
+**Verification:** Browser tests with successful, failed, and 409 responses; leaving a dirty page warns; no patient data enters `localStorage`.
+
+**Dependencies:** Task 26. **Files likely touched:** `pronto_report/static/report.js`, `pronto_report/templates/report/base.html`, `pronto_report/static/report.css`, `pronto/tests/reporting/browser/test_save_flow.py`. **Estimated scope:** Medium: 4 files.
+
+## Task 28: Confirmed finalization and lock
+
+**Description:** Replace the reference's draft/final toggle with a confirmed server action against the latest saved revision; the same authorized biologist may perform it.
+
+**Acceptance criteria:**
+- [ ] Unsaved edits disable finalization and explain why.
+- [ ] Success records actor/time, makes UI and service read-only, and retains the final saved snapshot.
+- [ ] Conflict or failure keeps the prior draft state; a second reviewer is not required.
+
+**Verification:** Django and browser tests for confirmation, same-user finalization, stale revision, failed request, and post-final write rejection.
+
+**Dependencies:** Tasks 26–27. **Files likely touched:** `pronto_web/reports/views.py`, `pronto_report/review/service.py`, `pronto_report/static/report.js`, `pronto/tests/reporting/test_django_finalization.py`, `pronto/tests/reporting/browser/test_finalization.py`. **Estimated scope:** Medium: 5 files.
+
+## Task 29: End-to-end quality and review gate
+
+**Description:** Verify the full reference UI plus Django flow with approved fixtures and document only intentional deviations from the original.
+
+**Acceptance criteria:**
+- [ ] Source/provenance, migration, duplicate variants, audit, concurrency, authorization, CSRF, print, and offline export pass regression tests.
+- [ ] Masked desktop/mobile comparisons and clinical-user review are recorded without publishing patient-like artifacts.
+- [ ] Existing OUS/HUS and PPTX behavior remains green; PR #4 is updated for human review, not auto-merged.
+
+**Verification:** `python -m pytest -q`, browser suite, Django checks/migrations, existing PRONTO tests, staged privacy review, and CI.
+
+**Dependencies:** Tasks 16–28. **Files likely touched:** `pronto/tests/reporting/browser/test_report.py`, `pronto/tests/reporting/test_renderer_parity.py`, `docs/report-parity.md`, `tasks/plan.md`, `tasks/todo.md`. **Estimated scope:** Medium: 5 files.
+
+## Checkpoint: Database-backed review
+
+- [ ] All Task 24–29 criteria and tests pass.
+- [ ] A biologist verifies **Lagre**, conflict warning, and same-user FINAL against the reference-style page.
+- [ ] Production authentication, retention, backups, and deployment receive a separate operational approval before real patient use.
