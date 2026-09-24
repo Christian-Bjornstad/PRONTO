@@ -46,7 +46,7 @@ def serve(html):
                 body, content_type = payload, "text/html; charset=utf-8"
             elif self.path == "/static/report-igv.js":
                 body, content_type = (STATIC_ROOT / "report-igv.js").read_bytes(), "text/javascript"
-            elif self.path == "/static/igv/igv.esm.min.js":
+            elif self.path in {"/static/igv/igv.esm.min.js", "/static/igv/igv.esm.real.js"}:
                 body, content_type = (STATIC_ROOT / "igv" / "igv.esm.min.js").read_bytes(), "text/javascript"
             elif self.path == "/reference.fa":
                 body, content_type = REFERENCE, "application/octet-stream"
@@ -91,6 +91,28 @@ def serve(html):
         server.shutdown()
         server.server_close()
         thread.join()
+
+
+def capture_real_igv(page):
+    """Expose only the synthetic test browser object, keeping production JS untouched."""
+    wrapper = """import igv from './igv.esm.real.js';
+      const original = igv.createBrowser;
+      igv.createBrowser = async (...args) => {
+        const browser = await original(...args);
+        window.__testIgvBrowser = browser;
+        return browser;
+      };
+      export default igv;"""
+    page.route("**/static/igv/igv.esm.min.js",
+               lambda route: route.fulfill(body=wrapper, content_type="text/javascript"))
+
+
+def synthetic_read_names(page, track_name):
+    return page.evaluate("""async name => {
+      const track = window.__testIgvBrowser.findTracks('name', name)[0];
+      const container = await track.featureSource.getAlignments('chr22', 50, 150);
+      return container.allAlignments().map(read => read.readName);
+    }""", track_name)
 
 
 def test_local_pair_is_browser_only_and_disappears_on_reload():
@@ -233,6 +255,7 @@ def test_real_igv_opens_indexed_synthetic_bam_at_variant_locus():
         browser = runtime.chromium.launch(executable_path=browser_executable(), headless=True)
         try:
             page = browser.new_page()
+            capture_real_igv(page)
             requests = []
             diagnostics = []
             page.on("request", lambda request: requests.append((request.method, request.url)))
@@ -248,6 +271,7 @@ def test_real_igv_opens_indexed_synthetic_bam_at_variant_locus():
             values = page.locator("#igv-viewer").evaluate("element => [...element.shadowRoot.querySelectorAll('input')].map(input => input.value)")
             assert any("chr22" in value for value in values), values
             assert "Lokal fil" in page.locator("#igv-viewer").evaluate("element => element.shadowRoot.textContent")
+            assert "synthetic-read" in synthetic_read_names(page, "Lokal fil")
             assert not any(method in {"POST", "PUT"} for method, _ in requests)
             assert all(request_url.startswith(url.rstrip("/")) for _, request_url in requests)
             assert diagnostics == []
@@ -272,6 +296,7 @@ def test_registered_source_opens_through_same_origin_ranges():
         browser = runtime.chromium.launch(executable_path=browser_executable(), headless=True)
         try:
             page = browser.new_page()
+            capture_real_igv(page)
             requests = []
             diagnostics = []
             page.on("request", lambda request: requests.append((request.method, request.url, request.headers)))
@@ -288,6 +313,7 @@ def test_registered_source_opens_through_same_origin_ranges():
             assert any(request_url.endswith("/data/") and "range" in headers for _, request_url, headers in alignment_requests)
             assert any(request_url.endswith("/index/") for _, request_url, _ in alignment_requests)
             assert all(method == "GET" for method, _, _ in alignment_requests)
+            assert "synthetic-read" in synthetic_read_names(page, "TUMOUR_DNA")
             assert diagnostics == []
         finally:
             browser.close()
