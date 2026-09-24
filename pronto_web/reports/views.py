@@ -4,7 +4,9 @@ import json
 
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
 from django.utils import timezone
+from django.middleware.csrf import get_token
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET, require_POST
 
@@ -49,7 +51,12 @@ def report_detail(request, report_id: str) -> HttpResponse:
         raise ValueError("Stored review revision does not match its record")
     blobs = {asset.asset_id: bytes(asset.content) for asset in record.assets.all()}
     plot_images = load_plot_images_from_bytes(report, blobs)
-    html = render_html(report, review, plot_images=plot_images, inline_assets=True, snapshot=True)
+    html = render_html(
+        report, review, plot_images=plot_images, inline_assets=True,
+        save_url=reverse("review-save", args=[record.report_id]) if review and review.status == "DRAFT" else None,
+        csrf_token=get_token(request) if review and review.status == "DRAFT" else None,
+        actor_id=str(request.user.pk) if review and review.status == "DRAFT" else None,
+    )
     response = HttpResponse(html, content_type="text/html; charset=utf-8")
     response["Cache-Control"] = "no-store"
     return response
