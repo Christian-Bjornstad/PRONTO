@@ -107,6 +107,27 @@ def test_offline_export_is_responsive_and_makes_no_external_requests(browser):
                 context.close()
 
 
+def test_saved_snapshot_is_read_only_but_navigation_and_search_still_work(browser):
+    report = replace(build_report(), attachments=())
+    html = render_html(report, draft_review(report), inline_assets=True, snapshot=True)
+    with _serve(html) as url:
+        context, page, diagnostics, requests = _page(browser, html)
+        try:
+            page.goto(url)
+            assert page.locator(".report-topbar__saved").inner_text() == "Skrivebeskyttet eksport"
+            assert page.locator("#save-btn, #edit-btn, #download-review, textarea, select").count() == 0
+            page.get_by_role("tab", name="Variantgjennomgang").click()
+            assert page.get_by_role("cell", name="Ekskluder").count() >= 1
+            page.get_by_label("Søk i varianter").fill("CHEK2")
+            assert page.locator("#variant-table tbody tr:not([hidden])").count() == 1
+            page.get_by_role("tab", name="Molekylært tumorboard").click()
+            assert page.locator(".board-note-readonly").count() == 3
+            assert requests == [url]
+            assert diagnostics == []
+        finally:
+            context.close()
+
+
 def test_tmb_gauge_edits_only_page_memory_and_blocks_stale_download(browser):
     report = build_report()
     html = render_html(report, draft_review(report), inline_assets=True)

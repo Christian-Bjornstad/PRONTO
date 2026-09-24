@@ -261,7 +261,7 @@ def _review_select(
     )
 
 
-def _variant_rows(report: ReportData, review: ReviewState | None) -> str:
+def _variant_rows(report: ReportData, review: ReviewState | None, snapshot: bool = False) -> str:
     if not report.variants:
         span = 11 if review is not None else 7
         return f'<tr><td colspan="{span}">Ingen varianter tilgjengelig i kildedata.</td></tr>'
@@ -290,17 +290,28 @@ def _variant_rows(report: ReportData, review: ReviewState | None) -> str:
             classification = str(activity.get("clinicalClassification", "UNCLASSIFIED"))
             igv = str(activity.get("igvAssessment", "NOT_REVIEWED"))
             comment = str(activity.get("comment", ""))
-            disabled = " disabled" if review.status == "FINAL" else ""
-            review_cells = (
-                "<td>" + _review_select(variant_id, occurrence_id, "reportingDecision", decision, review.status == "FINAL") + "</td>"
-                + "<td>" + _review_select(variant_id, occurrence_id, "clinicalClassification", classification, review.status == "FINAL") + "</td>"
-                + "<td>" + _review_select(variant_id, occurrence_id, "igvAssessment", igv, review.status == "FINAL") + "</td>"
-                + '<td><textarea aria-label="Vurderingskommentar for {}" data-variant-id="{}" '
-                  'data-review-field="comment" maxlength="10000" rows="2"{}>{}</textarea></td>'.format(
-                      escape(occurrence_id, quote=True), escape(variant_id, quote=True),
-                      disabled, escape(comment),
-                  )
-            )
+            if snapshot:
+                labels = {
+                    "reportingDecision": {"UNREVIEWED": "Ikke vurdert", "INCLUDE": "Inkluder", "EXCLUDE": "Ekskluder"},
+                    "clinicalClassification": {"UNCLASSIFIED": "Ikke klassifisert", "PATHOGENIC": "Patogen", "UNCERTAIN": "Usikker", "OTHER": "Annet"},
+                    "igvAssessment": {"NOT_REVIEWED": "Ikke vurdert", "SUPPORTS": "Støtter", "DOES_NOT_SUPPORT": "Støtter ikke", "INCONCLUSIVE": "Uavklart", "NOT_APPLICABLE": "Ikke relevant"},
+                }
+                review_cells = "".join(
+                    f"<td>{escape(labels[field][value])}</td>"
+                    for field, value in (("reportingDecision", decision), ("clinicalClassification", classification), ("igvAssessment", igv))
+                ) + f'<td class="review-comment-readonly">{escape(comment) if comment else "—"}</td>'
+            else:
+                disabled = " disabled" if review.status == "FINAL" else ""
+                review_cells = (
+                    "<td>" + _review_select(variant_id, occurrence_id, "reportingDecision", decision, review.status == "FINAL") + "</td>"
+                    + "<td>" + _review_select(variant_id, occurrence_id, "clinicalClassification", classification, review.status == "FINAL") + "</td>"
+                    + "<td>" + _review_select(variant_id, occurrence_id, "igvAssessment", igv, review.status == "FINAL") + "</td>"
+                    + '<td><textarea aria-label="Vurderingskommentar for {}" data-variant-id="{}" '
+                      'data-review-field="comment" maxlength="10000" rows="2"{}>{}</textarea></td>'.format(
+                          escape(occurrence_id, quote=True), escape(variant_id, quote=True),
+                          disabled, escape(comment),
+                      )
+                )
         rows.append(
             '<tr data-occurrence-id="{}" data-search="{}" data-vaf="{}">{}{}</tr>'.format(
                 escape(str(variant["occurrenceId"]), quote=True),
@@ -383,7 +394,7 @@ def _qc_metrics(report: ReportData) -> str:
     return "".join(cards)
 
 
-def _tumour_content(report: ReportData, review: ReviewState | None) -> str:
+def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bool = False) -> str:
     if review is None:
         return '<p class="empty-state">Ingen ReviewState er lastet inn. Tumorboard-funn er ikke tilgjengelige.</p>'
     included = {
@@ -425,11 +436,13 @@ def _tumour_content(report: ReportData, review: ReviewState | None) -> str:
     disabled = " disabled" if review.status == "FINAL" else ""
     note_cards = "".join(
         '<div class="board-note-card">'
-        f'<label for="{field_id}">{escape(label)}</label>'
-        f'<textarea id="{field_id}" class="board-note" rows="5" maxlength="50000"'
-        f'{disabled} data-review-note="{key}">{escape(str(notes.get(key, "")))}</textarea>'
-        f'<p class="board-note-print" data-print-note="{key}">{escape(str(notes.get(key, "")))}</p>'
-        '</div>'
+        + (f'<h4>{escape(label)}</h4><p class="board-note-readonly">{escape(str(notes.get(key, ""))) or "Ikke oppgitt"}</p>'
+           if snapshot else
+           f'<label for="{field_id}">{escape(label)}</label>'
+           f'<textarea id="{field_id}" class="board-note" rows="5" maxlength="50000"'
+           f'{disabled} data-review-note="{key}">{escape(str(notes.get(key, "")))}</textarea>'
+           f'<p class="board-note-print" data-print-note="{key}">{escape(str(notes.get(key, "")))}</p>')
+        + '</div>'
         for key, label, field_id in note_fields
     )
     legacy = str(notes.get("importedLegacyNote", ""))
@@ -493,8 +506,11 @@ def render_html(
     *,
     plot_images: Mapping[str, tuple[tuple[str, bytes], ...]] | None = None,
     inline_assets: bool = False,
+    snapshot: bool = False,
 ) -> str:
     """Render validated contracts as a development page or offline artifact."""
+    if snapshot and not inline_assets:
+        raise ValueError("snapshot requires inline_assets=True")
     if review is not None and review.report_id != report.report_id:
         raise ValueError("Review state does not belong to this report")
     if review is not None and review.schema_version == "1.0":
@@ -524,6 +540,16 @@ def render_html(
         review_actions = ""
         review_script = ""
         finalization = ""
+    elif snapshot:
+        review_filters = ""
+        review_actions = ""
+        review_toolbar = f'<p class="review-notice">Skrivebeskyttet eksport · revisjon {review.revision}</p>'
+        review_script = ""
+        finalization = (
+            f'Ferdigstilt av {escape(review.finalized_by or "")} '
+            f'<time datetime="{escape(review.finalized_at or "")}">{escape(review.finalized_at or "")}</time>'
+            if status == "FINAL" else ""
+        )
     else:
         review_filters = (
             '<div class="review-filters" role="group" aria-label="Filtrer etter vurdering">'
@@ -561,7 +587,16 @@ def render_html(
             f'<time datetime="{escape(review.finalized_at or "")}">{escape(review.finalized_at or "")}</time>'
             if status == "FINAL" else ""
         )
-    editable = review is not None and status == "DRAFT"
+    editable = review is not None and status == "DRAFT" and not snapshot
+    topbar_actions = (
+        '<span class="report-topbar__saved">Skrivebeskyttet eksport</span>' if snapshot else
+        '<span class="report-topbar__saved" id="dirty-lbl" role="status" aria-live="polite">Kun lokal visning</span>'
+        + ('<button id="edit-btn" type="button" aria-pressed="false">Edit mode: OFF</button>' if editable else
+           '<button id="edit-btn" type="button" disabled title="Rapporten er skrivebeskyttet">Edit mode: OFF</button>')
+        + '<button id="save-btn" type="button" disabled title="Lagring i databasen kommer i neste steg">Lagre</button>'
+        + '<button id="load-btn" type="button" disabled title="Import av gjennomgang er ikke aktivert">Laster</button>'
+        + '<button id="reset-btn" type="button" disabled title="Tilbakestilling er ikke aktivert">Reset</button>'
+    )
     context = {
         "sample_id": str(report.sample["sampleId"]),
         "report_id": report.report_id,
@@ -572,22 +607,19 @@ def render_html(
         "case_facts": _case_facts(ui, editable),
         "biomarker_cards": _biomarker_cards(ui, report, review, editable),
         "key_variant_rows": _key_variant_rows(report),
-        "variant_rows": _variant_rows(report, review),
+        "variant_rows": _variant_rows(report, review, snapshot),
         "review_columns": review_columns,
         "review_toolbar": review_toolbar,
         "review_filters": review_filters,
         "review_actions": review_actions,
-        "edit_button": (
-            '<button id="edit-btn" type="button" aria-pressed="false">Edit mode: OFF</button>'
-            if editable else
-            '<button id="edit-btn" type="button" disabled title="Rapporten er skrivebeskyttet">Edit mode: OFF</button>'
-        ),
+        "topbar_actions": topbar_actions,
+        "revision_label": f"Revisjon {review.revision}" if snapshot and review else "",
         "review_script": review_script,
         "finalization": finalization,
         "cnv_content": _plot_content(report, plot_images, "cnv"),
         "qc_content": _plot_content(report, plot_images, "qc"),
         "qc_metrics": _qc_metrics(report),
-        "tumour_content": _tumour_content(report, review),
+        "tumour_content": _tumour_content(report, review, snapshot),
         "provenance": _provenance(report),
         "csp_meta": csp_meta,
         "stylesheet_tag": stylesheet_tag,

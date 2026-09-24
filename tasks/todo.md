@@ -461,9 +461,11 @@ Three v2 notes and live MDT print are implemented. Sign-off stays read-only unti
 **Description:** Reuse the new UI projection for a self-contained, read-only export of a saved review revision.
 
 **Acceptance criteria:**
-- [ ] Export keeps reference appearance but has no editable or server-save controls.
-- [ ] It embeds approved assets, provenance, status, and saved revision without external requests.
-- [ ] Same validated inputs generate byte-identical output.
+- [x] Export keeps reference appearance but has no editable or server-save controls.
+- [x] It embeds approved assets, provenance, status, and supplied review revision without external requests.
+- [x] Same validated inputs generate byte-identical output.
+
+`render-html` now creates the read-only snapshot from validated `ReportData` and an optional supplied `ReviewState`. It does not itself verify database persistence; that boundary belongs to Tasks 24–28.
 
 **Verification:** Determinism/escaping/CSP tests and a browser network log; full reporting and legacy PPTX tests.
 

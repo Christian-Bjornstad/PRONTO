@@ -5,9 +5,11 @@ import pytest
 
 from pronto.tests.reporting.test_html_surfaces import ONE_PIXEL_PNG
 from pronto.tests.reporting.test_pronto_output_adapter import build_report
+from pronto.tests.reporting.test_html_review_state import draft_review
 from pronto_report.cli import main
 from pronto_report.renderers.html import render_html
-from pronto_report.serialization import serialize_report_data
+from pronto_report.migration import migrate_review_state_v1
+from pronto_report.serialization import serialize_report_data, serialize_review_state
 from pronto_report.renderers.assets import load_plot_images
 
 
@@ -78,3 +80,51 @@ def test_cli_requires_all_declared_plot_assets(tmp_path):
 
     with pytest.raises(FileNotFoundError):
         main(["render-html", str(input_path), "--output", str(tmp_path / "report.html")])
+
+
+def test_read_only_snapshot_keeps_revision_and_notes_without_edit_controls():
+    report = replace(build_report(), attachments=())
+    review = draft_review(report)
+    first = render_html(report, review, inline_assets=True, snapshot=True)
+    assert first == render_html(report, review, inline_assets=True, snapshot=True)
+    assert f"Revisjon {review.revision}" in first
+    assert 'data-review-note=' not in first
+    assert '<select aria-label=' not in first
+    assert '<textarea' not in first
+    assert '<button id="edit-btn"' not in first
+    assert '<button id="save-btn"' not in first
+    assert '<button id="download-review"' not in first
+    assert '<script type="application/json" id="review-state-data"' not in first
+    assert 'class="board-note-readonly"' in first
+    assert 'Content-Security-Policy' in first
+
+
+def test_snapshot_requires_embedded_assets():
+    with pytest.raises(ValueError, match="inline_assets"):
+        render_html(build_report(), snapshot=True)
+
+
+def test_snapshot_escapes_review_notes_as_text():
+    report = replace(build_report(), attachments=())
+    review = migrate_review_state_v1(draft_review(report))
+    review = replace(review, notes={**review.notes, "summary": '<script>alert("x")</script>'})
+    html = render_html(report, review, inline_assets=True, snapshot=True)
+    assert '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;' in html
+    assert '<script>alert("x")</script>' not in html
+
+
+def test_cli_exports_read_only_saved_revision(tmp_path):
+    report = replace(build_report(), attachments=())
+    review = draft_review(report)
+    report_path = tmp_path / "report-data.json"
+    review_path = tmp_path / "review-state.json"
+    output_path = tmp_path / "report.html"
+    report_path.write_bytes(serialize_report_data(report))
+    review_path.write_bytes(serialize_review_state(review))
+    args = ["render-html", str(report_path), "--review", str(review_path), "--output", str(output_path)]
+    assert main(args) == 0
+    first = output_path.read_bytes()
+    assert b'id="save-btn"' not in first
+    assert f"Revisjon {review.revision}".encode() in first
+    assert main(args) == 0
+    assert output_path.read_bytes() == first
