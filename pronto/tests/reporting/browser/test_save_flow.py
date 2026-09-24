@@ -2,12 +2,12 @@
 
 import json
 from pathlib import Path
-from playwright.sync_api import expect
-
-from pronto.tests.reporting.browser.test_report import _page, _serve, browser
+from pronto.tests.reporting.browser.test_report import _page, _serve, browser, playwright
 from pronto.tests.reporting.test_html_review_state import draft_review
 from pronto.tests.reporting.test_pronto_output_adapter import build_report
 from pronto_report.renderers.html import render_html
+
+expect = playwright.expect
 
 
 def _live_report():
