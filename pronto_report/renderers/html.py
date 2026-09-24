@@ -465,7 +465,7 @@ def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bo
     )
 
 
-def _inline_assets() -> tuple[str, str, str]:
+def _inline_assets(*, allow_same_origin_requests: bool = False) -> tuple[str, str, str]:
     stylesheet = (_STATIC_ROOT / "report.css").read_text(encoding="utf-8")
     script = (_STATIC_ROOT / "report.js").read_text(encoding="utf-8")
     if "</style" in stylesheet.casefold() or "</script" in script.casefold():
@@ -475,7 +475,8 @@ def _inline_assets() -> tuple[str, str, str]:
     policy = (
         "default-src 'none'; img-src data:; "
         f"style-src 'sha256-{style_hash}'; script-src 'sha256-{script_hash}'; "
-        "base-uri 'none'; form-action 'none'; object-src 'none'"
+        + ("connect-src 'self'; " if allow_same_origin_requests else "")
+        + "base-uri 'none'; form-action 'none'; object-src 'none'"
     )
     return (
         f'<meta http-equiv="Content-Security-Policy" content="{escape(policy, quote=True)}">',
@@ -507,10 +508,15 @@ def render_html(
     plot_images: Mapping[str, tuple[tuple[str, bytes], ...]] | None = None,
     inline_assets: bool = False,
     snapshot: bool = False,
+    save_url: str | None = None,
+    csrf_token: str | None = None,
+    actor_id: str | None = None,
 ) -> str:
     """Render validated contracts as a development page or offline artifact."""
     if snapshot and not inline_assets:
         raise ValueError("snapshot requires inline_assets=True")
+    if save_url and (snapshot or not csrf_token or not actor_id):
+        raise ValueError("Live saving requires a non-snapshot report, CSRF token, and actor")
     if review is not None and review.report_id != report.report_id:
         raise ValueError("Review state does not belong to this report")
     if review is not None and review.schema_version == "1.0":
@@ -524,7 +530,7 @@ def render_html(
         raise ValueError("Plot image does not match a declared attachment")
     status_label = "Endelig" if status == "FINAL" else "Utkast"
     csp_meta, stylesheet_tag, script_tag = (
-        _inline_assets() if inline_assets else
+        _inline_assets(allow_same_origin_requests=save_url is not None) if inline_assets else
         ("", '<link rel="stylesheet" href="/pronto_report/static/report.css">',
          '<script src="/pronto_report/static/report.js" defer></script>')
     )
@@ -576,7 +582,9 @@ def render_html(
         review_toolbar = (
             '<button id="download-review" type="button">Last ned ReviewState</button>'
             '<p id="review-feedback" role="status" aria-live="polite">'
-            + ("Endelig rapport er låst." if status == "FINAL" else "Endringer lagres når ReviewState lastes ned.")
+            + ("Endelig rapport er låst." if status == "FINAL" else
+               "Endringer lagres først når du trykker Lagre." if save_url else
+               "Endringer lagres når ReviewState lastes ned.")
             + "</p>"
         )
         payload = serialize_review_state(review).decode("utf-8").strip()
@@ -588,12 +596,28 @@ def render_html(
             if status == "FINAL" else ""
         )
     editable = review is not None and status == "DRAFT" and not snapshot
+    live_save = editable and save_url is not None
+    save_feedback = (
+        '<div class="save-feedback" id="save-feedback" hidden>'
+        '<p id="save-error" role="alert" hidden></p>'
+        '<div id="save-recovery" hidden>'
+        '<button id="export-local-draft" type="button">Last ned lokale endringer</button>'
+        '<button id="reload-latest" type="button">Last inn nyeste lagrede revisjon</button>'
+        '</div></div>' if live_save else ""
+    )
+    save_button = (
+        f'<button id="save-btn" type="button" data-save-url="{escape(save_url, quote=True)}" '
+        f'data-csrf-token="{escape(csrf_token or "", quote=True)}" '
+        f'data-actor-id="{escape(actor_id or "", quote=True)}" disabled>Lagre</button>'
+        if live_save else
+        '<button id="save-btn" type="button" disabled title="Lagring er ikke tilgjengelig her">Lagre</button>'
+    )
     topbar_actions = (
         '<span class="report-topbar__saved">Skrivebeskyttet eksport</span>' if snapshot else
         '<span class="report-topbar__saved" id="dirty-lbl" role="status" aria-live="polite">Kun lokal visning</span>'
         + ('<button id="edit-btn" type="button" aria-pressed="false">Edit mode: OFF</button>' if editable else
            '<button id="edit-btn" type="button" disabled title="Rapporten er skrivebeskyttet">Edit mode: OFF</button>')
-        + '<button id="save-btn" type="button" disabled title="Lagring i databasen kommer i neste steg">Lagre</button>'
+        + save_button
         + '<button id="load-btn" type="button" disabled title="Import av gjennomgang er ikke aktivert">Laster</button>'
         + '<button id="reset-btn" type="button" disabled title="Tilbakestilling er ikke aktivert">Reset</button>'
     )
@@ -613,6 +637,7 @@ def render_html(
         "review_filters": review_filters,
         "review_actions": review_actions,
         "topbar_actions": topbar_actions,
+        "save_feedback": save_feedback,
         "revision_label": f"Revisjon {review.revision}" if snapshot and review else "",
         "review_script": review_script,
         "finalization": finalization,

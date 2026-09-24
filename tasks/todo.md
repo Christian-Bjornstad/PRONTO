@@ -532,9 +532,16 @@ parallel IGV migration also requires a merge migration at integration time.
 **Description:** Connect the original **Lagre** button to the save endpoint and accurately represent dirty, saving, saved, failure, and conflict states.
 
 **Acceptance criteria:**
-- [ ] Typing and local interaction send no write; clicking **Lagre** sends exactly one write with base revision.
-- [ ] Success alone clears dirty state and updates revision; network/validation errors preserve unsaved edits.
-- [ ] Conflict shows current revision and safe reload/local-draft-export choices without silent overwrite.
+- [x] Typing and local interaction send no write; clicking **Lagre** sends exactly one write with base revision.
+- [x] Success alone clears dirty state and updates revision; network/validation errors preserve unsaved edits.
+- [x] Conflict shows current revision and safe reload/local-draft-export choices without silent overwrite.
+
+The authenticated draft page alone enables saving and `connect-src 'self'`.
+Standalone HTML and read-only exports remain network-denied. The conflict
+export preserves the base revision and local changes without writing to
+browser storage; reloading requires confirmation. Saved source corrections
+remain in ReviewState and do not mutate ReportData; a dedicated visual
+projection of previously saved corrections remains an integration follow-up.
 
 **Verification:** Browser tests with successful, failed, and 409 responses; leaving a dirty page warns; no patient data enters `localStorage`.
 

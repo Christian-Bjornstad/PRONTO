@@ -59,9 +59,10 @@ class ReportReadTests(TestCase):
         assert response.status_code == 200
         assert b"InPreD" in response.content
         assert b"Siste lagrede vurdering" in response.content
-        assert b"Revisjon 2" in response.content
+        assert b'data-save-url="' in response.content
         assert b"data:image/png;base64," in response.content
-        assert b'id="save-btn"' not in response.content
+        assert b'id="save-btn"' in response.content
+        assert "csrftoken" in response.cookies
         assert b'<style>' in response.content
         assert response["Cache-Control"] == "no-store"
 

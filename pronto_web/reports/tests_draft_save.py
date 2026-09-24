@@ -66,6 +66,26 @@ class DraftSaveTests(TestCase):
         assert ReviewRevision.objects.filter(report=self.record).count() == 2
         assert ReviewAudit.objects.filter(report=self.record).count() == 1
 
+    def test_save_accepts_reasoned_source_correction_from_signed_in_biologist(self):
+        client = Client()
+        client.force_login(self.writer)
+        self.draft["valueCorrections"].append({
+            "path": "/sample/tumourType",
+            "originalValue": self.report.sample.get("tumourType"),
+            "correctedValue": "Syntetisk korrigert verdi",
+            "reason": "Kontrollert mot syntetisk kildemateriale",
+            "author": str(self.writer.pk),
+            "timestamp": self.draft["updatedAt"],
+        })
+
+        response = self.post(client, self.payload())
+
+        assert response.status_code == 201
+        saved = response.json()["review"]["valueCorrections"][-1]
+        assert saved["author"] == str(self.writer.pk)
+        assert saved["timestamp"] == response.json()["review"]["updatedAt"]
+        assert saved["originalValue"] == self.report.sample.get("tumourType")
+
     def test_authentication_report_grant_and_csrf_are_required(self):
         assert self.post(Client(), self.payload()).status_code == 401
         ungranted = Client()

@@ -52,14 +52,17 @@
   const editControls = Array.from(document.querySelectorAll(".report-edit-controls"));
   const dirtyLabel = document.getElementById("dirty-lbl");
   const reviewDownload = document.getElementById("download-review");
+  const saveButton = document.getElementById("save-btn");
   const corrections = new Map();
   let reviewDirty = false;
+  let saving = false;
 
   function refreshDirty() {
     const sourceDirty = corrections.size > 0;
-    dirtyLabel.textContent = sourceDirty ? "Ulagrede kildekorreksjoner" :
-      reviewDirty ? "Ulagret gjennomgang" : "Kun lokal visning";
+    dirtyLabel.textContent = saving ? "Lagrer …" : sourceDirty ? "Ulagrede kildekorreksjoner" :
+      reviewDirty ? "Ulagret gjennomgang" : saveButton?.dataset.saveUrl ? "Alle endringer lagret" : "Kun lokal visning";
     if (reviewDownload) reviewDownload.disabled = sourceDirty;
+    if (saveButton?.dataset.saveUrl) saveButton.disabled = saving || (!sourceDirty && !reviewDirty);
   }
 
   if (editButton && !editButton.disabled) {
@@ -111,6 +114,7 @@
     reason.addEventListener("input", () => {
       const correction = corrections.get(path);
       if (correction) correction.reason = reason.value.trim();
+      refreshDirty();
     });
   }
 
@@ -146,6 +150,7 @@
     reason.addEventListener("input", () => {
       const correction = corrections.get(path);
       if (correction) correction.reason = reason.value.trim();
+      refreshDirty();
     });
   });
 
@@ -177,6 +182,7 @@
     reason.addEventListener("input", () => {
       const correction = corrections.get(path);
       if (correction) correction.reason = reason.value.trim();
+      refreshDirty();
     });
   });
 
@@ -319,7 +325,110 @@
   const activities = new Map(reviewState.variantReviews.map((item) => [item.variantId, item]));
   const feedback = document.getElementById("review-feedback");
   const download = document.getElementById("download-review");
+  const saveError = document.getElementById("save-error");
+  const recovery = document.getElementById("save-recovery");
+  const saveFeedback = document.getElementById("save-feedback");
   updateReviewSummary();
+  refreshDirty();
+
+  function localDraft() {
+    const draft = JSON.parse(JSON.stringify(reviewState));
+    const byPath = new Map(draft.valueCorrections.map((item) => [item.path, item]));
+    corrections.forEach((item, path) => {
+      byPath.set(path, {
+        ...item, author: saveButton.dataset.actorId, timestamp: new Date().toISOString(),
+      });
+    });
+    draft.valueCorrections = Array.from(byPath.values());
+    return draft;
+  }
+
+  function downloadJson(data, suffix) {
+    const blob = new Blob([JSON.stringify(data, null, 2) + "\n"], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${reviewState.reportId}-${suffix}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  if (saveButton?.dataset.saveUrl) {
+    const editableInputs = Array.from(document.querySelectorAll(
+      '.report-edit-controls input, textarea[data-review-note], #variant-table select[data-review-field], #variant-table textarea[data-review-field], [data-bulk-decision]'
+    ));
+    window.addEventListener("beforeunload", (event) => {
+      if (!reviewDirty && !corrections.size && !saving) return;
+      event.preventDefault();
+      event.returnValue = "";
+    });
+    document.getElementById("export-local-draft").addEventListener("click", () => {
+      downloadJson(localDraft(), "local-draft");
+    });
+    document.getElementById("reload-latest").addEventListener("click", () => {
+      if (window.confirm("Lokale endringer går tapt. Last inn nyeste lagrede revisjon?")) {
+        reviewDirty = false;
+        corrections.clear();
+        window.location.reload();
+      }
+    });
+    saveButton.addEventListener("click", async () => {
+      if (saving || (!reviewDirty && !corrections.size)) return;
+      saveError.hidden = true;
+      recovery.hidden = true;
+      saveFeedback.hidden = true;
+      const missingReason = Array.from(corrections.values()).find((item) => !item.reason);
+      if (missingReason) {
+        saveError.textContent = "Begrunn alle kildekorreksjoner før du lagrer.";
+        saveError.hidden = false;
+        saveFeedback.hidden = false;
+        document.querySelector(`[data-correction-path="${missingReason.path}"]`)?.focus();
+        return;
+      }
+      const baseRevision = reviewState.revision;
+      const draft = localDraft();
+      saving = true;
+      const previouslyDisabled = editableInputs.map((input) => input.disabled);
+      editableInputs.forEach((input) => { input.disabled = true; });
+      refreshDirty();
+      feedback.textContent = "Lagrer endringene …";
+      try {
+        const response = await fetch(saveButton.dataset.saveUrl, {
+          method: "POST", credentials: "same-origin",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": saveButton.dataset.csrfToken },
+          body: JSON.stringify({ schemaVersion: "1.0", reportId: reviewState.reportId, baseRevision, draft }),
+        });
+        const result = await response.json();
+        if (response.status === 409 && result.error?.code === "REVISION_CONFLICT") {
+          saveError.textContent = `En annen lagring finnes (revisjon ${result.error.currentRevision}). Dine lokale endringer er beholdt. Last dem ned før du eventuelt laster inn nyeste revisjon.`;
+          saveError.hidden = false;
+          recovery.hidden = false;
+          saveFeedback.hidden = false;
+          return;
+        }
+        if (!response.ok || result.review?.reportId !== reviewState.reportId ||
+            result.review?.revision !== baseRevision + 1) {
+          throw new Error("Lagringen ble ikke bekreftet. Endringene er fortsatt lokale.");
+        }
+        Object.assign(reviewState, result.review);
+        activities.clear();
+        reviewState.variantReviews.forEach((item) => activities.set(item.variantId, item));
+        corrections.clear();
+        reviewDirty = false;
+        feedback.textContent = `Lagret som revisjon ${reviewState.revision}.`;
+      } catch (_error) {
+        saveError.textContent = "Kunne ikke bekrefte lagring. Endringene er fortsatt lokale. Prøv igjen, eller last ned en lokal kopi.";
+        saveError.hidden = false;
+        recovery.hidden = false;
+        saveFeedback.hidden = false;
+      } finally {
+        saving = false;
+        editableInputs.forEach((input, index) => { input.disabled = previouslyDisabled[index]; });
+        refreshDirty();
+        updateReviewSummary();
+      }
+    });
+  }
 
   function updateBoardFindings() {
     const list = document.getElementById("board-findings");
@@ -428,17 +537,12 @@
   });
 
   download.addEventListener("click", () => {
-    if (reviewState.status !== "FINAL") {
-      reviewState.revision += 1;
-      reviewState.updatedAt = new Date().toISOString();
+    const exported = JSON.parse(JSON.stringify(reviewState));
+    if (exported.status !== "FINAL" && !saveButton?.dataset.saveUrl) {
+      exported.revision += 1;
+      exported.updatedAt = new Date().toISOString();
     }
-    const blob = new Blob([JSON.stringify(reviewState, null, 2) + "\n"], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${reviewState.reportId}-review-state.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadJson(exported, "review-state");
     feedback.textContent = "ReviewState er lastet ned. Oppbevar filen i godkjent lagring.";
   });
 })();
