@@ -178,7 +178,7 @@ def publish_pair(staging_data: Path, staging_index: Path, destination_root: Path
         raise
 
 
-def remove_pair(pair: PublishedPair) -> None:
+def remove_pair(pair: PublishedPair, *, allow_partial: bool = False) -> None:
     """Remove only a pair with exact opaque ownership metadata under its root."""
     root = _private_root(pair.root)
     directory = pair.directory
@@ -189,9 +189,13 @@ def remove_pair(pair: PublishedPair) -> None:
             or pair.data_key != f"{directory.name}/data"
             or pair.index_key != f"{directory.name}/index"):
         raise UnsafeAlignmentPath("pair does not belong to private root")
-    _regular_file(pair.data_path)
-    _regular_file(pair.index_path)
-    pair.data_path.unlink()
-    pair.index_path.unlink()
+    for component in (pair.data_path, pair.index_path):
+        if component.is_symlink():
+            raise UnsafeAlignmentPath("symlinked managed component")
+        if component.exists():
+            _regular_file(component)
+            component.unlink()
+        elif not allow_partial:
+            raise UnsafeAlignmentPath("managed component is missing")
     directory.rmdir()
     _fsync_directory(root)

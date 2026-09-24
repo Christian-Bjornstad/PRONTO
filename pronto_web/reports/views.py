@@ -11,7 +11,8 @@ from django.views.decorators.http import require_GET, require_POST, require_http
 from pronto_report.renderers.assets import load_plot_images_from_bytes
 from pronto_report.renderers.html import render_html
 from pronto_report.validation import validate_report_data, validate_review_state
-from pronto_web.reports.models import ReportGrant, ReportRecord, ReviewRevision
+from pronto_web.reports.models import ReportGrant, ReportRecord, ReportWriteGrant, ReviewRevision
+from pronto_web.reports.alignment_config import alignment_saving_enabled
 from pronto_web.reports.alignment_ranges import (RangeNotSatisfiable, iter_range,
                                                   parse_single_range, parse_upload_range)
 from pronto_web.reports.alignment_registry import (InvalidAlignmentRegistry,
@@ -80,7 +81,9 @@ def report_detail(request, report_id: str) -> HttpResponse:
                   if all(value.values())}
     html = render_html(report, review, plot_images=plot_images, inline_assets=True,
                        snapshot=True, web_igv=True, igv_sources=sources, igv_references=references,
-                       igv_registry_error=registry_error)
+                       igv_registry_error=registry_error,
+                       igv_save_enabled=(alignment_saving_enabled(settings)
+                                         and ReportWriteGrant.objects.filter(report=record, user=request.user).exists()))
     response = HttpResponse(html, content_type="text/html; charset=utf-8")
     response["Cache-Control"] = "no-store"
     return response

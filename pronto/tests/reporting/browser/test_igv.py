@@ -115,6 +115,140 @@ def synthetic_read_names(page, track_name):
     }""", track_name)
 
 
+def test_explicit_local_save_requires_confirmation_and_uploads_whole_pair():
+    report = build_report()
+    html = render_html(report, inline_assets=True, snapshot=True, web_igv=True,
+                       igv_save_enabled=True,
+                       igv_references={"GRCh37": {"fastaURL": "/reference.fa", "indexURL": "/reference.fa.fai"}})
+    module = b"""export default {
+      async createBrowser() { return { search: async () => true }; },
+      removeBrowser() {}
+    };"""
+    with serve(html) as url, playwright.sync_playwright() as runtime:
+        browser = runtime.chromium.launch(executable_path=browser_executable(), headless=True)
+        try:
+            page = browser.new_page()
+            requests = []
+            diagnostics = []
+            page.on("request", lambda request: requests.append((request.method, request.url)))
+            page.on("pageerror", lambda error: diagnostics.append(str(error)))
+            page.route("**/static/igv/igv.esm.min.js", lambda route: route.fulfill(
+                body=module, content_type="text/javascript"))
+            page.route("**/alignments/save-sessions/**", lambda route: route.fulfill(
+                status=201 if route.request.url.endswith("save-sessions/") else
+                204 if route.request.method == "PUT" else 201,
+                content_type="application/json",
+                body='{"sessionId":"11111111-1111-4111-8111-111111111111"}'
+                if route.request.url.endswith("save-sessions/") else
+                '{"savedId":"22222222-2222-4222-8222-222222222222","sourceId":"saved-22222222222242228222222222222222"}'
+                if route.request.url.endswith("complete/") else ""))
+            page.goto(url)
+            page.context.add_cookies([{"name": "csrftoken", "value": "synthetic-token", "url": url}])
+            page.get_by_role("tab", name="Variantgjennomgang").click()
+            page.get_by_role("button", name="Vis i IGV").first.click()
+            page.locator("#igv-data").set_input_files({"name": "synthetic.bam", "mimeType": "application/octet-stream", "buffer": b"BAM"})
+            page.locator("#igv-index").set_input_files({"name": "synthetic.bam.bai", "mimeType": "application/octet-stream", "buffer": b"INDEX"})
+            page.get_by_role("button", name="Åpne lokale filer").click()
+            page.get_by_text("Ikke lagret · filene brukes bare i denne nettleserfanen.").wait_for(state="visible")
+            assert not any(method in {"POST", "PUT"} for method, _ in requests)
+            assert page.locator("#save-btn").count() == 0  # read snapshot has no review-save action
+            assert not any("save-sessions" in url for _, url in requests)
+            page.get_by_role("button", name="Lagre filer for senere bruk").click()
+            assert page.get_by_text("Hele BAM/CRAM-filen og indeksen").is_visible()
+            page.get_by_role("button", name="Avbryt", exact=True).click()
+            assert not any("save-sessions" in url for _, url in requests)
+            page.get_by_role("button", name="Lagre filer for senere bruk").click()
+            page.get_by_role("button", name="Bekreft lagring").click()
+            page.get_by_text("Lagret for senere bruk", exact=True).wait_for(state="visible")
+            methods = [method for method, path in requests if "save-sessions" in path]
+            assert methods == ["POST", "PUT", "PUT", "POST"]
+            assert all(path.startswith(url.rstrip("/")) for _, path in requests)
+            assert diagnostics == []
+        finally:
+            browser.close()
+
+
+def test_failed_upload_and_reload_never_claim_saved_state():
+    report = build_report()
+    html = render_html(report, inline_assets=True, snapshot=True, web_igv=True,
+                       igv_save_enabled=True,
+                       igv_references={"GRCh37": {"fastaURL": "/reference.fa", "indexURL": "/reference.fa.fai"}})
+    with serve(html) as url, playwright.sync_playwright() as runtime:
+        browser = runtime.chromium.launch(executable_path=browser_executable(), headless=True)
+        try:
+            page = browser.new_page()
+            page.route("**/static/igv/igv.esm.min.js", lambda route: route.fulfill(
+                body=b"export default { async createBrowser() { return { search: async () => true }; }, removeBrowser() {} };",
+                content_type="text/javascript"))
+            page.route("**/alignments/save-sessions/**", lambda route: route.fulfill(
+                status=201 if route.request.method == "POST" else 507,
+                content_type="application/json",
+                body='{"sessionId":"11111111-1111-4111-8111-111111111111"}'
+                if route.request.method == "POST" else '{"error":"storage_unavailable"}'))
+            page.goto(url)
+            page.context.add_cookies([{"name": "csrftoken", "value": "synthetic-token", "url": url}])
+            page.get_by_role("tab", name="Variantgjennomgang").click()
+            page.get_by_role("button", name="Vis i IGV").first.click()
+            page.locator("#igv-data").set_input_files({"name": "synthetic.bam", "mimeType": "application/octet-stream", "buffer": b"BAM"})
+            page.locator("#igv-index").set_input_files({"name": "synthetic.bam.bai", "mimeType": "application/octet-stream", "buffer": b"INDEX"})
+            page.get_by_role("button", name="Åpne lokale filer").click()
+            page.get_by_text("Ikke lagret · filene brukes bare i denne nettleserfanen.").wait_for(state="visible")
+            page.get_by_role("button", name="Lagre filer for senere bruk").click()
+            page.get_by_role("button", name="Bekreft lagring").click()
+            page.locator("#igv-save-error").wait_for(state="visible")
+            assert not page.get_by_text("Lagret for senere bruk", exact=True).is_visible()
+            page.reload()
+            assert not page.get_by_text("Lagret for senere bruk", exact=True).is_visible()
+        finally:
+            browser.close()
+
+
+def test_finalization_uncertainty_and_source_switch_are_not_mislabeled():
+    report = build_report()
+    html = render_html(report, inline_assets=True, snapshot=True, web_igv=True,
+                       igv_save_enabled=True,
+                       igv_references={"GRCh37": {"fastaURL": "/reference.fa", "indexURL": "/reference.fa.fai"}})
+    with serve(html) as url, playwright.sync_playwright() as runtime:
+        browser = runtime.chromium.launch(executable_path=browser_executable(), headless=True)
+        try:
+            page = browser.new_page()
+            page.route("**/static/igv/igv.esm.min.js", lambda route: route.fulfill(
+                body=b"export default { async createBrowser() { return { search: async () => true }; }, removeBrowser() {} };",
+                content_type="text/javascript"))
+            page.goto(url)
+            page.context.add_cookies([{"name": "csrftoken", "value": "synthetic-token", "url": url}])
+            page.evaluate("""() => {
+              const original = window.fetch;
+              window.fetch = (input, options = {}) => {
+                const path = String(input);
+                if (path.endsWith('/save-sessions/') && options.method === 'POST')
+                  return Promise.resolve(new Response(JSON.stringify({sessionId: '11111111-1111-4111-8111-111111111111'}), {status: 201}));
+                if (options.method === 'PUT') return Promise.resolve(new Response(null, {status: 204}));
+                if (path.endsWith('/complete/')) return new Promise((_resolve, reject) => {
+                  window.__failSave = () => reject(new DOMException('lost response', 'AbortError'));
+                });
+                return original(input, options);
+              };
+            }""")
+            page.get_by_role("tab", name="Variantgjennomgang").click()
+            page.get_by_role("button", name="Vis i IGV").first.click()
+            page.locator("#igv-data").set_input_files({"name": "synthetic.bam", "mimeType": "application/octet-stream", "buffer": b"BAM"})
+            page.locator("#igv-index").set_input_files({"name": "synthetic.bam.bai", "mimeType": "application/octet-stream", "buffer": b"INDEX"})
+            page.get_by_role("button", name="Åpne lokale filer").click()
+            page.get_by_text("Ikke lagret · filene brukes bare i denne nettleserfanen.").wait_for(state="visible")
+            page.get_by_role("button", name="Lagre filer for senere bruk").click()
+            page.get_by_role("button", name="Bekreft lagring").click()
+            page.wait_for_function("typeof window.__failSave === 'function'")
+            page.locator("#igv-close").click()
+            assert page.locator("#igv-panel").is_visible()
+            page.get_by_role("button", name="Åpne lokale filer").click()
+            page.evaluate("window.__failSave()")
+            page.get_by_text("Lagringsstatus er usikker", exact=False).wait_for(state="visible")
+            assert not page.get_by_text("Lagret for senere bruk", exact=True).is_visible()
+        finally:
+            browser.close()
+
+
 def test_local_pair_is_browser_only_and_disappears_on_reload():
     report = build_report()
     html = render_html(report, inline_assets=True, snapshot=True, web_igv=True,
