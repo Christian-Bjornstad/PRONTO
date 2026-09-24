@@ -175,6 +175,17 @@ button {
 .save-feedback p { margin: 0 0 0.5rem; }
 .save-feedback button { margin: 0.25rem 0.5rem 0.25rem 0; }
 
+.saved-correction {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.65rem;
+  border-left: 3px solid #8b6b22;
+  border-radius: 0.25rem;
+  background: #fff7df;
+  color: #403317;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;

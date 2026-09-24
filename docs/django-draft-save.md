@@ -34,8 +34,14 @@ offers a JSON export or a confirmed reload. Validation and network failures
 likewise retain edits; navigating away with unsaved work warns the user.
 Nothing is written to `localStorage`. Offline HTML exports retain their
 network-denying CSP, while only the authenticated draft page permits
-same-origin requests. The raw ReportData remains immutable; saved correction
-projection into the visible fact and metric cards is still a follow-up.
+same-origin requests. The raw ReportData remains immutable.
+
+The saved-correction follow-up renders each persisted correction next to its
+unchanged source fact or biomarker, including reason, author and timestamp.
+Draft editors start from the persisted corrected value and reason; reverting
+to the source value explicitly removes the correction in the next save.
+After a successful correction save, the browser reloads the server-rendered
+report so the provenance shown on screen matches the committed revision.
 
 Task 28 adds `POST /reports/<report-id>/finalizations/` using the same
 authentication, grant, CSRF, JSON size cap, transactional revision, and audit
