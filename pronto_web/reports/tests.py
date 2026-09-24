@@ -4,17 +4,21 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from dataclasses import replace
+from datetime import timedelta
 from hashlib import sha256
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from pronto.tests.reporting.test_html_review_state import draft_review
 from pronto.tests.reporting.test_html_surfaces import ONE_PIXEL_PNG
 from pronto.tests.reporting.test_pronto_output_adapter import build_report
 from pronto_report.migration import migrate_review_state_v1
 from pronto_report.serialization import serialize_report_data, serialize_review_state
-from pronto_web.reports.models import ReportAsset, ReportGrant, ReportRecord, ReviewRevision
+from pronto_web.reports.models import (AlignmentUploadSession, ReportAsset, ReportGrant,
+                                       ReportRecord, ReportWriteGrant, ReviewRevision, SavedAlignment)
 
 
 class ReportReadTests(TestCase):
@@ -216,3 +220,34 @@ class AlignmentRangeTests(ReportReadTests):
         self.record.report_data = altered
         self.record.save(update_fields=["report_data"])
         assert self.client.get(self.range_url, HTTP_RANGE="bytes=0-1").status_code == 404
+
+
+class AlignmentMetadataTests(TestCase):
+    def setUp(self):
+        self.report = ReportRecord.objects.create(report_id="synthetic-report", report_data={})
+        self.reader = get_user_model().objects.create_user(username="read-only")
+        self.writer = get_user_model().objects.create_user(username="save-writer")
+        ReportGrant.objects.create(report=self.report, user=self.reader)
+
+    def test_read_grant_never_implicitly_grants_alignment_write(self):
+        assert not ReportWriteGrant.objects.filter(report=self.report, user=self.reader).exists()
+        ReportWriteGrant.objects.create(report=self.report, user=self.writer)
+        assert ReportWriteGrant.objects.filter(report=self.report, user=self.writer).exists()
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            ReportWriteGrant.objects.create(report=self.report, user=self.writer)
+
+    def test_ready_identity_is_unique_and_upload_offsets_are_bounded(self):
+        fields = dict(report=self.report, sample_id="synthetic-sample", reference_build="GRCh37",
+                      role="TUMOUR_DNA", format="bam", data_size=10, index_size=5,
+                      data_sha256="a" * 64, index_sha256="b" * 64, saved_by=self.writer)
+        SavedAlignment.objects.create(**fields, data_key="a" * 32, index_key="b" * 32)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            SavedAlignment.objects.create(**fields, data_key="c" * 32, index_key="d" * 32)
+        assert SavedAlignment.objects.filter(report=self.report, status="READY").count() == 1
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            AlignmentUploadSession.objects.create(
+                report=self.report, owner=self.writer, sample_id="synthetic-sample",
+                reference_build="GRCh37", role="TUMOUR_DNA", format="bam",
+                expected_data_size=10, expected_index_size=5, received_data_bytes=11,
+                expires_at=timezone.now() + timedelta(hours=1),
+            )

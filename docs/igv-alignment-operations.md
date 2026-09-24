@@ -48,3 +48,34 @@ the panel reports this and does not load alignments. Set `PRONTO_STATIC_ROOT`
 to a deployment build directory and run `collectstatic`; serve the collected
 `report-igv.js` and vendored `igv/igv.esm.min.js` at `/static/` on the same
 origin. The viewer never requests a CDN or IGV default genome list.
+
+## Private preservation gate (no upload protocol yet)
+
+Alignment preservation remains disabled until a Linux deployment sets all of:
+`PRONTO_ALIGNMENT_STORE_ROOT` and `PRONTO_ALIGNMENT_STAGING_ROOT` to existing,
+different private directories outside the project; `PRONTO_ALIGNMENT_MAX_BYTES`
+and `PRONTO_ALIGNMENT_MAX_INDEX_BYTES` to positive per-file byte limits;
+`PRONTO_ALIGNMENT_MIN_FREE_BYTES` to a nonnegative reserved-space threshold;
+and `PRONTO_ALIGNMENT_POLICY_APPROVED=true` only after the institution approves
+retention, deletion, backup, restore, and access policy. At least one supported
+build needs `PRONTO_ALIGNMENT_GRCh37_FASTA_PATH` plus
+`PRONTO_ALIGNMENT_GRCh37_FAI_PATH`, or the corresponding `GRCh38` paths, to
+existing local reference files. A configured reference for one build does not
+authorize a different build. These filesystem paths are server-side settings,
+never sent to the browser. This step creates metadata tables and a separate
+`ReportWriteGrant`, but does not yet enable an upload route or store bytes.
+
+The pinned `pysam` validator is installed on Linux; native Windows remains
+view-only and fails the preservation gate. Development and deployment of the
+save service can use Linux/WSL, subject to the same private-root policy.
+
+The storage service validates real BAM/CRAM content against an explicit local
+FASTA and its `.fai`, requires a readable index, and compares available contig
+names and lengths. It copies the complete pair with bounded streaming into a
+private temporary directory, computes SHA-256 for each component, fsyncs the
+files, and atomically promotes the directory. Only after that may a READY
+database record refer to the pair. A failed copy/promotion removes the partial
+directory; neither file belongs in Django static/media or an HTML export.
+This service is not an upload endpoint by itself. The future save command must
+pass the deployment's byte limits and verify explicit user confirmation and
+write authorization before calling it.
