@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import Any, Mapping
 
 from pronto_report.models import ReportData, ReviewState
+from pronto_report.migration import migrate_review_state_v1
 from pronto_report.renderers.projection import project_reference_ui
 from pronto_report.serialization import serialize_review_state
 
@@ -406,18 +407,48 @@ def _tumour_content(report: ReportData, review: ReviewState | None) -> str:
             )
         )
     finding_html = (
-        f'<ul class="board-findings">{"".join(findings)}</ul>' if findings else
-        '<p class="empty-state">Ingen funn er markert for rapportering.</p>'
+        f'<ul class="board-findings" id="board-findings"{" hidden" if not findings else ""}>'
+        f'{"".join(findings)}</ul>'
+        '<p class="empty-state" id="board-empty"'
+        f'{" hidden" if findings else ""}>Ingen funn er markert for rapportering.</p>'
     )
     signoff = (
         f'Signert av {escape(review.finalized_by or "")} {escape(review.finalized_at or "")}'
         if review.status == "FINAL" else "Ikke signert"
     )
-    notes = escape(review.report_notes) if review.report_notes else "Ingen notater registrert."
+    notes = review.notes or {}
+    note_fields = (
+        ("summary", "Interpretation summary", "note-summary"),
+        ("biomarkerContext", "Biomarkører og terapeutisk kontekst", "note-biomarker-context"),
+        ("additional", "Tilleggskommentarer", "note-additional"),
+    )
+    disabled = " disabled" if review.status == "FINAL" else ""
+    note_cards = "".join(
+        '<div class="board-note-card">'
+        f'<label for="{field_id}">{escape(label)}</label>'
+        f'<textarea id="{field_id}" class="board-note" rows="5" maxlength="50000"'
+        f'{disabled} data-review-note="{key}">{escape(str(notes.get(key, "")))}</textarea>'
+        f'<p class="board-note-print" data-print-note="{key}">{escape(str(notes.get(key, "")))}</p>'
+        '</div>'
+        for key, label, field_id in note_fields
+    )
+    legacy = str(notes.get("importedLegacyNote", ""))
+    legacy_note = (
+        '<div class="board-legacy-note"><h3>Importert eldre notat</h3>'
+        f'<p>{escape(legacy)}</p></div>' if legacy else ""
+    )
+    reviewer = str(review.reviewer.get("displayName") or review.reviewer["reviewerId"])
     return (
         f'<h3>Funn til diskusjon</h3>{finding_html}'
-        f'<h3>MDT-notater</h3><p class="board-notes">{notes}</p>'
-        f'<p class="board-signoff">Signeringsstatus: {signoff}</p>'
+        f'<div class="board-note-grid">{note_cards}</div>{legacy_note}'
+        f'<div class="board-signoff"><h3>Signering</h3>'
+        f'<p>Gjennomgås av: {escape(reviewer)}</p>'
+        f'<p>Signeringsstatus: {signoff}</p>'
+        + ('<p>Ferdigstilling krever lagret gjennomgang i databasen.</p>' if review.status != "FINAL" else "")
+        + '</div>'
+        + ('<p class="board-warning">Utkast / arbeidskopi – ikke signert. Dette er ikke en ferdigstilt rapport.</p>'
+           if review.status != "FINAL" else "")
+        + '<button id="print-mdt-btn" type="button">Generer MDT-utskrift</button>'
     )
 
 
@@ -466,6 +497,8 @@ def render_html(
     """Render validated contracts as a development page or offline artifact."""
     if review is not None and review.report_id != report.report_id:
         raise ValueError("Review state does not belong to this report")
+    if review is not None and review.schema_version == "1.0":
+        review = migrate_review_state_v1(review)
     ui = project_reference_ui(report, review)
 
     status = review.status if review is not None else "DRAFT"
