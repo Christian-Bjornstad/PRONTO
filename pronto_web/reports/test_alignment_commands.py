@@ -247,3 +247,48 @@ def test_failed_delete_hides_record_and_can_be_retried(command_context, monkeypa
     monkeypatch.setattr(alignment_commands, "remove_pair", original)
     alignment_commands.delete_saved(writer, report, saved.id)
     assert not SavedAlignment.objects.filter(pk=saved.id).exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="pysam validation is Linux-only")
+def test_staging_cleanup_failure_after_publication_keeps_ready_pair(command_context, monkeypatch):
+    from pronto_web.reports import alignment_commands
+
+    report, _, writer, _, bam, bai, root, stage = command_context
+    session = _begin(writer, report, bam, bai)
+    _upload(writer, session, bam, bai)
+
+    def fail_cleanup(_session):
+        raise OSError("simulated staging cleanup failure")
+
+    monkeypatch.setattr(alignment_commands, "_cleanup", fail_cleanup)
+    saved = alignment_commands.complete_local_save(writer, session.id, "GRCh37")
+    session.refresh_from_db()
+    assert session.state == "COMPLETED"
+    assert saved.status == "READY"
+    assert SavedAlignment.objects.filter(pk=saved.id).exists()
+    assert len(list(root.iterdir())) == 1
+    assert len(list(stage.iterdir())) == 2  # scheduled cleanup will remove them
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="pysam validation is Linux-only")
+def test_completion_database_failure_removes_new_private_pair(command_context, monkeypatch):
+    from pronto_web.reports import alignment_commands
+
+    report, _, writer, _, bam, bai, root, stage = command_context
+    session = _begin(writer, report, bam, bai)
+    _upload(writer, session, bam, bai)
+    original = AlignmentUploadSession.save
+
+    def fail_completion(self, *args, **kwargs):
+        if self.state == "COMPLETED":
+            raise OSError("simulated database completion failure")
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(AlignmentUploadSession, "save", fail_completion)
+    with pytest.raises(OSError, match="simulated database completion failure"):
+        alignment_commands.complete_local_save(writer, session.id, "GRCh37")
+    session.refresh_from_db()
+    assert session.state == "FAILED"
+    assert SavedAlignment.objects.count() == 0
+    assert list(root.iterdir()) == []
+    assert list(stage.iterdir()) == []

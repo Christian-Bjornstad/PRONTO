@@ -36,8 +36,7 @@ filename search. Multiple valid pairs remain separate user choices.
 
 This registry alone does not save an uploaded file. Full-file preservation,
 retention/deletion policy, and clinical deployment controls are specified in
-`docs/superpowers/specs/2026-09-24-igv-alignment-sources-design.md` and will
-be implemented in the separate preservation slice.
+`docs/superpowers/specs/2026-09-24-igv-alignment-sources-design.md`.
 
 For embedded IGV, configure both `PRONTO_IGV_GRCh37_FASTA_URL` and
 `PRONTO_IGV_GRCh37_FAI_URL` (and/or the corresponding `GRCh38` names) as
@@ -99,3 +98,31 @@ managed pairs have a separate `DELETE .../<saved-uuid>/` action. Mutations
 require the writer grant and CSRF token. Only READY saved pairs appear in the
 report and authorized byte-range route; incomplete staging is never an IGV
 source. The ordinary review save endpoint remains unrelated to this protocol.
+
+### Operations before clinical use
+
+- Provision the managed and staging directories on private storage with
+  permissions restricted to the application account. Do not expose them via
+  static files, a general media route, a reverse-proxy alias, or a backup link.
+- Confirm an institutional retention/deletion policy, audit access, backup and
+  restore procedures, and capacity monitoring before setting
+  `PRONTO_ALIGNMENT_POLICY_APPROVED=true`. The environment flag is a deployment
+  acknowledgement, not a substitute for policy approval.
+- Set per-file byte limits and a free-space reserve appropriate for the local
+  storage. Configure the reverse proxy to admit the 8 MiB chunk body plus
+  headers while rejecting larger requests. Use HTTPS, secure session/CSRF
+  cookies, and production Django security settings.
+- Host IGV JavaScript and each approved reference FASTA/index on the same
+  origin. Use a matching local FASTA/FAI for server validation. Never rely on
+  a remote CRAM reference fallback or a public CDN.
+- Schedule `python manage.py clean_alignment_staging --dry-run` to inspect
+  expired sessions and `python manage.py clean_alignment_staging` to remove
+  their owned staging bytes. This command does not delete READY saved pairs.
+  Investigate any `DELETING` tombstone before retrying authorized deletion.
+- Grant `ReportGrant` for reading and `ReportWriteGrant` separately for file
+  preservation/deletion. Revoke the write grant when a user should still view
+  the report but must not retain or remove genomic files.
+
+Only synthetic fixtures are committed to Git. The code and tests do not make
+this a clinically approved deployment; the institution must validate the
+storage, backup/restore, retention, access and security configuration first.

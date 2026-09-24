@@ -224,7 +224,9 @@ def complete_local_save(actor, session_id, declared_build: str, *, report=None) 
                 max_data_bytes=settings.PRONTO_ALIGNMENT_MAX_BYTES,
                 max_index_bytes=settings.PRONTO_ALIGNMENT_MAX_INDEX_BYTES,
             )
-            with transaction.atomic():
+        with transaction.atomic():
+            locked = AlignmentUploadSession.objects.select_for_update().get(pk=session.id)
+            if published is not None:
                 saved = SavedAlignment.objects.create(
                     report=session.report, sample_id=session.sample_id,
                     reference_build=session.reference_build, role=session.role,
@@ -235,19 +237,23 @@ def complete_local_save(actor, session_id, declared_build: str, *, report=None) 
                 )
                 AlignmentEvent.objects.create(report=session.report, actor=actor,
                                               saved_id=saved.id, action="SAVE")
-        with transaction.atomic():
-            locked = AlignmentUploadSession.objects.select_for_update().get(pk=session.id)
             locked.saved_alignment = saved
             locked.state = "COMPLETED"
             locked.save(update_fields=["saved_alignment", "state"])
-        _cleanup(session)
-        return saved
     except BaseException:
         if published is not None:
             remove_pair(published)
-        _cleanup(session)
+        try:
+            _cleanup(session)
+        except (OSError, UnsafeAlignmentPath):
+            pass  # Scheduled expiry cleanup can retry the private staging files.
         AlignmentUploadSession.objects.filter(pk=session.id).update(state="FAILED")
         raise
+    try:
+        _cleanup(session)
+    except (OSError, UnsafeAlignmentPath):
+        pass  # READY files stay published; scheduled expiry cleanup handles staging.
+    return saved
 
 
 def preserve_registered(actor, report, source_id: str) -> SavedAlignment:

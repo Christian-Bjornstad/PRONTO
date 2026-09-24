@@ -537,6 +537,7 @@ def render_html(
     inline_assets: bool = False,
     snapshot: bool = False,
     web_igv: bool = False,
+    igv_save_enabled: bool = False,
     igv_sources: tuple[Mapping[str, str], ...] = (),
     igv_references: Mapping[str, Mapping[str, str]] | None = None,
     igv_registry_error: bool = False,
@@ -544,7 +545,7 @@ def render_html(
     """Render validated contracts as a development page or offline artifact."""
     if snapshot and not inline_assets:
         raise ValueError("snapshot requires inline_assets=True")
-    if (igv_sources or igv_references) and not web_igv:
+    if (igv_sources or igv_references or igv_save_enabled) and not web_igv:
         raise ValueError("IGV configuration requires web_igv=True")
     if review is not None and review.report_id != report.report_id:
         raise ValueError("Review state does not belong to this report")
@@ -671,6 +672,26 @@ def render_html(
         'Kontakt administrator, eller velg lokale filer.</p>'
         if igv_registry_error else ""
     )
+    igv_save_controls = (
+        '<div id="igv-save-controls">'
+        '<label for="igv-role">Filens rolle</label>'
+        '<select id="igv-role">'
+        '<option value="TUMOUR_DNA">Tumor DNA</option><option value="NORMAL_DNA">Normal DNA</option>'
+        '<option value="TUMOUR_RNA">Tumor RNA</option><option value="NORMAL_RNA">Normal RNA</option>'
+        '</select>'
+        '<button type="button" id="igv-save" disabled>Lagre filer for senere bruk</button>'
+        '<p id="igv-saved-state" role="status" hidden>Lagret for senere bruk</p>'
+        '<p id="igv-save-error" role="alert" hidden></p>'
+        '<div id="igv-upload-progress" hidden><label for="igv-upload-meter">Lagrer hele filparet</label>'
+        '<progress id="igv-upload-meter" value="0" max="100"></progress>'
+        '<button type="button" id="igv-cancel-upload">Avbryt opplasting</button></div>'
+        '<dialog id="igv-save-confirm"><h4>Bekreft lagring</h4>'
+        '<p>Hele BAM/CRAM-filen og indeksen blir lagret for senere bruk.</p>'
+        '<p id="igv-save-summary"></p>'
+        '<button type="button" id="igv-confirm-cancel">Avbryt</button>'
+        '<button type="button" id="igv-confirm-save">Bekreft lagring</button></dialog>'
+        '</div>'
+    ) if igv_save_enabled else ""
     html_context = {
         "case_facts": _case_facts(ui, editable),
         "biomarker_cards": _biomarker_cards(ui, report, review, editable),
@@ -679,7 +700,9 @@ def render_html(
         "igv_column": '<th scope="col">IGV</th>' if web_igv else "",
         "igv_panel": (
             '<section id="igv-panel" aria-label="IGV-visning" hidden '
-            f'data-reference-build="{escape(str(report.sample["referenceBuild"]), quote=True)}">'
+            f'data-reference-build="{escape(str(report.sample["referenceBuild"]), quote=True)}" '
+            f'data-report-id="{escape(report.report_id, quote=True)}" '
+            f'data-sample-id="{escape(str(report.sample["sampleId"]), quote=True)}">'
             '<div class="igv-panel__heading"><h3>IGV</h3><button type="button" id="igv-close">Lukk IGV</button></div>'
             '<p id="igv-status" role="status" aria-live="polite">Velg en kilde.</p>'
             + registry_notice +
@@ -690,6 +713,7 @@ def render_html(
             '<label for="igv-index">Indeks</label><input id="igv-index" name="igv-index" type="file" accept=".bai,.csi,.crai">'
             '<button type="button" id="igv-open-local">Åpne lokale filer</button></fieldset>'
             '<p id="igv-local-state" hidden>Ikke lagret · filene brukes bare i denne nettleserfanen.</p>'
+            + igv_save_controls +
             '<div id="igv-viewer"></div>'
             f'<script type="application/json" id="igv-sources">{safe_json(safe_sources)}</script>'
             f'<script type="application/json" id="igv-references">{safe_json(safe_references)}</script>'

@@ -1021,7 +1021,7 @@ button {
   background: var(--surface, #fff);
 }
 
-#igv-panel[hidden], #igv-local-state[hidden] {
+#igv-panel[hidden], #igv-panel [hidden] {
   display: none;
 }
 
@@ -1047,6 +1047,36 @@ button {
   min-height: 20rem;
   max-width: 100%;
   overflow: auto;
+}
+
+#igv-save-controls {
+  margin-block: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--border, #b6c4c9);
+  border-radius: 8px;
+}
+
+#igv-save-confirm {
+  max-width: min(36rem, calc(100vw - 2rem));
+  border: 1px solid var(--border, #b6c4c9);
+  border-radius: 10px;
+  padding: var(--space-4);
+  color: inherit;
+  background: var(--surface, #fff);
+}
+
+#igv-save-confirm::backdrop {
+  background: rgb(20 32 40 / 60%);
+}
+
+#igv-upload-meter {
+  display: block;
+  width: min(100%, 28rem);
+  margin-block: var(--space-2);
+}
+
+#igv-save-error {
+  color: #9b1c1c;
 }
 
 @media print {
