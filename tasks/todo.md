@@ -552,9 +552,13 @@ projection of previously saved corrections remains an integration follow-up.
 **Description:** Replace the reference's draft/final toggle with a confirmed server action against the latest saved revision; the same authorized biologist may perform it.
 
 **Acceptance criteria:**
-- [ ] Unsaved edits disable finalization and explain why.
-- [ ] Success records actor/time, makes UI and service read-only, and retains the final saved snapshot.
-- [ ] Conflict or failure keeps the prior draft state; a second reviewer is not required.
+- [x] Unsaved edits disable finalization and explain why.
+- [x] Success records actor/time, makes UI and service read-only, and retains the final saved snapshot.
+- [x] Conflict or failure keeps the prior draft state; a second reviewer is not required.
+
+The same authenticated user can save then finalize, subject to an explicit
+confirmation. The browser reloads the authoritative FINAL snapshot only after
+HTTP 201; the previous draft remains visible and editable after an error.
 
 **Verification:** Django and browser tests for confirmation, same-user finalization, stale revision, failed request, and post-final write rejection.
 

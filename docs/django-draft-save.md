@@ -37,6 +37,16 @@ network-denying CSP, while only the authenticated draft page permits
 same-origin requests. The raw ReportData remains immutable; saved correction
 projection into the visible fact and metric cards is still a follow-up.
 
+Task 28 adds `POST /reports/<report-id>/finalizations/` using the same
+authentication, grant, CSRF, JSON size cap, transactional revision, and audit
+boundary. Its complete draft must exactly match the latest saved revision;
+otherwise it returns 409 without locking anything. The original report UI
+disables **Ferdigstill** while local edits are pending, states why, and asks
+for confirmation. Only an acknowledged HTTP 201 triggers a reload of the
+server-rendered FINAL snapshot. The same authorized biologist may save and
+finalize; no second reviewer is required by this workflow. FINAL rejects
+subsequent save attempts and has disabled review controls.
+
 Verify with `python manage.py test pronto_web.reports.tests_draft_save` and
 `python manage.py makemigrations --check --dry-run` after setting a local
 `PRONTO_DJANGO_SECRET_KEY`. Tests use only the approved synthetic report.

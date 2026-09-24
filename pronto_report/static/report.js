@@ -53,16 +53,25 @@
   const dirtyLabel = document.getElementById("dirty-lbl");
   const reviewDownload = document.getElementById("download-review");
   const saveButton = document.getElementById("save-btn");
+  const finalizeButton = document.getElementById("finalize-btn");
+  const finalizeHint = document.getElementById("finalize-hint");
   const corrections = new Map();
   let reviewDirty = false;
   let saving = false;
+  let finalizing = false;
 
   function refreshDirty() {
     const sourceDirty = corrections.size > 0;
-    dirtyLabel.textContent = saving ? "Lagrer …" : sourceDirty ? "Ulagrede kildekorreksjoner" :
+    dirtyLabel.textContent = finalizing ? "Ferdigstiller …" : saving ? "Lagrer …" : sourceDirty ? "Ulagrede kildekorreksjoner" :
       reviewDirty ? "Ulagret gjennomgang" : saveButton?.dataset.saveUrl ? "Alle endringer lagret" : "Kun lokal visning";
     if (reviewDownload) reviewDownload.disabled = sourceDirty;
-    if (saveButton?.dataset.saveUrl) saveButton.disabled = saving || (!sourceDirty && !reviewDirty);
+    if (saveButton?.dataset.saveUrl) saveButton.disabled = saving || finalizing ||
+      reviewState.status !== "DRAFT" || (!sourceDirty && !reviewDirty);
+    if (finalizeButton) {
+      finalizeButton.disabled = saving || finalizing || sourceDirty || reviewDirty || reviewState.status !== "DRAFT";
+      finalizeHint.textContent = sourceDirty || reviewDirty ? "Lagre endringene før ferdigstilling." :
+        "Ferdigstilling låser rapporten og krever bekreftelse.";
+    }
   }
 
   if (editButton && !editButton.disabled) {
@@ -357,8 +366,13 @@
     const editableInputs = Array.from(document.querySelectorAll(
       '.report-edit-controls input, textarea[data-review-note], #variant-table select[data-review-field], #variant-table textarea[data-review-field], [data-bulk-decision]'
     ));
+    function lockInputs() {
+      const previouslyDisabled = editableInputs.map((input) => input.disabled);
+      editableInputs.forEach((input) => { input.disabled = true; });
+      return () => editableInputs.forEach((input, index) => { input.disabled = previouslyDisabled[index]; });
+    }
     window.addEventListener("beforeunload", (event) => {
-      if (!reviewDirty && !corrections.size && !saving) return;
+      if (!reviewDirty && !corrections.size && !saving && !finalizing) return;
       event.preventDefault();
       event.returnValue = "";
     });
@@ -388,8 +402,7 @@
       const baseRevision = reviewState.revision;
       const draft = localDraft();
       saving = true;
-      const previouslyDisabled = editableInputs.map((input) => input.disabled);
-      editableInputs.forEach((input) => { input.disabled = true; });
+      const unlockInputs = lockInputs();
       refreshDirty();
       feedback.textContent = "Lagrer endringene …";
       try {
@@ -423,9 +436,57 @@
         saveFeedback.hidden = false;
       } finally {
         saving = false;
-        editableInputs.forEach((input, index) => { input.disabled = previouslyDisabled[index]; });
+        unlockInputs();
         refreshDirty();
         updateReviewSummary();
+      }
+    });
+    if (finalizeButton) finalizeButton.addEventListener("click", async () => {
+      if (saving || finalizing || reviewDirty || corrections.size || reviewState.status !== "DRAFT") return;
+      if (!window.confirm("Ferdigstille denne lagrede revisjonen? Rapporten låses for videre redigering. Samme biolog kan ferdigstille.")) return;
+      saveError.hidden = true;
+      recovery.hidden = true;
+      saveFeedback.hidden = true;
+      const baseRevision = reviewState.revision;
+      finalizing = true;
+      const unlockInputs = lockInputs();
+      refreshDirty();
+      let completed = false;
+      try {
+        const response = await fetch(finalizeButton.dataset.finalizeUrl, {
+          method: "POST", credentials: "same-origin",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": saveButton.dataset.csrfToken },
+          body: JSON.stringify({
+            schemaVersion: "1.0", reportId: reviewState.reportId,
+            baseRevision, draft: localDraft(),
+          }),
+        });
+        const result = await response.json();
+        if (response.status === 409 && result.error?.code === "REVISION_CONFLICT") {
+          saveError.textContent = `Rapporten er endret til revisjon ${result.error.currentRevision}. Lokale data er beholdt; last ned en kopi før du laster inn siste revisjon.`;
+          saveError.hidden = false;
+          recovery.hidden = false;
+          saveFeedback.hidden = false;
+          return;
+        }
+        if (!response.ok || result.review?.reportId !== reviewState.reportId ||
+            result.review?.revision !== baseRevision + 1 || result.review?.status !== "FINAL") {
+          throw new Error("Ferdigstilling ble ikke bekreftet.");
+        }
+        Object.assign(reviewState, result.review);
+        reviewDirty = false;
+        corrections.clear();
+        completed = true;
+      } catch (_error) {
+        saveError.textContent = "Kunne ikke bekrefte ferdigstilling. Rapporten beholdes som utkast i denne visningen. Kontroller nyeste lagrede revisjon før du prøver igjen.";
+        saveError.hidden = false;
+        recovery.hidden = false;
+        saveFeedback.hidden = false;
+      } finally {
+        finalizing = false;
+        unlockInputs();
+        refreshDirty();
+        if (completed) window.location.reload();
       }
     });
   }

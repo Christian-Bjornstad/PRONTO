@@ -3,7 +3,7 @@
 from django.contrib.auth.views import LoginView, LogoutView
 from django.urls import path
 
-from pronto_web.reports.views import report_detail, report_index, save_review_revision
+from pronto_web.reports.views import finalize_review, report_detail, report_index, save_review_revision
 
 
 urlpatterns = [
@@ -11,5 +11,6 @@ urlpatterns = [
     path("accounts/logout/", LogoutView.as_view(next_page="/accounts/login/"), name="logout"),
     path("reports/", report_index, name="report-index"),
     path("reports/<str:report_id>/revisions/", save_review_revision, name="review-save"),
+    path("reports/<str:report_id>/finalizations/", finalize_review, name="review-finalize"),
     path("reports/<str:report_id>/", report_detail, name="report-detail"),
 ]
