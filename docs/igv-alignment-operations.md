@@ -49,7 +49,7 @@ to a deployment build directory and run `collectstatic`; serve the collected
 `report-igv.js` and vendored `igv/igv.esm.min.js` at `/static/` on the same
 origin. The viewer never requests a CDN or IGV default genome list.
 
-## Private preservation gate (no upload protocol yet)
+## Private preservation gate
 
 Alignment preservation remains disabled until a Linux deployment sets all of:
 `PRONTO_ALIGNMENT_STORE_ROOT` and `PRONTO_ALIGNMENT_STAGING_ROOT` to existing,
@@ -62,8 +62,8 @@ build needs `PRONTO_ALIGNMENT_GRCh37_FASTA_PATH` plus
 `PRONTO_ALIGNMENT_GRCh37_FAI_PATH`, or the corresponding `GRCh38` paths, to
 existing local reference files. A configured reference for one build does not
 authorize a different build. These filesystem paths are server-side settings,
-never sent to the browser. This step creates metadata tables and a separate
-`ReportWriteGrant`, but does not yet enable an upload route or store bytes.
+never sent to the browser. The separate `ReportWriteGrant` is required for
+mutations; without this configuration save routes fail closed.
 
 The pinned `pysam` validator is installed on Linux; native Windows remains
 view-only and fails the preservation gate. Development and deployment of the
@@ -76,9 +76,8 @@ private temporary directory, computes SHA-256 for each component, fsyncs the
 files, and atomically promotes the directory. Only after that may a READY
 database record refer to the pair. A failed copy/promotion removes the partial
 directory; neither file belongs in Django static/media or an HTML export.
-This service is not an upload endpoint by itself. The future save command must
-pass the deployment's byte limits and verify explicit user confirmation and
-write authorization before calling it.
+The storage service itself is not an upload endpoint. The save command passes
+the deployment's byte limits and checks write authorization before calling it.
 
 The save-command layer now uses a separate `ReportWriteGrant` for every
 preserve, chunk, completion, copy, cancel and delete action. A local session is
@@ -86,8 +85,17 @@ bound to its original user and exact report/sample/build/role, and remains
 unpublished until both whole files validate. Repeated completion of that same
 session returns its existing saved record; a different pair under the same
 identity is rejected rather than overwritten. The source registry reserves
-`saved-` IDs for READY managed pairs. No browser/API upload route is exposed by
-this command layer alone. Deletion first hides a saved pair as `DELETING`, then
+`saved-` IDs for READY managed pairs. Deletion first hides a saved pair as `DELETING`, then
 removes the managed bytes and writes a minimal audit event. A failed filesystem
 deletion leaves a hidden tombstone for an authorized retry or operational
 reconciliation; it must never reappear as a READY source automatically.
+
+The authenticated save protocol uses `POST .../alignments/save-sessions/` only
+after an explicit confirmation, then contiguous `PUT` chunks to its opaque
+session ID (`data` and `index`, each at most 8 MiB), and a separate `POST`
+completion with the confirmed build. `DELETE` cancels an incomplete session.
+Registered sources have an explicit `POST .../<source-id>/preserve/` copy action;
+managed pairs have a separate `DELETE .../<saved-uuid>/` action. Mutations
+require the writer grant and CSRF token. Only READY saved pairs appear in the
+report and authorized byte-range route; incomplete staging is never an IGV
+source. The ordinary review save endpoint remains unrelated to this protocol.
