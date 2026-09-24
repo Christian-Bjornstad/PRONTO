@@ -509,6 +509,7 @@ def render_html(
     inline_assets: bool = False,
     snapshot: bool = False,
     save_url: str | None = None,
+    finalize_url: str | None = None,
     csrf_token: str | None = None,
     actor_id: str | None = None,
 ) -> str:
@@ -517,6 +518,8 @@ def render_html(
         raise ValueError("snapshot requires inline_assets=True")
     if save_url and (snapshot or not csrf_token or not actor_id):
         raise ValueError("Live saving requires a non-snapshot report, CSRF token, and actor")
+    if finalize_url and not save_url:
+        raise ValueError("Finalization requires live saving")
     if review is not None and review.report_id != report.report_id:
         raise ValueError("Review state does not belong to this report")
     if review is not None and review.schema_version == "1.0":
@@ -612,12 +615,19 @@ def render_html(
         if live_save else
         '<button id="save-btn" type="button" disabled title="Lagring er ikke tilgjengelig her">Lagre</button>'
     )
+    finalize_button = (
+        f'<button id="finalize-btn" type="button" data-finalize-url="{escape(finalize_url, quote=True)}" '
+        'aria-describedby="finalize-hint">Ferdigstill</button>'
+        '<span id="finalize-hint" class="report-topbar__saved">Bekreftelse kreves.</span>'
+        if live_save and finalize_url else ""
+    )
     topbar_actions = (
         '<span class="report-topbar__saved">Skrivebeskyttet eksport</span>' if snapshot else
         '<span class="report-topbar__saved" id="dirty-lbl" role="status" aria-live="polite">Kun lokal visning</span>'
         + ('<button id="edit-btn" type="button" aria-pressed="false">Edit mode: OFF</button>' if editable else
            '<button id="edit-btn" type="button" disabled title="Rapporten er skrivebeskyttet">Edit mode: OFF</button>')
         + save_button
+        + finalize_button
         + '<button id="load-btn" type="button" disabled title="Import av gjennomgang er ikke aktivert">Laster</button>'
         + '<button id="reset-btn" type="button" disabled title="Tilbakestilling er ikke aktivert">Reset</button>'
     )

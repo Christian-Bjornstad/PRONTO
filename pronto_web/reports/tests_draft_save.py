@@ -86,6 +86,58 @@ class DraftSaveTests(TestCase):
         assert saved["timestamp"] == response.json()["review"]["updatedAt"]
         assert saved["originalValue"] == self.report.sample.get("tumourType")
 
+    def test_same_biologist_can_finalize_saved_draft_and_lock_future_writes(self):
+        from pronto_web.reports.models import ReviewAudit
+
+        client = Client()
+        client.force_login(self.writer)
+        final_url = f"/reports/{self.report.report_id}/finalizations/"
+        saved_by_same_biologist = self.post(client, self.payload())
+        assert saved_by_same_biologist.status_code == 201
+        command = self.payload(baseRevision=2, draft=saved_by_same_biologist.json()["review"])
+
+        finalized = client.post(final_url, data=json.dumps(command), content_type="application/json")
+
+        assert finalized.status_code == 201
+        assert finalized.json()["review"]["status"] == "FINAL"
+        assert finalized.json()["review"]["finalizedBy"] == str(self.writer.pk)
+        assert finalized.json()["review"]["revision"] == 3
+        assert finalized.json()["audit"]["action"] == "FINALIZE"
+        assert ReviewRevision.objects.filter(report=self.record).count() == 3
+        assert ReviewAudit.objects.filter(report=self.record, action="FINALIZE").count() == 1
+        assert self.post(client, self.payload(baseRevision=3)).json()["error"]["code"] == "FINAL_LOCKED"
+
+    def test_finalize_rejects_unsaved_or_stale_revision_without_audit(self):
+        from pronto_web.reports.models import ReviewAudit
+
+        client = Client()
+        client.force_login(self.writer)
+        final_url = f"/reports/{self.report.report_id}/finalizations/"
+        dirty = client.post(final_url, data=json.dumps(self.payload()), content_type="application/json")
+        assert dirty.status_code == 409
+        assert dirty.json()["error"]["code"] == "UNSAVED_CHANGES"
+        assert ReviewRevision.objects.filter(report=self.record).count() == 1
+        assert ReviewAudit.objects.count() == 0
+
+        saved = self.post(client, self.payload())
+        assert saved.status_code == 201
+        stale = client.post(final_url, data=json.dumps(self.payload()), content_type="application/json")
+        assert stale.status_code == 409
+        assert stale.json()["error"]["currentRevision"] == 2
+        assert ReviewAudit.objects.filter(report=self.record, action="FINALIZE").count() == 0
+
+    def test_finalize_requires_grant_session_and_csrf(self):
+        final_url = f"/reports/{self.report.report_id}/finalizations/"
+        pristine = json.loads(serialize_review_state(self.review))
+        command = self.payload(draft=pristine)
+        assert Client().post(final_url, data=json.dumps(command), content_type="application/json").status_code == 401
+        other = Client()
+        other.force_login(self.other)
+        assert other.post(final_url, data=json.dumps(command), content_type="application/json").status_code == 404
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.writer)
+        assert csrf_client.post(final_url, data=json.dumps(command), content_type="application/json").status_code == 403
+
     def test_authentication_report_grant_and_csrf_are_required(self):
         assert self.post(Client(), self.payload()).status_code == 401
         ungranted = Client()

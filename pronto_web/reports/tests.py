@@ -70,6 +70,26 @@ class ReportReadTests(TestCase):
         self.client.force_login(self.biologist)
         assert self.client.post(self.url).status_code == 405
 
+    def test_final_report_is_read_only_and_displays_signer(self):
+        final = json.loads(serialize_review_state(self.review))
+        final.update({
+            "status": "FINAL", "revision": 2,
+            "updatedAt": "2026-09-22T13:00:00Z",
+            "finalizedAt": "2026-09-22T13:00:00Z",
+            "finalizedBy": str(self.biologist.pk),
+        })
+        ReviewRevision.objects.create(report=self.record, revision=2, review_data=final)
+        self.client.force_login(self.biologist)
+
+        response = self.client.get(self.url)
+
+        assert response.status_code == 200
+        assert b"Rapportstatus: Endelig" in response.content
+        assert f"Ferdigstilt av {self.biologist.pk}".encode() in response.content
+        assert b'id="finalize-btn"' not in response.content
+        assert b'id="save-btn" type="button" disabled' in response.content
+        assert b'data-review-field="reportingDecision" disabled' in response.content
+
     def test_session_login_allows_only_granted_user_to_read(self):
         login = self.client.get("/accounts/login/")
         assert login.status_code == 200
