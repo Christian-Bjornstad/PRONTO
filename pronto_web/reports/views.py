@@ -1,6 +1,7 @@
 """Authorize first, then validate and render the latest stored snapshot."""
 
 from django.http import HttpResponse, StreamingHttpResponse
+from django.conf import settings
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_GET
 
@@ -42,7 +43,20 @@ def report_detail(request, report_id: str) -> HttpResponse:
         raise ValueError("Stored review revision does not match its record")
     blobs = {asset.asset_id: bytes(asset.content) for asset in record.assets.all()}
     plot_images = load_plot_images_from_bytes(report, blobs)
-    html = render_html(report, review, plot_images=plot_images, inline_assets=True, snapshot=True, web_igv=True)
+    try:
+        pairs = lookup_registered(record.report_id, str(report.sample["sampleId"]), str(report.sample["referenceBuild"]))
+    except InvalidAlignmentRegistry:
+        pairs = ()
+    sources = tuple({
+        "sourceId": pair.source_id, "role": pair.role, "format": pair.format,
+        "referenceBuild": pair.reference_build,
+        "dataURL": f"/reports/{record.report_id}/alignments/{pair.source_id}/data/",
+        "indexURL": f"/reports/{record.report_id}/alignments/{pair.source_id}/index/",
+    } for pair in pairs)
+    references = {build: value for build, value in settings.PRONTO_IGV_REFERENCES.items()
+                  if all(value.values())}
+    html = render_html(report, review, plot_images=plot_images, inline_assets=True,
+                       snapshot=True, web_igv=True, igv_sources=sources, igv_references=references)
     response = HttpResponse(html, content_type="text/html; charset=utf-8")
     response["Cache-Control"] = "no-store"
     return response

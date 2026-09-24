@@ -104,6 +104,36 @@ def test_snapshot_requires_embedded_assets():
         render_html(build_report(), snapshot=True)
 
 
+def test_web_igv_sources_are_ids_and_same_origin_urls_only():
+    report = build_report()
+    html = render_html(report, inline_assets=True, snapshot=True, web_igv=True, igv_sources=({
+        "sourceId": "tumour", "role": "TUMOUR_DNA", "format": "bam",
+        "referenceBuild": "GRCh37",
+        "dataURL": f"/reports/{report.report_id}/alignments/tumour/data/",
+        "indexURL": f"/reports/{report.report_id}/alignments/tumour/index/",
+    },), igv_references={"GRCh37": {"fastaURL": "/references/grch37.fa", "indexURL": "/references/grch37.fa.fai"}})
+    assert 'name="igv-data"' in html
+    assert 'name="igv-index"' in html
+    assert 'id="igv-sources"' in html
+    assert 'id="igv-references"' in html
+    assert 'report-igv.js' in html
+    assert '<script type="module" src="/static/report-igv.js"></script>' in html
+    assert 'Lagre filer for senere bruk' not in html
+
+
+def test_offline_igv_is_absent():
+    html = render_html(build_report(), inline_assets=True)
+    assert 'report-igv.js' not in html
+    assert 'igv.esm.min.js' not in html
+    assert 'name="igv-data"' not in html
+
+
+def test_web_igv_rejects_external_reference_url():
+    with pytest.raises(ValueError, match="same-origin"):
+        render_html(build_report(), inline_assets=True, snapshot=True, web_igv=True,
+                    igv_references={"GRCh37": {"fastaURL": "https://example.org/ref.fa", "indexURL": "/ref.fa.fai"}})
+
+
 def test_snapshot_escapes_review_notes_as_text():
     report = replace(build_report(), attachments=())
     review = migrate_review_state_v1(draft_review(report))

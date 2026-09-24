@@ -68,6 +68,13 @@ class ReportReadTests(TestCase):
         assert b'<style>' in response.content
         assert response["Cache-Control"] == "no-store"
 
+    def test_report_contains_registered_igv_descriptor_without_physical_paths(self):
+        self.client.force_login(self.biologist)
+        response = self.client.get(self.url)
+        assert response.status_code == 200
+        assert b'id="igv-sources"' in response.content
+        assert b'id="igv-references"' in response.content
+
     def test_no_write_route_is_exposed_in_read_slice(self):
         self.client.force_login(self.biologist)
         assert self.client.post(self.url).status_code == 405
@@ -118,6 +125,7 @@ class AlignmentRangeTests(ReportReadTests):
         temp = TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         root = Path(temp.name)
+        self.source_root = root
         self.data = b"0123456789"
         (root / "tumour.bam").write_bytes(self.data)
         (root / "tumour.bam.bai").write_bytes(b"INDEX")
@@ -136,6 +144,12 @@ class AlignmentRangeTests(ReportReadTests):
         settings_override.enable()
         self.addCleanup(settings_override.disable)
         self.range_url = f"/reports/{self.report.report_id}/alignments/tumour/data/"
+
+    def test_registered_source_is_offered_without_physical_path(self):
+        self.client.force_login(self.biologist)
+        response = self.client.get(self.url)
+        assert b'"sourceId":"tumour"' in response.content
+        assert str(self.source_root).encode() not in response.content
 
     def test_authorized_ranges_and_headers(self):
         self.client.force_login(self.biologist)

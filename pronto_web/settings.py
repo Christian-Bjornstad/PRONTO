@@ -15,6 +15,7 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
+    "django.contrib.staticfiles",
     "pronto_web.reports",
 ]
 MIDDLEWARE = [
@@ -41,8 +42,17 @@ DATABASES = {"default": {
     "NAME": os.environ.get("PRONTO_DJANGO_DB", str(BASE_DIR / "pronto_web.sqlite3")),
 }}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+STATIC_URL = "/static/"
+# https://docs.djangoproject.com/en/5.2/howto/static-files/deployment/
+STATICFILES_DIRS = [BASE_DIR / "pronto_report" / "static"]
+STATIC_ROOT = os.environ.get("PRONTO_STATIC_ROOT", str(BASE_DIR / "collected-static"))
 PRONTO_ALIGNMENT_SOURCE_ROOT = os.environ.get("PRONTO_ALIGNMENT_SOURCE_ROOT", "")
 PRONTO_ALIGNMENT_REGISTRY_JSON = os.environ.get("PRONTO_ALIGNMENT_REGISTRY_JSON", "")
+PRONTO_IGV_REFERENCES = {
+    build: {"fastaURL": os.environ.get(f"PRONTO_IGV_{build}_FASTA_URL", ""),
+            "indexURL": os.environ.get(f"PRONTO_IGV_{build}_FAI_URL", "")}
+    for build in ("GRCh37", "GRCh38")
+}
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = True

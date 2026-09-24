@@ -24,6 +24,7 @@ Out/**
 # Build and editor artifacts
 build/
 dist/
+collected-static/
 *.egg-info/
 .DS_Store
 Thumbs.db
