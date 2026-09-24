@@ -3,14 +3,14 @@
 from dataclasses import replace
 import json
 
-from playwright.sync_api import expect
-
-from pronto.tests.reporting.browser.test_report import _page, _serve, browser
+from pronto.tests.reporting.browser.test_report import _page, _serve, browser, playwright
 from pronto.tests.reporting.test_html_review_state import draft_review
 from pronto.tests.reporting.test_pronto_output_adapter import build_report
 from pronto_report.migration import migrate_review_state_v1
 from pronto_report.renderers.html import render_html
 from pronto_report.serialization import serialize_review_state
+
+expect = playwright.expect
 
 
 def _live_report(report):
