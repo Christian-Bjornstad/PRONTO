@@ -38,3 +38,13 @@ This registry alone does not save an uploaded file. Full-file preservation,
 retention/deletion policy, and clinical deployment controls are specified in
 `docs/superpowers/specs/2026-09-24-igv-alignment-sources-design.md` and will
 be implemented in the separate preservation slice.
+
+For embedded IGV, configure both `PRONTO_IGV_GRCh37_FASTA_URL` and
+`PRONTO_IGV_GRCh37_FAI_URL` (and/or the corresponding `GRCh38` names) as
+same-origin absolute URL paths. The reference FASTA/index must be available
+through an institution-approved service that supports HTTP byte ranges and
+does not redirect to a public host. If a build has no configured reference,
+the panel reports this and does not load alignments. Set `PRONTO_STATIC_ROOT`
+to a deployment build directory and run `collectstatic`; serve the collected
+`report-igv.js` and vendored `igv/igv.esm.min.js` at `/static/` on the same
+origin. The viewer never requests a CDN or IGV default genome list.

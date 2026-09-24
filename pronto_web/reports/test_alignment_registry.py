@@ -93,6 +93,10 @@ def test_duplicate_id_and_unknown_role_are_rejected(tmp_path):
     with override_settings(PRONTO_ALIGNMENT_SOURCE_ROOT=str(root), PRONTO_ALIGNMENT_REGISTRY_JSON=str(manifest)):
         with pytest.raises(InvalidAlignmentRegistry):
             lookup_registered("r1", "s1", "GRCh37")
+    manifest.write_text(json.dumps({"version": 1, "sources": [{**entry, "id": "../other"}]}), encoding="utf-8")
+    with override_settings(PRONTO_ALIGNMENT_SOURCE_ROOT=str(root), PRONTO_ALIGNMENT_REGISTRY_JSON=str(manifest)):
+        with pytest.raises(InvalidAlignmentRegistry):
+            lookup_registered("r1", "s1", "GRCh37")
     manifest.write_text(json.dumps({"version": 1, "sources": [{**entry, "role": "UNKNOWN"}]}), encoding="utf-8")
     with override_settings(PRONTO_ALIGNMENT_SOURCE_ROOT=str(root), PRONTO_ALIGNMENT_REGISTRY_JSON=str(manifest)):
         with pytest.raises(InvalidAlignmentRegistry):

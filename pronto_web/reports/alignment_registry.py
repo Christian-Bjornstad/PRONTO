@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -80,8 +81,8 @@ def _configured_pairs() -> tuple[RegisteredPair, ...]:
         if not all(isinstance(entry[field], str) and entry[field] for field in _FIELDS):
             raise InvalidAlignmentRegistry("source fields must be nonempty strings")
         source_id = entry["id"]
-        if source_id in seen or len(source_id) > 128:
-            raise InvalidAlignmentRegistry("duplicate or oversized source ID")
+        if source_id in seen or len(source_id) > 128 or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", source_id) is None:
+            raise InvalidAlignmentRegistry("duplicate or invalid source ID")
         seen.add(source_id)
         if entry["role"] not in _ROLES or entry["format"] not in _FORMATS or entry["referenceBuild"] not in _BUILDS:
             raise InvalidAlignmentRegistry("unsupported source role, format, or build")
