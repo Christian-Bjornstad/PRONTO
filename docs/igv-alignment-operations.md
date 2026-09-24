@@ -79,3 +79,15 @@ directory; neither file belongs in Django static/media or an HTML export.
 This service is not an upload endpoint by itself. The future save command must
 pass the deployment's byte limits and verify explicit user confirmation and
 write authorization before calling it.
+
+The save-command layer now uses a separate `ReportWriteGrant` for every
+preserve, chunk, completion, copy, cancel and delete action. A local session is
+bound to its original user and exact report/sample/build/role, and remains
+unpublished until both whole files validate. Repeated completion of that same
+session returns its existing saved record; a different pair under the same
+identity is rejected rather than overwritten. The source registry reserves
+`saved-` IDs for READY managed pairs. No browser/API upload route is exposed by
+this command layer alone. Deletion first hides a saved pair as `DELETING`, then
+removes the managed bytes and writes a minimal audit event. A failed filesystem
+deletion leaves a hidden tombstone for an authorized retry or operational
+reconciliation; it must never reappear as a READY source automatically.

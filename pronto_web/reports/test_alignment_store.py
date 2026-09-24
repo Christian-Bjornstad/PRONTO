@@ -5,11 +5,16 @@ from pathlib import Path
 import pytest
 
 
-pysam = pytest.importorskip("pysam")
+try:
+    import pysam
+except ImportError:  # Native Windows is view-only; Django discovery still imports this module.
+    pysam = None
 
 
 @pytest.fixture
 def pairs(tmp_path):
+    if pysam is None:
+        pytest.skip("pysam validation is Linux-only")
     reference = tmp_path / "reference.fa"
     reference.write_text(">chr22\n" + "A" * 200 + "\n", encoding="ascii")
     pysam.faidx(str(reference))
