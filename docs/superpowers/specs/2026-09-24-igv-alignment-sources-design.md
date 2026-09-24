@@ -2,7 +2,7 @@
 
 Date: 2026-09-24
 
-Status: design approved in conversation on 2026-09-24; written spec awaiting owner review
+Status: written spec approved by repository owner on 2026-09-24
 
 Depends on: `2026-09-23-report-html-fidelity-and-review-persistence-design.md`
 
