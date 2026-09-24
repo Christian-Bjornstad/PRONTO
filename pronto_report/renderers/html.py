@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import Any, Mapping
 
 from pronto_report.models import ReportData, ReviewState
+from pronto_report.igv.locus import locus_for_variant
 from pronto_report.migration import migrate_review_state_v1
 from pronto_report.renderers.projection import project_reference_ui
 from pronto_report.serialization import serialize_review_state
@@ -261,9 +262,11 @@ def _review_select(
     )
 
 
-def _variant_rows(report: ReportData, review: ReviewState | None, snapshot: bool = False) -> str:
+def _variant_rows(
+    report: ReportData, review: ReviewState | None, snapshot: bool = False, web_igv: bool = False,
+) -> str:
     if not report.variants:
-        span = 11 if review is not None else 7
+        span = (11 if review is not None else 7) + int(web_igv)
         return f'<tr><td colspan="{span}">Ingen varianter tilgjengelig i kildedata.</td></tr>'
     rows = []
     reviews = {item["variantId"]: item for item in review.variant_reviews} if review else {}
@@ -281,6 +284,21 @@ def _variant_rows(report: ReportData, review: ReviewState | None, snapshot: bool
         )
         cells = (gene, location, dna, protein, vaf, tier)
         search = " ".join(str(value) for value in cells).casefold()
+        igv_cell = ""
+        if web_igv:
+            variant_id = escape(str(variant["variantId"]), quote=True)
+            locus = locus_for_variant(variant, str(report.sample["referenceBuild"]))
+            if locus is None:
+                igv_cell = (
+                    '<td><span class="igv-unavailable">'
+                    'IGV utilgjengelig: ukjent eller ulikt referansegenom, '
+                    'eller manglende posisjon</span></td>'
+                )
+            else:
+                igv_cell = (
+                    '<td><button type="button" data-igv-locus="{}" data-variant-id="{}">'
+                    'Vis i IGV</button></td>'
+                ).format(escape(locus, quote=True), variant_id)
         review_cells = ""
         if review is not None:
             variant_id = str(variant["variantId"])
@@ -318,7 +336,8 @@ def _variant_rows(report: ReportData, review: ReviewState | None, snapshot: bool
                 escape(search, quote=True),
                 escape(str(frequency) if frequency is not None else "", quote=True),
                 "".join(f"<td>{escape(value)}</td>" for value in cells)
-                + f'<td class="identifier">{escape(str(variant["occurrenceId"]))}</td>',
+                + f'<td class="identifier">{escape(str(variant["occurrenceId"]))}</td>'
+                + igv_cell,
                 review_cells,
             )
         )
@@ -507,6 +526,7 @@ def render_html(
     plot_images: Mapping[str, tuple[tuple[str, bytes], ...]] | None = None,
     inline_assets: bool = False,
     snapshot: bool = False,
+    web_igv: bool = False,
 ) -> str:
     """Render validated contracts as a development page or offline artifact."""
     if snapshot and not inline_assets:
@@ -607,7 +627,14 @@ def render_html(
         "case_facts": _case_facts(ui, editable),
         "biomarker_cards": _biomarker_cards(ui, report, review, editable),
         "key_variant_rows": _key_variant_rows(report),
-        "variant_rows": _variant_rows(report, review, snapshot),
+        "variant_rows": _variant_rows(report, review, snapshot, web_igv),
+        "igv_column": '<th scope="col">IGV</th>' if web_igv else "",
+        "igv_panel": (
+            '<section id="igv-panel" aria-label="IGV-visning" hidden '
+            f'data-reference-build="{escape(str(report.sample["referenceBuild"]), quote=True)}">'
+            '<h3>IGV</h3><p id="igv-status" role="status" aria-live="polite">Velg en variant.</p>'
+            '<div id="igv-viewer"></div></section>'
+        ) if web_igv else "",
         "review_columns": review_columns,
         "review_toolbar": review_toolbar,
         "review_filters": review_filters,

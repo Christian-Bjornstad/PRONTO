@@ -1,11 +1,13 @@
 """Authenticated read-path tests using approved, non-sensitive report fixtures."""
 
 import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from dataclasses import replace
 from hashlib import sha256
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from pronto.tests.reporting.test_html_review_state import draft_review
 from pronto.tests.reporting.test_html_surfaces import ONE_PIXEL_PNG
@@ -61,6 +63,7 @@ class ReportReadTests(TestCase):
         assert b"Siste lagrede vurdering" in response.content
         assert b"Revisjon 2" in response.content
         assert b"data:image/png;base64," in response.content
+        assert b'id="igv-panel"' in response.content
         assert b'id="save-btn"' not in response.content
         assert b'<style>' in response.content
         assert response["Cache-Control"] == "no-store"
@@ -107,3 +110,87 @@ class ReportReadTests(TestCase):
         stored_review.save(update_fields=["revision"])
         with self.assertRaises(ValueError):
             self.client.get(self.url)
+
+
+class AlignmentRangeTests(ReportReadTests):
+    def setUp(self):
+        super().setUp()
+        temp = TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        root = Path(temp.name)
+        self.data = b"0123456789"
+        (root / "tumour.bam").write_bytes(self.data)
+        (root / "tumour.bam.bai").write_bytes(b"INDEX")
+        manifest = root / "registry.json"
+        manifest.write_text(json.dumps({"version": 1, "sources": [{
+            "id": "tumour", "reportId": self.report.report_id,
+            "sampleId": self.report.sample["sampleId"],
+            "referenceBuild": self.report.sample["referenceBuild"],
+            "role": "TUMOUR_DNA", "format": "bam", "data": "tumour.bam",
+            "index": "tumour.bam.bai",
+        }]}), encoding="utf-8")
+        settings_override = override_settings(
+            PRONTO_ALIGNMENT_SOURCE_ROOT=str(root),
+            PRONTO_ALIGNMENT_REGISTRY_JSON=str(manifest),
+        )
+        settings_override.enable()
+        self.addCleanup(settings_override.disable)
+        self.range_url = f"/reports/{self.report.report_id}/alignments/tumour/data/"
+
+    def test_authorized_ranges_and_headers(self):
+        self.client.force_login(self.biologist)
+        for header, expected, content_range in [
+            ("bytes=0-1", b"01", "bytes 0-1/10"),
+            ("bytes=2-5", b"2345", "bytes 2-5/10"),
+            ("bytes=8-", b"89", "bytes 8-9/10"),
+        ]:
+            response = self.client.get(self.range_url, HTTP_RANGE=header)
+            assert response.status_code == 206
+            assert response["Content-Range"] == content_range
+            assert response["Content-Length"] == str(len(expected))
+            assert response["Accept-Ranges"] == "bytes"
+            assert response["Cache-Control"] == "no-store"
+            assert response["X-Content-Type-Options"] == "nosniff"
+            assert response["Content-Type"] == "application/octet-stream"
+            assert b"".join(response.streaming_content) == expected
+
+    def test_index_can_be_read_whole_and_data_requires_range(self):
+        self.client.force_login(self.biologist)
+        index = self.client.get(self.range_url.replace("/data/", "/index/"))
+        assert index.status_code == 200
+        assert b"".join(index.streaming_content) == b"INDEX"
+        missing = self.client.get(self.range_url)
+        assert missing.status_code == 416
+        assert missing["Content-Range"] == "bytes */10"
+
+    def test_invalid_ranges_disclose_no_bytes(self):
+        self.client.force_login(self.biologist)
+        for header in ("bytes=0-1,4-5", "bytes=10-", "garbage"):
+            response = self.client.get(self.range_url, HTTP_RANGE=header)
+            assert response.status_code == 416
+            assert response["Content-Range"] == "bytes */10"
+            assert not response.content
+
+    def test_anonymous_ungranted_and_guessed_sources(self):
+        assert self.client.get(self.range_url, HTTP_RANGE="bytes=0-1").status_code == 401
+        self.client.force_login(self.other)
+        assert self.client.get(self.range_url, HTTP_RANGE="bytes=0-1").status_code == 404
+        self.client.force_login(self.biologist)
+        for url in (
+            self.range_url.replace("tumour", "guessed"),
+            self.range_url.replace("/data/", "/other/"),
+            self.range_url.replace(self.report.report_id, "wrong-report"),
+        ):
+            assert self.client.get(url, HTTP_RANGE="bytes=0-1").status_code == 404
+
+    def test_head_does_not_stream_or_reveal_data(self):
+        self.client.force_login(self.biologist)
+        assert self.client.head(self.range_url, HTTP_RANGE="bytes=0-1").status_code == 405
+
+    def test_source_identity_must_still_match_stored_report(self):
+        self.client.force_login(self.biologist)
+        altered = dict(self.record.report_data)
+        altered["sample"] = {**altered["sample"], "sampleId": "another-sample"}
+        self.record.report_data = altered
+        self.record.save(update_fields=["report_data"])
+        assert self.client.get(self.range_url, HTTP_RANGE="bytes=0-1").status_code == 404

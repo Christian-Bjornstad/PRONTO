@@ -1,4 +1,5 @@
 from html.parser import HTMLParser
+from dataclasses import replace
 
 from pronto_report.models import ReportData
 from pronto_report.renderers.html import render_html
@@ -104,6 +105,28 @@ def test_renderer_exposes_identity_and_text_status_without_color_only_meaning():
     assert "IPD-TEST-001" in document
     assert "report_test_001" in document
     assert "Rapportstatus: Utkast" in document
+
+
+def test_igv_launcher_exists_only_in_authenticated_web_surface():
+    report = approved_report()
+    offline = render_html(report, inline_assets=True, snapshot=True)
+    web = render_html(report, inline_assets=True, snapshot=True, web_igv=True)
+
+    assert 'id="igv-panel"' not in offline
+    assert 'data-igv-locus=' not in offline
+    assert 'id="igv-panel"' in web
+    assert 'data-igv-locus="chr22:29091806-29091906"' in web
+    assert 'data-variant-id="variant_82424c6aafcfa25e0c57b18e"' in web
+
+
+def test_igv_launcher_explains_unavailable_reference_build():
+    source = approved_report()
+    report = replace(source, sample={**source.sample, "referenceBuild": "UNKNOWN"})
+
+    web = render_html(report, inline_assets=True, snapshot=True, web_igv=True)
+
+    assert 'data-igv-locus=' not in web
+    assert 'IGV utilgjengelig: ukjent eller ulikt referansegenom' in web
 
 
 def test_approved_report_renders_source_biomarkers_and_every_variant_occurrence():
