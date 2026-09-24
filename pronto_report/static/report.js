@@ -56,12 +56,14 @@
   const finalizeButton = document.getElementById("finalize-btn");
   const finalizeHint = document.getElementById("finalize-hint");
   const corrections = new Map();
+  const removedCorrections = new Set();
+  let savedCorrections = new Map();
   let reviewDirty = false;
   let saving = false;
   let finalizing = false;
 
   function refreshDirty() {
-    const sourceDirty = corrections.size > 0;
+    const sourceDirty = corrections.size > 0 || removedCorrections.size > 0;
     dirtyLabel.textContent = finalizing ? "Ferdigstiller …" : saving ? "Lagrer …" : sourceDirty ? "Ulagrede kildekorreksjoner" :
       reviewDirty ? "Ulagret gjennomgang" : saveButton?.dataset.saveUrl ? "Alle endringer lagret" : "Kun lokal visning";
     if (reviewDownload) reviewDownload.disabled = sourceDirty;
@@ -72,6 +74,28 @@
       finalizeHint.textContent = sourceDirty || reviewDirty ? "Lagre endringene før ferdigstilling." :
         "Ferdigstilling låser rapporten og krever bekreftelse.";
     }
+  }
+
+  function recordCorrection(path, candidate) {
+    const saved = savedCorrections.get(path);
+    if (!candidate) {
+      corrections.delete(path);
+      if (saved) removedCorrections.add(path);
+      else removedCorrections.delete(path);
+    } else if (saved && candidate.correctedValue === saved.correctedValue &&
+               candidate.reason === saved.reason) {
+      corrections.delete(path);
+      removedCorrections.delete(path);
+    } else {
+      corrections.set(path, candidate);
+      removedCorrections.delete(path);
+    }
+    refreshDirty();
+  }
+
+  function updateReason(path, value) {
+    const correction = corrections.get(path) || savedCorrections.get(path);
+    if (correction) recordCorrection(path, { ...correction, reason: value.trim() });
   }
 
   if (editButton && !editButton.disabled) {
@@ -91,7 +115,7 @@
     const display = document.querySelector('[data-metric="tmb"] .metric-card__value');
     const original = Number(tmbGauge.dataset.originalValue);
     const path = tmbGauge.dataset.correctionPath;
-    let currentValue = original;
+    let currentValue = Number(number.value);
 
     function updateTmb(raw) {
       const value = Number(raw);
@@ -102,11 +126,11 @@
       currentValue = value;
       const changed = value !== original;
       if (changed) {
-        corrections.set(path, {
+        recordCorrection(path, {
           path, originalValue: original, correctedValue: value, reason: reason.value.trim(),
         });
       } else {
-        corrections.delete(path);
+        recordCorrection(path, null);
       }
       number.value = String(value);
       tmbGauge.value = String(Math.min(value, Number(tmbGauge.max)));
@@ -121,9 +145,7 @@
     tmbGauge.addEventListener("input", () => updateTmb(tmbGauge.value));
     number.addEventListener("change", () => updateTmb(number.value));
     reason.addEventListener("input", () => {
-      const correction = corrections.get(path);
-      if (correction) correction.reason = reason.value.trim();
-      refreshDirty();
+      updateReason(path, reason.value);
     });
   }
 
@@ -145,11 +167,11 @@
         `${new Intl.NumberFormat("nb-NO", { maximumFractionDigits: 2 }).format(value)} %`;
       card.dataset.correctionPending = String(changed);
       if (changed) {
-        corrections.set(path, {
+        recordCorrection(path, {
           path, originalValue: original, correctedValue: value, reason: reason.value.trim(),
         });
       } else {
-        corrections.delete(path);
+        recordCorrection(path, null);
         reason.value = "";
       }
       reason.disabled = !changed;
@@ -157,9 +179,7 @@
       refreshDirty();
     });
     reason.addEventListener("input", () => {
-      const correction = corrections.get(path);
-      if (correction) correction.reason = reason.value.trim();
-      refreshDirty();
+      updateReason(path, reason.value);
     });
   });
 
@@ -174,14 +194,14 @@
       field.querySelector("dd").textContent = proposed || "Ikke oppgitt";
       field.dataset.correctionPending = String(changed);
       if (changed) {
-        corrections.set(path, {
+        recordCorrection(path, {
           path,
           originalValue: field.dataset.availability === "UNAVAILABLE" ? null : original,
           correctedValue: proposed || null,
           reason: reason.value.trim(),
         });
       } else {
-        corrections.delete(path);
+        recordCorrection(path, null);
         reason.value = "";
       }
       reason.disabled = !changed;
@@ -189,9 +209,7 @@
       refreshDirty();
     });
     reason.addEventListener("input", () => {
-      const correction = corrections.get(path);
-      if (correction) correction.reason = reason.value.trim();
-      refreshDirty();
+      updateReason(path, reason.value);
     });
   });
 
@@ -331,6 +349,7 @@
   const reviewData = document.getElementById("review-state-data");
   if (!reviewData) return;
   const reviewState = JSON.parse(reviewData.textContent);
+  savedCorrections = new Map(reviewState.valueCorrections.map((item) => [item.path, item]));
   const activities = new Map(reviewState.variantReviews.map((item) => [item.variantId, item]));
   const feedback = document.getElementById("review-feedback");
   const download = document.getElementById("download-review");
@@ -343,6 +362,7 @@
   function localDraft() {
     const draft = JSON.parse(JSON.stringify(reviewState));
     const byPath = new Map(draft.valueCorrections.map((item) => [item.path, item]));
+    removedCorrections.forEach((path) => byPath.delete(path));
     corrections.forEach((item, path) => {
       byPath.set(path, {
         ...item, author: saveButton.dataset.actorId, timestamp: new Date().toISOString(),
@@ -372,7 +392,7 @@
       return () => editableInputs.forEach((input, index) => { input.disabled = previouslyDisabled[index]; });
     }
     window.addEventListener("beforeunload", (event) => {
-      if (!reviewDirty && !corrections.size && !saving && !finalizing) return;
+      if (!reviewDirty && !corrections.size && !removedCorrections.size && !saving && !finalizing) return;
       event.preventDefault();
       event.returnValue = "";
     });
@@ -383,11 +403,12 @@
       if (window.confirm("Lokale endringer går tapt. Last inn nyeste lagrede revisjon?")) {
         reviewDirty = false;
         corrections.clear();
+        removedCorrections.clear();
         window.location.reload();
       }
     });
     saveButton.addEventListener("click", async () => {
-      if (saving || (!reviewDirty && !corrections.size)) return;
+      if (saving || (!reviewDirty && !corrections.size && !removedCorrections.size)) return;
       saveError.hidden = true;
       recovery.hidden = true;
       saveFeedback.hidden = true;
@@ -401,6 +422,7 @@
       }
       const baseRevision = reviewState.revision;
       const draft = localDraft();
+      const hadCorrectionEdits = corrections.size > 0 || removedCorrections.size > 0;
       saving = true;
       const unlockInputs = lockInputs();
       refreshDirty();
@@ -427,8 +449,11 @@
         activities.clear();
         reviewState.variantReviews.forEach((item) => activities.set(item.variantId, item));
         corrections.clear();
+        removedCorrections.clear();
+        savedCorrections = new Map(reviewState.valueCorrections.map((item) => [item.path, item]));
         reviewDirty = false;
         feedback.textContent = `Lagret som revisjon ${reviewState.revision}.`;
+        if (hadCorrectionEdits) window.location.reload();
       } catch (_error) {
         saveError.textContent = "Kunne ikke bekrefte lagring. Endringene er fortsatt lokale. Prøv igjen, eller last ned en lokal kopi.";
         saveError.hidden = false;
@@ -442,7 +467,7 @@
       }
     });
     if (finalizeButton) finalizeButton.addEventListener("click", async () => {
-      if (saving || finalizing || reviewDirty || corrections.size || reviewState.status !== "DRAFT") return;
+      if (saving || finalizing || reviewDirty || corrections.size || removedCorrections.size || reviewState.status !== "DRAFT") return;
       if (!window.confirm("Ferdigstille denne lagrede revisjonen? Rapporten låses for videre redigering. Samme biolog kan ferdigstille.")) return;
       saveError.hidden = true;
       recovery.hidden = true;
@@ -476,6 +501,7 @@
         Object.assign(reviewState, result.review);
         reviewDirty = false;
         corrections.clear();
+        removedCorrections.clear();
         completed = true;
       } catch (_error) {
         saveError.textContent = "Kunne ikke bekrefte ferdigstilling. Rapporten beholdes som utkast i denne visningen. Kontroller nyeste lagrede revisjon før du prøver igjen.";

@@ -6,6 +6,9 @@ from pronto.tests.reporting.browser.test_report import _page, _serve, browser, p
 from pronto.tests.reporting.test_html_review_state import draft_review
 from pronto.tests.reporting.test_pronto_output_adapter import build_report
 from pronto_report.renderers.html import render_html
+from pronto_report.migration import migrate_review_state_v1
+from pronto_report.serialization import serialize_review_state
+from pronto_report.validation import validate_review_state
 
 expect = playwright.expect
 
@@ -137,5 +140,43 @@ def test_network_failure_does_not_claim_the_draft_was_saved(browser):
             assert note.input_value() == "Syntetisk lokalt utkast"
             assert page.locator("#dirty-lbl").inner_text() == "Ulagret gjennomgang"
             assert page.locator("#save-btn").is_enabled()
+        finally:
+            context.close()
+
+
+def test_saved_correction_can_be_removed_without_changing_source(browser):
+    report = build_report()
+    document = json.loads(serialize_review_state(migrate_review_state_v1(draft_review(report))))
+    document["valueCorrections"] = [{
+        "path": "/sample/tumourType", "originalValue": None,
+        "correctedValue": "Syntetisk korrigert", "reason": "Syntetisk kontroll",
+        "author": "7", "timestamp": "2026-09-24T12:00:00Z",
+    }]
+    review = validate_review_state(document, report=report)
+    html = render_html(
+        report, review, inline_assets=True,
+        save_url=f"/reports/{report.report_id}/revisions/",
+        csrf_token="test-csrf-token", actor_id="7",
+    )
+    commands = []
+    with _serve(html) as url:
+        context, page, _diagnostics, _requests = _page(browser, html)
+        try:
+            page.route("**/revisions/", lambda route: (
+                commands.append(json.loads(route.request.post_data)),
+                route.fulfill(status=422, content_type="application/json", body='{"error":{"code":"INVALID_DRAFT"}}'),
+            ))
+            page.goto(url)
+            assert "Lagret korreksjon: Syntetisk korrigert" in page.locator('[data-fact="tumourType"]').text_content()
+            assert page.locator('[data-fact="tumourType"] dd').text_content() == "Ikke oppgitt"
+            page.locator("#edit-btn").click()
+            field = page.locator("#tumourType-edit")
+            assert field.input_value() == "Syntetisk korrigert"
+            field.fill("")
+            assert page.locator("#dirty-lbl").inner_text() == "Ulagrede kildekorreksjoner"
+            with page.expect_request("**/revisions/"):
+                page.locator("#save-btn").click()
+            assert commands[0]["draft"]["valueCorrections"] == []
+            assert report.sample.get("tumourType") is None
         finally:
             context.close()

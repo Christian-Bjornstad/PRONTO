@@ -64,7 +64,25 @@ def _display(value: object) -> str:
     return str(value)
 
 
-def _case_facts(ui: Mapping[str, Any], editable: bool) -> str:
+def _corrections(review: ReviewState | None) -> dict[str, Mapping[str, Any]]:
+    return {str(item["path"]): item for item in review.value_corrections} if review else {}
+
+
+def _correction_notice(correction: Mapping[str, Any] | None, unit: str = "") -> str:
+    if not correction:
+        return ""
+    value = f'{_display(correction["correctedValue"])} {unit}'.strip()
+    return (
+        '<p class="saved-correction">'
+        f'<strong>Lagret korreksjon: {escape(value)}</strong>'
+        f'<br>Begrunnelse: {escape(str(correction["reason"]))}'
+        f'<br>Registrert av {escape(str(correction["author"]))}'
+        f' · <time datetime="{escape(str(correction["timestamp"]), quote=True)}">'
+        f'{escape(str(correction["timestamp"]))}</time></p>'
+    )
+
+
+def _case_facts(ui: Mapping[str, Any], review: ReviewState | None, editable: bool) -> str:
     facts = (
         ("sampleId", "Sample"),
         ("patientPseudonym", "Patient code"),
@@ -75,13 +93,18 @@ def _case_facts(ui: Mapping[str, Any], editable: bool) -> str:
         ("runId", "Sequencing run"),
     )
     cards = []
+    corrections = _corrections(review)
     for name, label in facts:
         fact = ui["facts"][name]
         original = _display(fact["value"])
         controls = ""
+        correction = corrections.get(f"/sample/{name}")
         if editable and name in {"tumourType", "specimenType"}:
             path = f"/sample/{name}"
-            field_value = "" if fact["value"] is None else str(fact["value"])
+            field_value = "" if correction is None and fact["value"] is None else str(
+                correction["correctedValue"] if correction else fact["value"]
+            )
+            source_value = "" if fact["value"] is None else str(fact["value"])
             controls = (
                 f'<small class="patient-strip__source" data-source-value="{escape(original, quote=True)}">'
                 f'Kilde: {escape(original)}</small>'
@@ -89,16 +112,16 @@ def _case_facts(ui: Mapping[str, Any], editable: bool) -> str:
                 f'<label for="{name}-edit">Foreslått verdi</label>'
                 f'<input id="{name}-edit" type="text" maxlength="512" '
                 f'value="{escape(field_value, quote=True)}" '
-                f'data-correction-path="{path}" data-original-value="{escape(field_value, quote=True)}">'
+                f'data-correction-path="{path}" data-original-value="{escape(source_value, quote=True)}">'
                 f'<label for="{name}-correction-reason">Begrunnelse for korreksjon</label>'
                 f'<input id="{name}-correction-reason" type="text" maxlength="10000" '
-                'placeholder="Påkrevd før lagring" disabled>'
+                f'placeholder="Påkrevd før lagring" {"required" if correction else "disabled"} value="{escape(str(correction["reason"]), quote=True) if correction else ""}">'
                 '</div>'
             )
         cards.append(
             f'<div class="patient-strip__fact" data-fact="{name}" '
             f'data-availability="{fact["availability"]}">'
-            f'<dt>{label}</dt><dd>{escape(original)}</dd>{controls}</div>'
+            f'<dt>{label}</dt><dd>{escape(original)}</dd>{_correction_notice(correction)}{controls}</div>'
         )
     return "".join(cards)
 
@@ -107,6 +130,7 @@ def _biomarker_cards(
     ui: Mapping[str, Any], report: ReportData, review: ReviewState | None, editable: bool
 ) -> str:
     cards = []
+    corrections = _corrections(review)
     primary = (("tmb", "TMB"), ("msi", "MSI"))
     extra = (
         (key, str(item["label"])) for key, item in ui["biomarkers"].items()
@@ -125,6 +149,12 @@ def _biomarker_cards(
             'data-availability="UNAVAILABLE">LocalApp TMB: Ikke oppgitt</p>'
             if metric_id == "tmb" else ""
         )
+        correction_path = next(
+            (f"/biomarkers/{index}/value" for index, item in enumerate(report.biomarkers)
+             if item["metricId"] == metric_id), None,
+        )
+        correction = corrections.get(correction_path) if correction_path else None
+        correction_notice = _correction_notice(correction, unit)
         gauge = ""
         if metric_id == "tmb" and editable and isinstance(biomarker["value"], (int, float)):
             original = escape(str(biomarker["value"]), quote=True)
@@ -135,15 +165,15 @@ def _biomarker_cards(
                 '<div class="tmb-gauge report-edit-controls" hidden>'
                 f'<label for="tmb-gauge">Juster TMB (mut/Mb)</label>'
                 f'<input id="tmb-gauge" type="range" min="0" max="30" step="0.1" '
-                f'value="{original}" data-original-value="{original}" '
+                f'value="{escape(str(correction["correctedValue"]), quote=True) if correction else original}" data-original-value="{original}" '
                 f'data-correction-path="/biomarkers/{index}/value">'
                 '<div class="tmb-gauge__legend"><span>0</span><span>5</span>'
                 '<span>20</span><span>30+</span></div>'
                 '<label for="tmb-edit-value">TMB-verdi</label>'
-                f'<input id="tmb-edit-value" type="number" min="0" step="0.1" value="{original}">'
+                f'<input id="tmb-edit-value" type="number" min="0" step="0.1" value="{escape(str(correction["correctedValue"]), quote=True) if correction else original}">'
                 '<label for="tmb-correction-reason">Begrunnelse for korreksjon</label>'
                 '<input id="tmb-correction-reason" type="text" maxlength="10000" '
-                'placeholder="Påkrevd før lagring" disabled>'
+                f'placeholder="Påkrevd før lagring" {"required" if correction else "disabled"} value="{escape(str(correction["reason"]), quote=True) if correction else ""}">'
                 '<p id="tmb-correction-status" hidden>Foreslått korreksjon – kildetallet over er uendret.</p>'
                 '</div>'
             )
@@ -156,11 +186,11 @@ def _biomarker_cards(
                 '<div class="metric-edit report-edit-controls" hidden>'
                 '<label for="msi-edit-value">Foreslått MSI-verdi (%)</label>'
                 f'<input id="msi-edit-value" type="number" min="0" max="100" step="0.01" '
-                f'value="{original}" data-original-value="{original}" '
+                f'value="{escape(str(correction["correctedValue"]), quote=True) if correction else original}" data-original-value="{original}" '
                 f'data-metric-correction-path="/biomarkers/{index}/value">'
                 '<label for="msi-correction-reason">Begrunnelse for korreksjon</label>'
                 '<input id="msi-correction-reason" type="text" maxlength="10000" '
-                'placeholder="Påkrevd før lagring" disabled>'
+                f'placeholder="Påkrevd før lagring" {"required" if correction else "disabled"} value="{escape(str(correction["reason"]), quote=True) if correction else ""}">'
                 '</div>'
             )
         cards.append(
@@ -169,6 +199,7 @@ def _biomarker_cards(
             f'<h3>{escape(label)}</h3>'
             f'<p class="metric-card__value">{escape(shown)}</p>'
             f'<p class="metric-card__detail">{detail}</p>'
+            f'{correction_notice}'
             f'{localapp}'
             f'{gauge}'
             '</article>'
@@ -638,7 +669,7 @@ def render_html(
         "status_label": status_label,
     }
     html_context = {
-        "case_facts": _case_facts(ui, editable),
+        "case_facts": _case_facts(ui, review, editable),
         "biomarker_cards": _biomarker_cards(ui, report, review, editable),
         "key_variant_rows": _key_variant_rows(report),
         "variant_rows": _variant_rows(report, review, snapshot),

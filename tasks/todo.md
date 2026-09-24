@@ -568,6 +568,12 @@ HTTP 201; the previous draft remains visible and editable after an error.
 
 **Description:** Verify the full reference UI plus Django flow with approved fixtures and document only intentional deviations from the original.
 
+The saved-correction projection has been added as an early Task 29 slice:
+previously committed corrections are explicitly shown alongside immutable
+source values in DRAFT and FINAL, and a draft can intentionally remove one.
+The overall Task 29 quality gate remains open pending integration, masked
+visual comparison, and clinical-user review.
+
 **Acceptance criteria:**
 - [ ] Source/provenance, migration, duplicate variants, audit, concurrency, authorization, CSRF, print, and offline export pass regression tests.
 - [ ] Masked desktop/mobile comparisons and clinical-user review are recorded without publishing patient-like artifacts.
