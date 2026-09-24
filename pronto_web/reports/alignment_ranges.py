@@ -10,6 +10,17 @@ class RangeNotSatisfiable(ValueError):
     """The request cannot be served as one bounded byte range."""
 
 
+def parse_upload_range(header: str, max_chunk_bytes: int) -> tuple[int, int, int]:
+    """Parse one exact, bounded Content-Range for an upload chunk."""
+    match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", header)
+    if match is None:
+        raise RangeNotSatisfiable("invalid upload range")
+    start, end, total = map(int, match.groups())
+    if total < 1 or end < start or end >= total or end - start + 1 > max_chunk_bytes:
+        raise RangeNotSatisfiable("upload range is out of bounds")
+    return start, end, total
+
+
 def parse_single_range(header: str, size: int) -> tuple[int, int]:
     if size < 1:
         raise RangeNotSatisfiable("empty resource")

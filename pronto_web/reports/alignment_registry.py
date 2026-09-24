@@ -150,6 +150,8 @@ def lookup_saved(report_id: str, sample_id: str, reference_build: str) -> tuple[
         if (directory.is_symlink() or data.is_symlink() or index.is_symlink()
                 or not data.is_file() or not index.is_file()):
             raise InvalidAlignmentRegistry("managed source pair is unavailable")
+        if data.stat().st_size != record.data_size or index.stat().st_size != record.index_size:
+            raise InvalidAlignmentRegistry("managed source size changed")
         result.append(RegisteredPair(
             source_id=f"saved-{record.id.hex}", report_id=record.report_id,
             sample_id=record.sample_id, reference_build=record.reference_build,

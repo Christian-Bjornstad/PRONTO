@@ -15,6 +15,7 @@ from django.utils import timezone
 
 from .alignment_config import alignment_saving_enabled
 from .alignment_registry import InvalidAlignmentRegistry, lookup_registered
+from .alignment_ranges import RangeNotSatisfiable
 from .alignment_store import (
     PublishedPair, StorageLimitError, UnsafeAlignmentPath, publish_pair,
     remove_pair, validate_pair,
@@ -127,6 +128,15 @@ def _authorized_session(actor, session_id, report=None) -> AlignmentUploadSessio
     return session
 
 
+def authorized_upload_session(actor, report, session_id) -> AlignmentUploadSession:
+    """Check ownership and exact report before an HTTP handler reads any bytes."""
+    session = AlignmentUploadSession.objects.select_related("report").get(pk=session_id)
+    require_alignment_write(actor, session.report)
+    if session.owner_id != actor.pk or session.report_id != report.pk:
+        raise PermissionDenied("upload belongs to another actor or report")
+    return session
+
+
 def accept_chunk(actor, session_id, component: str, start: int, total: int, stream,
                  *, report=None) -> int:
     _require_gate()
@@ -147,7 +157,7 @@ def accept_chunk(actor, session_id, component: str, start: int, total: int, stre
             received_field = f"received_{component}_bytes"
             received = getattr(session, received_field)
             if type(start) is not int or type(total) is not int or start != received or total != expected:
-                raise ValueError("chunk range is not contiguous or total changed")
+                raise RangeNotSatisfiable("chunk range is not contiguous or total changed")
             path = _stage_path(getattr(session, f"staging_{component}_key"))
             flags = os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
             flags |= os.O_CREAT | os.O_EXCL if start == 0 else 0
