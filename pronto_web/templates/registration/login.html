@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Logg inn · PRONTO</title>
+</head>
+<body>
+  <main>
+    <h1>PRONTO · Logg inn</h1>
+    {% if form.errors %}<p role="alert">Brukernavn eller passord er ikke riktig.</p>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <p>{{ form.username.label_tag }} {{ form.username }}</p>
+      <p>{{ form.password.label_tag }} {{ form.password }}</p>
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit">Logg inn</button>
+    </form>
+  </main>
+</body>
+</html>

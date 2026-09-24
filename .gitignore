@@ -6,6 +6,7 @@ __pycache__/
 venv/
 .pytest_cache/
 .coverage
+*.sqlite3
 htmlcov/
 
 # Local configuration and secrets

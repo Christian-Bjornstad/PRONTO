@@ -2,8 +2,6 @@ name: CI
 
 on:
   pull_request:
-    branches:
-      - main
   push:
     branches:
       - main
@@ -34,6 +32,8 @@ jobs:
         run: python -m pip install -r requirements.txt -r requirements-test.txt
       - name: Run unit tests
         run: python -m pytest -q
+      - name: Run Django request tests
+        run: python manage.py test pronto_web.reports
 
   full-test:
     name: Docker fixture tests
