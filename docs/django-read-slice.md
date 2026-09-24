@@ -27,5 +27,6 @@ and list responses use `Cache-Control: no-store`.
 The settings intentionally bind to localhost/testserver and require an
 external secret. SQLite, local password management, backups, retention,
 HTTPS/proxy configuration, operational logging, and deployment authorization
-still need review before any real patient data is used. The next slices add
-transactional revision/audit writes and explicit **Lagre**/finalization UI.
+still need review before any real patient data is used. The transactional
+draft endpoint is documented in `django-draft-save.md`; explicit **Lagre**
+browser wiring and finalization remain separate tasks.

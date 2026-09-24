@@ -114,7 +114,7 @@ key/variant UI        plots/QC/MDT UI
 
 - [ ] Task 24: Specify and test review-service commands, revision errors, and audit records.
 - [ ] Task 25: Add a minimal authenticated Django report retrieval slice and access rules.
-- [ ] Task 26: Persist draft revisions atomically when **Lagre** is pressed.
+- [x] Task 26: Add an atomic, authenticated draft-revision endpoint (browser **Lagre** wiring remains Task 27).
 - [ ] Task 27: Connect frontend dirty, save, failure, and conflict states to the draft endpoint.
 - [ ] Task 28: Finalize the latest saved revision and enforce the read-only lock.
 - [ ] Task 29: Verify end-to-end concurrency, migration, security, print, and regression behavior.

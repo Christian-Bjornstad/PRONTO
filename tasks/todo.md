@@ -514,9 +514,14 @@ The first slice is read-only. Fixture data is seeded only by Django tests; see
 **Description:** Persist revisions and audit rows in one database transaction when an authorized user presses **Lagre**.
 
 **Acceptance criteria:**
-- [ ] CSRF-protected save checks report access and the submitted base revision atomically.
-- [ ] One successful request creates one new revision and audit event; stale request returns HTTP 409 with the current revision.
-- [ ] Invalid corrections, mismatched report IDs, and FINAL writes make no database change.
+- [x] CSRF-protected save checks report access and the submitted base revision atomically.
+- [x] One successful request creates one new revision and audit event; stale request returns HTTP 409 with the current revision.
+- [x] Invalid corrections, mismatched report IDs, and FINAL writes make no database change.
+
+The endpoint is available independently of the UI; **Lagre** is connected in
+Task 27. SQLite does not support `select_for_update()`, so concurrent-writer
+deployment behavior must be verified with the production database. The
+parallel IGV migration also requires a merge migration at integration time.
 
 **Verification:** Django transaction/request tests, including two clients saving from one base revision; inspect migration behavior.
 
