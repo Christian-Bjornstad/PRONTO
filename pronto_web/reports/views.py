@@ -1,13 +1,23 @@
-"""Authorize first, then validate and render the latest stored snapshot."""
+"""Authorize first, then validate and render or save report review snapshots."""
 
-from django.http import HttpResponse
+import json
+
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
-from django.views.decorators.http import require_GET
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.http import require_GET, require_POST
 
 from pronto_report.renderers.assets import load_plot_images_from_bytes
 from pronto_report.renderers.html import render_html
+from pronto_report.review.contracts import ReviewCommandError, SaveDraftRequest
+from pronto_report.review.service import ReviewCommandService
 from pronto_report.validation import validate_report_data, validate_review_state
 from pronto_web.reports.models import ReportGrant, ReportRecord, ReviewRevision
+from pronto_web.reports.review_repository import DjangoReviewAuthorizer, DjangoReviewRepository
+
+
+MAX_REVIEW_COMMAND_BYTES = 1024 * 1024
 
 
 @require_GET
@@ -41,5 +51,55 @@ def report_detail(request, report_id: str) -> HttpResponse:
     plot_images = load_plot_images_from_bytes(report, blobs)
     html = render_html(report, review, plot_images=plot_images, inline_assets=True, snapshot=True)
     response = HttpResponse(html, content_type="text/html; charset=utf-8")
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+def _save_request(request) -> SaveDraftRequest:
+    if request.content_type != "application/json":
+        raise ReviewCommandError("INVALID_COMMAND", "JSON command required", 422)
+    size = request.META.get("CONTENT_LENGTH", "")
+    if size.isdecimal() and int(size) > MAX_REVIEW_COMMAND_BYTES:
+        raise ReviewCommandError("PAYLOAD_TOO_LARGE", "Review command is too large", 413)
+    raw = request.read(MAX_REVIEW_COMMAND_BYTES + 1)
+    if len(raw) > MAX_REVIEW_COMMAND_BYTES:
+        raise ReviewCommandError("PAYLOAD_TOO_LARGE", "Review command is too large", 413)
+    try:
+        payload = json.loads(raw)
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise ReviewCommandError("INVALID_COMMAND", "Invalid JSON command", 422) from exc
+    return SaveDraftRequest.from_dict(payload)
+
+
+def _review_error(exc: ReviewCommandError) -> JsonResponse:
+    response = JsonResponse(exc.as_dict(), status=exc.http_status)
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+@csrf_protect
+@require_POST
+def save_review_revision(request, report_id: str) -> HttpResponse:
+    if not request.user.is_authenticated or not request.user.is_active:
+        return _review_error(ReviewCommandError("UNAUTHENTICATED", "Authentication required", 401))
+    grant = ReportGrant.objects.select_related("report").filter(
+        report_id=report_id, user=request.user,
+    ).first()
+    if grant is None:
+        return _review_error(ReviewCommandError("REVIEW_NOT_FOUND", "Report not found", 404))
+    report = validate_report_data(grant.report.report_data)
+    if report.report_id != grant.report_id:
+        raise ValueError("Stored report identifier does not match its record")
+    try:
+        command = _save_request(request)
+        service = ReviewCommandService(
+            DjangoReviewRepository(grant.report, report), DjangoReviewAuthorizer(request.user),
+            clock=timezone.now,
+        )
+        result = service.save(command, actor_id=str(request.user.pk), report=report)
+    except ReviewCommandError as exc:
+        return _review_error(exc)
+    else:
+        response = JsonResponse(result.as_dict(), status=201)
     response["Cache-Control"] = "no-store"
     return response
