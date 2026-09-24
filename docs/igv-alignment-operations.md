@@ -52,8 +52,11 @@ origin. The viewer never requests a CDN or IGV default genome list.
 
 Alignment preservation remains disabled until a Linux deployment sets all of:
 `PRONTO_ALIGNMENT_STORE_ROOT` and `PRONTO_ALIGNMENT_STAGING_ROOT` to existing,
-different private directories outside the project; `PRONTO_ALIGNMENT_MAX_BYTES`
+different private directories outside the project and outside any configured
+`STATIC_ROOT`/`MEDIA_ROOT`; `PRONTO_ALIGNMENT_MAX_BYTES`
 and `PRONTO_ALIGNMENT_MAX_INDEX_BYTES` to positive per-file byte limits;
+`PRONTO_ALIGNMENT_MAX_REPORT_BYTES` to a positive cumulative retained/pending
+limit for one report;
 `PRONTO_ALIGNMENT_MIN_FREE_BYTES` to a nonnegative reserved-space threshold;
 and `PRONTO_ALIGNMENT_POLICY_APPROVED=true` only after the institution approves
 retention, deletion, backup, restore, and access policy. At least one supported
@@ -109,7 +112,10 @@ source. The ordinary review save endpoint remains unrelated to this protocol.
   `PRONTO_ALIGNMENT_POLICY_APPROVED=true`. The environment flag is a deployment
   acknowledgement, not a substitute for policy approval.
 - Set per-file byte limits and a free-space reserve appropriate for the local
-  storage. Configure the reverse proxy to admit the 8 MiB chunk body plus
+  storage. A new local upload requires room for both staging and the managed
+  copy, plus the reserve; a registered copy requires room for the managed copy.
+  These preflight checks do not replace filesystem monitoring during transfer.
+  Configure the reverse proxy to admit the 8 MiB chunk body plus
   headers while rejecting larger requests. Use HTTPS, secure session/CSRF
   cookies, and production Django security settings.
 - Host IGV JavaScript and each approved reference FASTA/index on the same
@@ -119,6 +125,14 @@ source. The ordinary review save endpoint remains unrelated to this protocol.
   expired sessions and `python manage.py clean_alignment_staging` to remove
   their owned staging bytes. This command does not delete READY saved pairs.
   Investigate any `DELETING` tombstone before retrying authorized deletion.
+- After a crash, run `python manage.py reconcile_alignment_store` to count
+  managed pairs without a database owner and interrupted temporary copies
+  older than 48 hours. During
+  a maintenance pause with no active uploads, use
+  `python manage.py reconcile_alignment_store --delete` to remove only those
+  old orphan pairs. The command refuses symlinks or unexpected contents and
+  never removes a pair referenced by a READY or DELETING record. Unexpected
+  filenames and directory contents remain untouched for manual investigation.
 - Grant `ReportGrant` for reading and `ReportWriteGrant` separately for file
   preservation/deletion. Revoke the write grant when a user should still view
   the report but must not retain or remove genomic files.

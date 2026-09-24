@@ -3,6 +3,8 @@
 from datetime import timedelta
 from io import BytesIO
 from pathlib import Path
+import os
+import time
 
 import pytest
 from django.core.management import call_command
@@ -11,6 +13,7 @@ from django.utils import timezone
 
 from pronto_web.reports.alignment_commands import accept_chunk, begin_local_save
 from pronto_web.reports.test_alignment_commands import command_context
+from pronto_web.reports.models import SavedAlignment
 
 
 def test_cleanup_removes_only_expired_staging(command_context):
@@ -50,3 +53,44 @@ def test_cleanup_refuses_unowned_path(command_context, tmp_path):
         call_command("clean_alignment_staging")
     assert outside.read_bytes() == b"do not touch"
     assert list(stage.iterdir()) == []
+
+
+def test_reconciliation_only_removes_old_unreferenced_managed_pair(command_context):
+    report, _, writer, _, _, _, root, _ = command_context
+    orphan = root / ("a" * 32)
+    referenced = root / ("b" * 32)
+    recent = root / ("c" * 32)
+    interrupted_copy = root / ("." + "d" * 32 + ".tmp")
+    for directory in (orphan, referenced, recent):
+        directory.mkdir()
+        (directory / "data").write_bytes(b"synthetic")
+        (directory / "index").write_bytes(b"index")
+    interrupted_copy.mkdir()
+    (interrupted_copy / "data").write_bytes(b"partial synthetic copy")
+    old = time.time() - 72 * 3600
+    for directory in (orphan, referenced):
+        for path in (directory / "data", directory / "index", directory):
+            os.utime(path, (old, old))
+    for path in (interrupted_copy / "data", interrupted_copy):
+        os.utime(path, (old, old))
+    SavedAlignment.objects.create(
+        report=report, sample_id="synthetic-sample", reference_build="GRCh37",
+        role="NORMAL_DNA", format="bam", data_key=f"{referenced.name}/data",
+        index_key=f"{referenced.name}/index", data_size=9, index_size=5,
+        data_sha256="0" * 64, index_sha256="0" * 64, saved_by=writer,
+    )
+    call_command("reconcile_alignment_store")
+    assert orphan.exists()
+    assert interrupted_copy.exists()
+    call_command("reconcile_alignment_store", delete=True)
+    assert not orphan.exists()
+    assert not interrupted_copy.exists()
+    assert referenced.exists() and recent.exists()
+
+
+def test_reconciliation_refuses_deletion_with_active_upload(command_context):
+    report, _, writer, _, bam, bai, _, _ = command_context
+    begin_local_save(writer, report, "synthetic-sample", "GRCh37", "TUMOUR_DNA", "bam",
+                     {"data": bam.stat().st_size, "index": bai.stat().st_size})
+    with pytest.raises(CommandError, match="active upload"):
+        call_command("reconcile_alignment_store", delete=True)

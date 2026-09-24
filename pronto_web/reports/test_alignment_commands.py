@@ -5,6 +5,7 @@ from datetime import timedelta
 from pathlib import Path
 import json
 import sys
+from types import SimpleNamespace
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -48,6 +49,7 @@ def command_context(db, tmp_path, monkeypatch):
         PRONTO_ALIGNMENT_POLICY_APPROVED=True,
         PRONTO_ALIGNMENT_MAX_BYTES=1024 * 1024,
         PRONTO_ALIGNMENT_MAX_INDEX_BYTES=1024 * 1024,
+        PRONTO_ALIGNMENT_MAX_REPORT_BYTES=4 * 1024 * 1024,
         PRONTO_ALIGNMENT_MIN_FREE_BYTES=0,
         PRONTO_ALIGNMENT_REFERENCE_FILES={"GRCh37": {
             "fasta": str(reference), "index": str(Path(str(reference) + ".fai")),
@@ -84,6 +86,30 @@ def test_only_explicit_writer_can_begin_and_original_actor_owns_session(command_
     assert list(stage.iterdir()) == []
     with pytest.raises(PermissionDenied):
         accept_chunk(other, session.id, "data", 0, bam.stat().st_size, BytesIO(bam.read_bytes()))
+    assert list(stage.iterdir()) == []
+
+
+def test_per_report_quota_rejects_new_session_before_staging(command_context):
+    from pronto_web.reports.alignment_commands import StorageLimitError
+
+    report, _, writer, _, bam, bai, _, stage = command_context
+    with override_settings(PRONTO_ALIGNMENT_MAX_REPORT_BYTES=bam.stat().st_size + bai.stat().st_size - 1):
+        with pytest.raises(StorageLimitError):
+            _begin(writer, report, bam, bai)
+    assert list(stage.iterdir()) == []
+
+
+def test_local_save_reserves_space_for_staging_and_managed_copy(command_context, monkeypatch):
+    from pronto_web.reports import alignment_commands
+
+    report, _, writer, _, bam, bai, _, stage = command_context
+    pair_bytes = bam.stat().st_size + bai.stat().st_size
+    monkeypatch.setattr(alignment_commands.shutil, "disk_usage",
+                        lambda _root: SimpleNamespace(free=500 + 2 * pair_bytes - 1))
+    with override_settings(PRONTO_ALIGNMENT_MIN_FREE_BYTES=500):
+        with pytest.raises(alignment_commands.StorageLimitError,
+                           match="insufficient private storage"):
+            _begin(writer, report, bam, bai)
     assert list(stage.iterdir()) == []
 
 
@@ -225,6 +251,42 @@ def test_registered_copy_and_delete_require_write_grant(command_context, tmp_pat
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="pysam validation is Linux-only")
+def test_registered_copy_rechecks_quota_after_concurrent_save(command_context, tmp_path, monkeypatch):
+    from pronto_web.reports import alignment_commands
+
+    report, _, writer, _, bam, bai, root, _ = command_context
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({"version": 1, "sources": [{
+        "id": "synthetic-source", "reportId": report.report_id,
+        "sampleId": "synthetic-sample", "referenceBuild": "GRCh37",
+        "role": "TUMOUR_DNA", "format": "bam",
+        "data": bam.name, "index": bai.name,
+    }]}), encoding="utf-8")
+    original_publish = alignment_commands.publish_pair
+
+    def concurrent_publish(*args, **kwargs):
+        published = original_publish(*args, **kwargs)
+        SavedAlignment.objects.create(
+            report=report, sample_id="synthetic-sample", reference_build="GRCh37",
+            role="NORMAL_DNA", format="bam", data_key="a" * 32 + "/data",
+            index_key="a" * 32 + "/index", data_size=bam.stat().st_size,
+            index_size=bai.stat().st_size, data_sha256="0" * 64,
+            index_sha256="0" * 64, saved_by=writer,
+        )
+        return published
+
+    monkeypatch.setattr(alignment_commands, "publish_pair", concurrent_publish)
+    pair_bytes = bam.stat().st_size + bai.stat().st_size
+    with override_settings(PRONTO_ALIGNMENT_SOURCE_ROOT=str(FIXTURES),
+                           PRONTO_ALIGNMENT_REGISTRY_JSON=str(manifest),
+                           PRONTO_ALIGNMENT_MAX_REPORT_BYTES=pair_bytes * 2 - 1):
+        with pytest.raises(alignment_commands.StorageLimitError):
+            alignment_commands.preserve_registered(writer, report, "synthetic-source")
+    assert SavedAlignment.objects.filter(role="TUMOUR_DNA").count() == 0
+    assert list(root.iterdir()) == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="pysam validation is Linux-only")
 def test_failed_delete_hides_record_and_can_be_retried(command_context, monkeypatch):
     from pronto_web.reports import alignment_commands
     from pronto_web.reports.alignment_registry import lookup_saved
@@ -235,7 +297,7 @@ def test_failed_delete_hides_record_and_can_be_retried(command_context, monkeypa
     saved = alignment_commands.complete_local_save(writer, session.id, "GRCh37")
     original = alignment_commands.remove_pair
 
-    def fail_once(pair):
+    def fail_once(pair, **_kwargs):
         raise OSError("simulated managed-storage failure")
 
     monkeypatch.setattr(alignment_commands, "remove_pair", fail_once)
@@ -247,6 +309,26 @@ def test_failed_delete_hides_record_and_can_be_retried(command_context, monkeypa
     monkeypatch.setattr(alignment_commands, "remove_pair", original)
     alignment_commands.delete_saved(writer, report, saved.id)
     assert not SavedAlignment.objects.filter(pk=saved.id).exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="pysam validation is Linux-only")
+def test_partial_file_deletion_can_be_retried_without_reexposing_pair(command_context):
+    from pronto_web.reports import alignment_commands
+    from pronto_web.reports.alignment_registry import lookup_saved
+
+    report, _, writer, _, bam, bai, _, _ = command_context
+    session = _begin(writer, report, bam, bai)
+    _upload(writer, session, bam, bai)
+    saved = alignment_commands.complete_local_save(writer, session.id, "GRCh37")
+    # Simulate a process crash after the first private component was removed.
+    saved.status = "DELETING"
+    saved.save(update_fields=["status"])
+    pair = alignment_commands._published_from_record(saved)
+    pair.data_path.unlink()
+    assert lookup_saved(report.report_id, "synthetic-sample", "GRCh37") == ()
+    alignment_commands.delete_saved(writer, report, saved.id)
+    assert not SavedAlignment.objects.filter(pk=saved.id).exists()
+    assert not pair.directory.exists()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="pysam validation is Linux-only")

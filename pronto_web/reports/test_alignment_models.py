@@ -41,6 +41,7 @@ def test_save_guard_requires_distinct_roots_and_linux(tmp_path, monkeypatch):
                   PRONTO_ALIGNMENT_POLICY_APPROVED=True,
                   PRONTO_ALIGNMENT_MAX_BYTES=1024,
                   PRONTO_ALIGNMENT_MAX_INDEX_BYTES=128,
+                  PRONTO_ALIGNMENT_MAX_REPORT_BYTES=2048,
                   PRONTO_ALIGNMENT_MIN_FREE_BYTES=0,
                   PRONTO_ALIGNMENT_REFERENCE_FILES={"GRCh37": {"fasta": str(reference), "index": str(index)}})
     monkeypatch.setattr(alignment_config, "_supported_platform", lambda: False)
@@ -52,6 +53,20 @@ def test_save_guard_requires_distinct_roots_and_linux(tmp_path, monkeypatch):
         assert not alignment_config.alignment_saving_enabled(settings)
     with override_settings(**common, PRONTO_ALIGNMENT_STAGING_ROOT=str(staging)):
         assert alignment_config.alignment_saving_enabled(settings)
+    with override_settings(**{**common, "PRONTO_ALIGNMENT_STAGING_ROOT": str(staging),
+                              "PRONTO_ALIGNMENT_MAX_REPORT_BYTES": 0}):
+        assert not alignment_config.alignment_saving_enabled(settings)
+    public = tmp_path / "public"
+    public.mkdir()
+    public_managed = public / "alignments"
+    public_managed.mkdir()
+    with override_settings(**{**common, "PRONTO_ALIGNMENT_STORE_ROOT": str(public_managed),
+                              "PRONTO_ALIGNMENT_STAGING_ROOT": str(staging),
+                              "STATIC_ROOT": str(public)}):
+        assert not alignment_config.alignment_saving_enabled(settings)
+    with override_settings(**{**common, "PRONTO_ALIGNMENT_STAGING_ROOT": str(staging),
+                              "STATIC_ROOT": str(tmp_path)}):
+        assert not alignment_config.alignment_saving_enabled(settings)
 
 
 def test_metadata_models_contain_no_alignment_binary_field():

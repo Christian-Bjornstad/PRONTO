@@ -7,10 +7,13 @@ from hashlib import sha256
 from pathlib import Path
 import os
 import re
+import shutil
 
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
+from django.db.models import Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from .alignment_config import alignment_saving_enabled
@@ -95,6 +98,43 @@ def _same(existing: SavedAlignment, data: tuple[int, str], index: tuple[int, str
             existing.index_sha256) == (data[0], data[1], index[0], index[1])
 
 
+def _report_reserved_bytes(report, sample_id: str, build: str, role: str) -> int:
+    """Count other identities' retained and in-flight pairs against the quota."""
+    identity = {"sample_id": sample_id, "reference_build": build, "role": role}
+    saved = SavedAlignment.objects.filter(report=report).exclude(**identity).aggregate(
+        data=Coalesce(Sum("data_size"), 0), index=Coalesce(Sum("index_size"), 0),
+    )
+    pending = AlignmentUploadSession.objects.filter(
+        report=report, state__in=["OPEN", "VALIDATING"], expires_at__gt=timezone.now(),
+    ).exclude(**identity).aggregate(
+        data=Coalesce(Sum("expected_data_size"), 0),
+        index=Coalesce(Sum("expected_index_size"), 0),
+    )
+    return sum(saved.values()) + sum(pending.values())
+
+
+def _enforce_report_quota(report, sample_id: str, build: str, role: str,
+                          data_size: int, index_size: int) -> None:
+    if _report_reserved_bytes(report, sample_id, build, role) + data_size + index_size > settings.PRONTO_ALIGNMENT_MAX_REPORT_BYTES:
+        raise StorageLimitError("report alignment quota exceeded")
+
+
+def _ensure_free_capacity(data_size: int, index_size: int, *, staging_too: bool) -> None:
+    """Leave the configured reserve after the projected private writes."""
+    incoming = data_size + index_size
+    store = Path(settings.PRONTO_ALIGNMENT_STORE_ROOT)
+    stage = Path(settings.PRONTO_ALIGNMENT_STAGING_ROOT)
+    reserve = settings.PRONTO_ALIGNMENT_MIN_FREE_BYTES
+    if staging_too and os.stat(store).st_dev == os.stat(stage).st_dev:
+        if shutil.disk_usage(store).free < reserve + 2 * incoming:
+            raise StorageLimitError("insufficient private storage capacity")
+    else:
+        if shutil.disk_usage(store).free < reserve + incoming:
+            raise StorageLimitError("insufficient managed storage capacity")
+        if staging_too and shutil.disk_usage(stage).free < reserve + incoming:
+            raise StorageLimitError("insufficient staging storage capacity")
+
+
 def begin_local_save(actor, report, sample_id: str, build: str, role: str,
                      format: str, sizes: dict[str, int]) -> AlignmentUploadSession:
     require_alignment_write(actor, report)
@@ -113,11 +153,20 @@ def begin_local_save(actor, report, sample_id: str, build: str, role: str,
             or not 0 < data_size <= settings.PRONTO_ALIGNMENT_MAX_BYTES
             or not 0 < index_size <= settings.PRONTO_ALIGNMENT_MAX_INDEX_BYTES):
         raise StorageLimitError("component exceeds configured byte limit")
-    return AlignmentUploadSession.objects.create(
-        report=report, owner=actor, sample_id=sample_id, reference_build=build,
-        role=role, format=format, expected_data_size=data_size,
-        expected_index_size=index_size, expires_at=timezone.now() + timedelta(hours=24),
-    )
+    _ensure_free_capacity(data_size, index_size, staging_too=True)
+    with transaction.atomic():
+        type(report).objects.select_for_update().get(pk=report.pk)
+        _enforce_report_quota(report, sample_id, build, role, data_size, index_size)
+        if AlignmentUploadSession.objects.filter(
+            report=report, sample_id=sample_id, reference_build=build, role=role,
+            state__in=["OPEN", "VALIDATING"], expires_at__gt=timezone.now(),
+        ).exists():
+            raise AlignmentConflict("another upload is in progress for identity")
+        return AlignmentUploadSession.objects.create(
+            report=report, owner=actor, sample_id=sample_id, reference_build=build,
+            role=role, format=format, expected_data_size=data_size,
+            expected_index_size=index_size, expires_at=timezone.now() + timedelta(hours=24),
+        )
 
 
 def _authorized_session(actor, session_id, report=None) -> AlignmentUploadSession:
@@ -219,14 +268,19 @@ def complete_local_save(actor, session_id, declared_build: str, *, report=None) 
             saved = existing
         else:
             validate_pair(data, index, session.format, _reference(session.reference_build))
+            _ensure_free_capacity(data_digest[0], index_digest[0], staging_too=False)
             published = publish_pair(
                 data, index, Path(settings.PRONTO_ALIGNMENT_STORE_ROOT),
                 max_data_bytes=settings.PRONTO_ALIGNMENT_MAX_BYTES,
                 max_index_bytes=settings.PRONTO_ALIGNMENT_MAX_INDEX_BYTES,
             )
         with transaction.atomic():
+            type(session.report).objects.select_for_update().get(pk=session.report_id)
             locked = AlignmentUploadSession.objects.select_for_update().get(pk=session.id)
             if published is not None:
+                _enforce_report_quota(session.report, session.sample_id,
+                                      session.reference_build, session.role,
+                                      published.data_size, published.index_size)
                 saved = SavedAlignment.objects.create(
                     report=session.report, sample_id=session.sample_id,
                     reference_build=session.reference_build, role=session.role,
@@ -273,7 +327,10 @@ def preserve_registered(actor, report, source_id: str) -> SavedAlignment:
         if existing.format == pair.format and _same(existing, data_digest, index_digest):
             return existing
         raise AlignmentConflict("different pair already saved for identity")
+    _enforce_report_quota(report, pair.sample_id, pair.reference_build, pair.role,
+                          data_digest[0], index_digest[0])
     validate_pair(pair.data_path, pair.index_path, pair.format, _reference(pair.reference_build))
+    _ensure_free_capacity(data_digest[0], index_digest[0], staging_too=False)
     published = publish_pair(
         pair.data_path, pair.index_path, Path(settings.PRONTO_ALIGNMENT_STORE_ROOT),
         max_data_bytes=settings.PRONTO_ALIGNMENT_MAX_BYTES,
@@ -281,6 +338,21 @@ def preserve_registered(actor, report, source_id: str) -> SavedAlignment:
     )
     try:
         with transaction.atomic():
+            type(report).objects.select_for_update().get(pk=report.pk)
+            existing = _identity(report, pair.sample_id, pair.reference_build,
+                                 pair.role).first()
+            if existing:
+                if existing.format == pair.format and _same(
+                    existing, (published.data_size, published.data_sha256),
+                    (published.index_size, published.index_sha256),
+                ):
+                    remove_pair(published)
+                    return existing
+                raise AlignmentConflict("different pair already saved for identity")
+            validate_pair(published.data_path, published.index_path, pair.format,
+                          _reference(pair.reference_build))
+            _enforce_report_quota(report, pair.sample_id, pair.reference_build,
+                                  pair.role, published.data_size, published.index_size)
             saved = SavedAlignment.objects.create(
                 report=report, sample_id=pair.sample_id, reference_build=pair.reference_build,
                 role=pair.role, format=pair.format, data_key=published.data_key,
@@ -321,7 +393,7 @@ def delete_saved(actor, report, saved_id) -> None:
         saved.save(update_fields=["status"])
     pair = _published_from_record(saved)
     if pair.directory.exists():
-        remove_pair(pair)
+        remove_pair(pair, allow_partial=was_deleting)
     elif not was_deleting:
         raise UnsafeAlignmentPath("READY pair is missing from managed storage")
     with transaction.atomic():

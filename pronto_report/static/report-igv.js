@@ -1,4 +1,4 @@
-/* Web-only IGV controller. A local File is never posted or persisted here. */
+/* IGV viewer: local Files stay browser-only until explicitly confirmed for preservation. */
 /* igv.js browser/reference/track APIs: https://igv.org/doc/igvjs/Browser-Creation/ */
 /* Alignment track format and indexURL: https://igv.org/doc/igvjs/tracks/Alignment-Track/ */
 const panel = document.getElementById("igv-panel");
@@ -60,7 +60,7 @@ if (panel) {
   }
 
   async function openPair(track, isLocal, source = null) {
-    if (busy || !locus) return;
+    if (busy || uploadController || !locus) return;
     busy = true;
     const currentGeneration = ++generation;
     const requestedLocus = locus;
@@ -143,6 +143,7 @@ if (panel) {
   }
   select.disabled = select.options.length < 2;
   document.getElementById("igv-open-source").addEventListener("click", () => {
+    if (uploadController) return;
     const source = sources.find((item) => item.sourceId === select.value && item.referenceBuild === build);
     if (!source || !sameOriginPath(source.dataURL) || !sameOriginPath(source.indexURL)) {
       setStatus("Velg en registrert kilde først.");
@@ -151,6 +152,7 @@ if (panel) {
     void openPair({ format: source.format, name: source.role, data: source.dataURL, index: source.indexURL }, false, source);
   });
   document.getElementById("igv-open-local").addEventListener("click", () => {
+    if (uploadController) return;
     try {
       const pair = selectedLocalPair();
       void openPair({ format: pair.format, name: "Lokal fil", data: pair.dataFile, index: pair.indexFile }, true);
@@ -160,6 +162,7 @@ if (panel) {
   });
   for (const input of [dataInput, indexInput]) {
     input.addEventListener("change", () => {
+      if (uploadController) return;
       activePair = null;
       if (saveButton) saveButton.disabled = true;
       if (savedState) savedState.hidden = true;
@@ -238,6 +241,7 @@ if (panel) {
       uploadController = new AbortController();
       const signal = uploadController.signal;
       let token;
+      let finalizationStarted = false;
       try {
         token = csrfToken();
         let saved;
@@ -253,6 +257,7 @@ if (panel) {
           uploadSession = (await start.json()).sessionId;
           await sendChunks(uploadSession, "data", pair.dataFile, totalBytes, 0, signal, token);
           await sendChunks(uploadSession, "index", pair.indexFile, totalBytes, pair.dataFile.size, signal, token);
+          finalizationStarted = true;
           const completion = await checkedFetch(`${baseURL}save-sessions/${uploadSession}/complete/`, {
             method: "POST", signal,
             headers: { "Content-Type": "application/json", "X-CSRFToken": token },
@@ -260,6 +265,7 @@ if (panel) {
           });
           saved = await completion.json();
         } else {
+          finalizationStarted = true;
           const response = await checkedFetch(`${baseURL}${encodeURIComponent(pair.source.sourceId)}/preserve/`, {
             method: "POST", signal,
             headers: { "Content-Type": "application/json", "X-CSRFToken": token },
@@ -273,11 +279,13 @@ if (panel) {
         savedState.hidden = false;
         setStatus("Lagret for senere bruk.");
       } catch (error) {
-        if (uploadSession && token) await cancelSession(uploadSession, token);
-        saveError.textContent = error.name === "AbortError" ? "Opplasting avbrutt. Filene er ikke lagret."
-          : error.message || "Filene er ikke lagret.";
+        if (!finalizationStarted && uploadSession && token) await cancelSession(uploadSession, token);
+        saveError.textContent = finalizationStarted
+          ? "Lagringsstatus er usikker. Last inn rapporten på nytt og kontroller lagrede kilder før du prøver igjen."
+          : error.name === "AbortError" ? "Opplasting avbrutt. Filene er ikke lagret."
+            : error.message || "Filene er ikke lagret.";
         saveError.hidden = false;
-        setStatus("Ikke lagret.");
+        setStatus(finalizationStarted ? "Kontroller lagringsstatus." : "Ikke lagret.");
         saveButton.disabled = false;
       } finally {
         uploadSession = null;
@@ -287,6 +295,7 @@ if (panel) {
     });
   }
   function closePanel() {
+    if (uploadController) return;
     generation += 1;
     panel.hidden = true;
     if (activeBrowser && igvModule) igvModule.removeBrowser(activeBrowser);

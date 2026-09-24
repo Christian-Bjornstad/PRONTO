@@ -51,6 +51,7 @@ def web_context(db, tmp_path, monkeypatch):
         PRONTO_ALIGNMENT_POLICY_APPROVED=True,
         PRONTO_ALIGNMENT_MAX_BYTES=1024 * 1024,
         PRONTO_ALIGNMENT_MAX_INDEX_BYTES=1024 * 1024,
+        PRONTO_ALIGNMENT_MAX_REPORT_BYTES=4 * 1024 * 1024,
         PRONTO_ALIGNMENT_MIN_FREE_BYTES=0,
         PRONTO_ALIGNMENT_REFERENCE_FILES={"GRCh37": {
             "fasta": str(reference), "index": str(Path(str(reference) + ".fai")),

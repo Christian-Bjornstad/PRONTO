@@ -14,7 +14,8 @@ def alignment_saving_enabled(config) -> bool:
     """Only an explicitly approved, private Linux deployment may save pairs."""
     if not _supported_platform() or config.PRONTO_ALIGNMENT_POLICY_APPROVED is not True:
         return False
-    if config.PRONTO_ALIGNMENT_MAX_BYTES <= 0 or config.PRONTO_ALIGNMENT_MAX_INDEX_BYTES <= 0:
+    if (config.PRONTO_ALIGNMENT_MAX_BYTES <= 0 or config.PRONTO_ALIGNMENT_MAX_INDEX_BYTES <= 0
+            or config.PRONTO_ALIGNMENT_MAX_REPORT_BYTES <= 0):
         return False
     if config.PRONTO_ALIGNMENT_MIN_FREE_BYTES < 0:
         return False
@@ -24,10 +25,16 @@ def alignment_saving_enabled(config) -> bool:
     try:
         roots = tuple(Path(value).resolve(strict=True) for value in root_values)
         project_root = Path(config.BASE_DIR).resolve(strict=True)
+        public_roots = [Path(config.STATIC_ROOT).resolve()] if config.STATIC_ROOT else []
+        media_root = getattr(config, "MEDIA_ROOT", None)
+        if media_root:
+            public_roots.append(Path(media_root).resolve())
     except (OSError, RuntimeError, ValueError):
         return False
     if (roots[0] == roots[1] or not all(root.is_dir() for root in roots)
-            or any(root == project_root or project_root in root.parents for root in roots)):
+            or any(root == project_root or project_root in root.parents for root in roots)
+            or any(root == public or public in root.parents or root in public.parents
+                   for root in roots for public in public_roots)):
         return False
     try:
         if any(shutil.disk_usage(root).free < config.PRONTO_ALIGNMENT_MIN_FREE_BYTES

@@ -203,6 +203,52 @@ def test_failed_upload_and_reload_never_claim_saved_state():
             browser.close()
 
 
+def test_finalization_uncertainty_and_source_switch_are_not_mislabeled():
+    report = build_report()
+    html = render_html(report, inline_assets=True, snapshot=True, web_igv=True,
+                       igv_save_enabled=True,
+                       igv_references={"GRCh37": {"fastaURL": "/reference.fa", "indexURL": "/reference.fa.fai"}})
+    with serve(html) as url, playwright.sync_playwright() as runtime:
+        browser = runtime.chromium.launch(executable_path=browser_executable(), headless=True)
+        try:
+            page = browser.new_page()
+            page.route("**/static/igv/igv.esm.min.js", lambda route: route.fulfill(
+                body=b"export default { async createBrowser() { return { search: async () => true }; }, removeBrowser() {} };",
+                content_type="text/javascript"))
+            page.goto(url)
+            page.context.add_cookies([{"name": "csrftoken", "value": "synthetic-token", "url": url}])
+            page.evaluate("""() => {
+              const original = window.fetch;
+              window.fetch = (input, options = {}) => {
+                const path = String(input);
+                if (path.endsWith('/save-sessions/') && options.method === 'POST')
+                  return Promise.resolve(new Response(JSON.stringify({sessionId: '11111111-1111-4111-8111-111111111111'}), {status: 201}));
+                if (options.method === 'PUT') return Promise.resolve(new Response(null, {status: 204}));
+                if (path.endsWith('/complete/')) return new Promise((_resolve, reject) => {
+                  window.__failSave = () => reject(new DOMException('lost response', 'AbortError'));
+                });
+                return original(input, options);
+              };
+            }""")
+            page.get_by_role("tab", name="Variantgjennomgang").click()
+            page.get_by_role("button", name="Vis i IGV").first.click()
+            page.locator("#igv-data").set_input_files({"name": "synthetic.bam", "mimeType": "application/octet-stream", "buffer": b"BAM"})
+            page.locator("#igv-index").set_input_files({"name": "synthetic.bam.bai", "mimeType": "application/octet-stream", "buffer": b"INDEX"})
+            page.get_by_role("button", name="Åpne lokale filer").click()
+            page.get_by_text("Ikke lagret · filene brukes bare i denne nettleserfanen.").wait_for(state="visible")
+            page.get_by_role("button", name="Lagre filer for senere bruk").click()
+            page.get_by_role("button", name="Bekreft lagring").click()
+            page.wait_for_function("typeof window.__failSave === 'function'")
+            page.locator("#igv-close").click()
+            assert page.locator("#igv-panel").is_visible()
+            page.get_by_role("button", name="Åpne lokale filer").click()
+            page.evaluate("window.__failSave()")
+            page.get_by_text("Lagringsstatus er usikker", exact=False).wait_for(state="visible")
+            assert not page.get_by_text("Lagret for senere bruk", exact=True).is_visible()
+        finally:
+            browser.close()
+
+
 def test_local_pair_is_browser_only_and_disappears_on_reload():
     report = build_report()
     html = render_html(report, inline_assets=True, snapshot=True, web_igv=True,
