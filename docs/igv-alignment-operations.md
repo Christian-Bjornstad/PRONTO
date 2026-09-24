@@ -68,3 +68,14 @@ never sent to the browser. This step creates metadata tables and a separate
 The pinned `pysam` validator is installed on Linux; native Windows remains
 view-only and fails the preservation gate. Development and deployment of the
 save service can use Linux/WSL, subject to the same private-root policy.
+
+The storage service validates real BAM/CRAM content against an explicit local
+FASTA and its `.fai`, requires a readable index, and compares available contig
+names and lengths. It copies the complete pair with bounded streaming into a
+private temporary directory, computes SHA-256 for each component, fsyncs the
+files, and atomically promotes the directory. Only after that may a READY
+database record refer to the pair. A failed copy/promotion removes the partial
+directory; neither file belongs in Django static/media or an HTML export.
+This service is not an upload endpoint by itself. The future save command must
+pass the deployment's byte limits and verify explicit user confirmation and
+write authorization before calling it.
