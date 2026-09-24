@@ -54,6 +54,7 @@ if (panel) {
     if (busy || !locus) return;
     busy = true;
     const currentGeneration = ++generation;
+    const requestedLocus = locus;
     localState.hidden = true;
     setStatus("Åpner IGV …");
     try {
@@ -66,7 +67,7 @@ if (panel) {
       viewer.replaceChildren();
       const createdBrowser = await igvModule.createBrowser(viewer, {
         reference,
-        locus,
+        locus: requestedLocus,
         loadDefaultGenomes: false,
         queryParametersSupported: false,
         showSVGButton: false,
@@ -78,6 +79,10 @@ if (panel) {
         return;
       }
       activeBrowser = createdBrowser;
+      if (locus !== requestedLocus) {
+        await createdBrowser.search(locus);
+        if (currentGeneration !== generation) return;
+      }
       setStatus(isLocal ? "Lokal fil åpnet i IGV. Ikke lagret." : `Registrert kilde åpnet: ${track.name}.`);
       localState.hidden = !isLocal;
     } catch (_error) {
@@ -105,7 +110,9 @@ if (panel) {
           setStatus("Kunne ikke flytte IGV til denne varianten.");
         }
       } else {
-        setStatus(sources.length ? "Velg en registrert kilde eller lokale filer." : "Ingen registrert kilde. Velg lokale filer.");
+        setStatus(document.getElementById("igv-registry-error")
+          ? "Registrerte kilder er utilgjengelige. Velg lokale filer eller kontakt administrator."
+          : sources.length ? "Velg en registrert kilde eller lokale filer." : "Ingen registrert kilde. Velg lokale filer.");
       }
     });
   });

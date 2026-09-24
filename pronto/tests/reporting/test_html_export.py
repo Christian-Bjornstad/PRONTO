@@ -134,6 +134,13 @@ def test_web_igv_rejects_external_reference_url():
                     igv_references={"GRCh37": {"fastaURL": "https://example.org/ref.fa", "indexURL": "/ref.fa.fai"}})
 
 
+def test_web_igv_exposes_registry_failure_without_private_detail():
+    html = render_html(build_report(), inline_assets=True, snapshot=True,
+                       web_igv=True, igv_registry_error=True)
+    assert "Registrerte IGV-kilder er utilgjengelige" in html
+    assert 'id="igv-registry-error"' in html
+
+
 def test_snapshot_escapes_review_notes_as_text():
     report = replace(build_report(), attachments=())
     review = migrate_review_state_v1(draft_review(report))

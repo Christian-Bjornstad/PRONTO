@@ -52,6 +52,13 @@ def serve(html):
                 body, content_type = REFERENCE, "application/octet-stream"
             elif self.path == "/reference.fa.fai":
                 body, content_type = REFERENCE_INDEX, "text/plain"
+            elif self.path.endswith("/alignments/tumour/data/"):
+                if not self.headers.get("Range"):
+                    self.send_error(416)
+                    return
+                body, content_type = (FIXTURE_ROOT / "synthetic-chr22.bam").read_bytes(), "application/octet-stream"
+            elif self.path.endswith("/alignments/tumour/index/"):
+                body, content_type = (FIXTURE_ROOT / "synthetic-chr22.bam.bai").read_bytes(), "application/octet-stream"
             else:
                 self.send_error(404)
                 return
@@ -147,6 +154,39 @@ def test_multiple_registered_sources_require_explicit_choice():
             browser.close()
 
 
+def test_variant_change_during_igv_creation_uses_latest_locus():
+    report = build_report()
+    html = render_html(report, inline_assets=True, snapshot=True, web_igv=True,
+                       igv_references={"GRCh37": {"fastaURL": "/reference.fa", "indexURL": "/reference.fa.fai"}})
+    module = b"""export default {
+      async createBrowser(node, config) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        node.dataset.locus = config.locus;
+        return { search: async locus => { node.dataset.locus = locus; } };
+      },
+      removeBrowser() {}
+    };"""
+    with serve(html) as url, playwright.sync_playwright() as runtime:
+        browser = runtime.chromium.launch(executable_path=browser_executable(), headless=True)
+        try:
+            page = browser.new_page()
+            page.route("**/static/igv/igv.esm.min.js", lambda route: route.fulfill(body=module, content_type="text/javascript"))
+            page.goto(url)
+            page.get_by_role("tab", name="Variantgjennomgang").click()
+            buttons = page.get_by_role("button", name="Vis i IGV")
+            assert buttons.count() >= 2
+            latest_locus = buttons.nth(1).get_attribute("data-igv-locus")
+            buttons.first.click()
+            page.locator('input[name="igv-data"]').set_input_files({"name": "synthetic.bam", "mimeType": "application/octet-stream", "buffer": b"BAM"})
+            page.locator('input[name="igv-index"]').set_input_files({"name": "synthetic.bam.bai", "mimeType": "application/octet-stream", "buffer": b"INDEX"})
+            page.get_by_role("button", name="Åpne lokale filer").click()
+            buttons.nth(1).click()
+            page.get_by_text("Ikke lagret · filene brukes bare i denne nettleserfanen.").wait_for(state="visible")
+            assert page.locator("#igv-viewer").get_attribute("data-locus") == latest_locus
+        finally:
+            browser.close()
+
+
 def test_vendored_igv_module_loads_same_origin_reference_without_remote_requests():
     report = build_report()
     html = render_html(report, inline_assets=True, snapshot=True, web_igv=True,
@@ -207,8 +247,47 @@ def test_real_igv_opens_indexed_synthetic_bam_at_variant_locus():
             page.get_by_text("Ikke lagret · filene brukes bare i denne nettleserfanen.").wait_for(state="visible", timeout=20000)
             values = page.locator("#igv-viewer").evaluate("element => [...element.shadowRoot.querySelectorAll('input')].map(input => input.value)")
             assert any("chr22" in value for value in values), values
+            assert "Lokal fil" in page.locator("#igv-viewer").evaluate("element => element.shadowRoot.textContent")
             assert not any(method in {"POST", "PUT"} for method, _ in requests)
             assert all(request_url.startswith(url.rstrip("/")) for _, request_url in requests)
+            assert diagnostics == []
+        finally:
+            browser.close()
+
+
+def test_registered_source_opens_through_same_origin_ranges():
+    report = build_report()
+    first = {**report.variants[0], "chromosome": "22", "position": 100,
+             "genomicLocation": "22:100", "referenceBuild": "GRCh37"}
+    report = replace(report, variants=(first, *report.variants[1:]))
+    source = {
+        "sourceId": "tumour", "role": "TUMOUR_DNA", "format": "bam", "referenceBuild": "GRCh37",
+        "dataURL": f"/reports/{report.report_id}/alignments/tumour/data/",
+        "indexURL": f"/reports/{report.report_id}/alignments/tumour/index/",
+    }
+    html = render_html(report, inline_assets=True, snapshot=True, web_igv=True,
+                       igv_sources=(source,),
+                       igv_references={"GRCh37": {"fastaURL": "/reference.fa", "indexURL": "/reference.fa.fai"}})
+    with serve(html) as url, playwright.sync_playwright() as runtime:
+        browser = runtime.chromium.launch(executable_path=browser_executable(), headless=True)
+        try:
+            page = browser.new_page()
+            requests = []
+            diagnostics = []
+            page.on("request", lambda request: requests.append((request.method, request.url, request.headers)))
+            page.on("pageerror", lambda error: diagnostics.append(str(error)))
+            page.on("console", lambda event: diagnostics.append(event.text) if event.type in ("error", "warning") else None)
+            page.goto(url)
+            page.get_by_role("tab", name="Variantgjennomgang").click()
+            page.get_by_role("button", name="Vis i IGV").first.click()
+            page.locator("#igv-source").select_option("tumour")
+            page.get_by_role("button", name="Åpne registrert kilde").click()
+            page.get_by_text("Registrert kilde åpnet: TUMOUR_DNA.").wait_for(state="visible", timeout=20000)
+            alignment_requests = [(method, request_url, headers) for method, request_url, headers in requests
+                                  if "/alignments/tumour/" in request_url]
+            assert any(request_url.endswith("/data/") and "range" in headers for _, request_url, headers in alignment_requests)
+            assert any(request_url.endswith("/index/") for _, request_url, _ in alignment_requests)
+            assert all(method == "GET" for method, _, _ in alignment_requests)
             assert diagnostics == []
         finally:
             browser.close()

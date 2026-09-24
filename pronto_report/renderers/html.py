@@ -539,6 +539,7 @@ def render_html(
     web_igv: bool = False,
     igv_sources: tuple[Mapping[str, str], ...] = (),
     igv_references: Mapping[str, Mapping[str, str]] | None = None,
+    igv_registry_error: bool = False,
 ) -> str:
     """Render validated contracts as a development page or offline artifact."""
     if snapshot and not inline_assets:
@@ -665,6 +666,11 @@ def render_html(
         "status_code": status.lower(),
         "status_label": status_label,
     }
+    registry_notice = (
+        '<p id="igv-registry-error" role="alert">Registrerte IGV-kilder er utilgjengelige. '
+        'Kontakt administrator, eller velg lokale filer.</p>'
+        if igv_registry_error else ""
+    )
     html_context = {
         "case_facts": _case_facts(ui, editable),
         "biomarker_cards": _biomarker_cards(ui, report, review, editable),
@@ -676,6 +682,7 @@ def render_html(
             f'data-reference-build="{escape(str(report.sample["referenceBuild"]), quote=True)}">'
             '<div class="igv-panel__heading"><h3>IGV</h3><button type="button" id="igv-close">Lukk IGV</button></div>'
             '<p id="igv-status" role="status" aria-live="polite">Velg en kilde.</p>'
+            + registry_notice +
             '<label for="igv-source">Registrert kilde</label><select id="igv-source"><option value="">Velg kilde</option></select>'
             '<button type="button" id="igv-open-source">Åpne registrert kilde</button>'
             '<fieldset><legend>Eller velg filer kun for denne visningen</legend>'

@@ -47,6 +47,9 @@ def report_detail(request, report_id: str) -> HttpResponse:
         pairs = lookup_registered(record.report_id, str(report.sample["sampleId"]), str(report.sample["referenceBuild"]))
     except InvalidAlignmentRegistry:
         pairs = ()
+        registry_error = True
+    else:
+        registry_error = False
     sources = tuple({
         "sourceId": pair.source_id, "role": pair.role, "format": pair.format,
         "referenceBuild": pair.reference_build,
@@ -56,7 +59,8 @@ def report_detail(request, report_id: str) -> HttpResponse:
     references = {build: value for build, value in settings.PRONTO_IGV_REFERENCES.items()
                   if all(value.values())}
     html = render_html(report, review, plot_images=plot_images, inline_assets=True,
-                       snapshot=True, web_igv=True, igv_sources=sources, igv_references=references)
+                       snapshot=True, web_igv=True, igv_sources=sources, igv_references=references,
+                       igv_registry_error=registry_error)
     response = HttpResponse(html, content_type="text/html; charset=utf-8")
     response["Cache-Control"] = "no-store"
     return response

@@ -151,6 +151,14 @@ class AlignmentRangeTests(ReportReadTests):
         assert b'"sourceId":"tumour"' in response.content
         assert str(self.source_root).encode() not in response.content
 
+    def test_broken_registry_is_not_misreported_as_absent(self):
+        self.client.force_login(self.biologist)
+        with override_settings(PRONTO_ALIGNMENT_REGISTRY_JSON=str(self.source_root / "missing.json")):
+            response = self.client.get(self.url)
+        assert response.status_code == 200
+        assert b"Registrerte IGV-kilder er utilgjengelige" in response.content
+        assert str(self.source_root).encode() not in response.content
+
     def test_authorized_ranges_and_headers(self):
         self.client.force_login(self.biologist)
         for header, expected, content_range in [
