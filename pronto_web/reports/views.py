@@ -39,7 +39,7 @@ def report_detail(request, report_id: str) -> HttpResponse:
         raise ValueError("Stored review revision does not match its record")
     blobs = {asset.asset_id: bytes(asset.content) for asset in record.assets.all()}
     plot_images = load_plot_images_from_bytes(report, blobs)
-    html = render_html(report, review, plot_images=plot_images, inline_assets=True, snapshot=True)
+    html = render_html(report, review, plot_images=plot_images, inline_assets=True, snapshot=True, web_igv=True)
     response = HttpResponse(html, content_type="text/html; charset=utf-8")
     response["Cache-Control"] = "no-store"
     return response

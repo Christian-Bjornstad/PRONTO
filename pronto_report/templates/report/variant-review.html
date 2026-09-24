@@ -23,10 +23,11 @@
         <th scope="col">Protein</th>
         <th scope="col"><button type="button" data-sort="vaf" aria-label="Sorter etter variantallelfrekvens">VAF</button></th>
         <th scope="col">Kildetier</th>
-        <th scope="col">Forekomst-ID</th>{{ review_columns }}
+        <th scope="col">Forekomst-ID</th>{{ igv_column }}{{ review_columns }}
       </tr></thead>
       <tbody>{{ variant_rows }}</tbody>
     </table>
   </div>
   <p id="variant-no-match" class="empty-state" hidden>Ingen varianter matcher søket.</p>
+  {{ igv_panel }}
 </section>

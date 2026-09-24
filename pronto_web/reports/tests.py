@@ -61,6 +61,7 @@ class ReportReadTests(TestCase):
         assert b"Siste lagrede vurdering" in response.content
         assert b"Revisjon 2" in response.content
         assert b"data:image/png;base64," in response.content
+        assert b'id="igv-panel"' in response.content
         assert b'id="save-btn"' not in response.content
         assert b'<style>' in response.content
         assert response["Cache-Control"] == "no-store"
