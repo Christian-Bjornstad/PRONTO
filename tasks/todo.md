@@ -482,9 +482,12 @@ Three v2 notes and live MDT print are implemented. Sign-off stays read-only unti
 **Description:** Define framework-neutral save/finalize commands with versioned request/response shapes, authorization context, revision checks, and structured errors.
 
 **Acceptance criteria:**
-- [ ] Save accepts a full validated draft and base revision; stale revisions produce conflict without mutation.
-- [ ] Finalize accepts only a saved, clean latest revision and locks further writes.
-- [ ] Audit records identify actor, action, revision, and timestamp in the same logical operation.
+- [x] Save accepts a full validated draft and base revision; stale revisions produce conflict without mutation.
+- [x] Finalize accepts only a saved, clean latest revision and locks further writes.
+- [x] Audit records identify actor, action, revision, and timestamp in the same logical operation.
+
+Framework-neutral service and fake-repository tests are in place. Database
+atomicity, CSRF, and HTTP authorization are implemented in Tasks 25–28.
 
 **Verification:** Service tests with a fake repository for success, 409-equivalent conflicts, validation errors, repeated requests, and FINAL lock.
 
