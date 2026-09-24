@@ -1034,6 +1034,72 @@ button {
   }
 }
 
+#igv-panel {
+  margin-top: var(--space-6);
+  padding: var(--space-4);
+  border: 1px solid var(--border, #b6c4c9);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+}
+
+#igv-panel[hidden], #igv-panel [hidden] {
+  display: none;
+}
+
+.igv-panel__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+#igv-panel fieldset {
+  margin: var(--space-4) 0;
+  border: 1px solid var(--border, #b6c4c9);
+}
+
+#igv-panel label, #igv-panel input, #igv-panel select {
+  display: block;
+  max-width: 100%;
+  margin-block: var(--space-2);
+}
+
+#igv-viewer {
+  min-height: 20rem;
+  max-width: 100%;
+  overflow: auto;
+}
+
+#igv-save-controls {
+  margin-block: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--border, #b6c4c9);
+  border-radius: 8px;
+}
+
+#igv-save-confirm {
+  max-width: min(36rem, calc(100vw - 2rem));
+  border: 1px solid var(--border, #b6c4c9);
+  border-radius: 10px;
+  padding: var(--space-4);
+  color: inherit;
+  background: var(--surface, #fff);
+}
+
+#igv-save-confirm::backdrop {
+  background: rgb(20 32 40 / 60%);
+}
+
+#igv-upload-meter {
+  display: block;
+  width: min(100%, 28rem);
+  margin-block: var(--space-2);
+}
+
+#igv-save-error {
+  color: #9b1c1c;
+}
+
 @media print {
   @page {
     size: A4 landscape;

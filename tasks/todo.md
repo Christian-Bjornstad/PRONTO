@@ -574,6 +574,10 @@ source values in DRAFT and FINAL, and a draft can intentionally remove one.
 The overall Task 29 quality gate remains open pending integration, masked
 visual comparison, and clinical-user review.
 
+An integration branch now combines the IGV workstream with the Django
+review commands. It retains the independent source-preservation policy and
+adds a merge migration; it is not a clinical release approval.
+
 **Acceptance criteria:**
 - [ ] Source/provenance, migration, duplicate variants, audit, concurrency, authorization, CSRF, print, and offline export pass regression tests.
 - [ ] Masked desktop/mobile comparisons and clinical-user review are recorded without publishing patient-like artifacts.

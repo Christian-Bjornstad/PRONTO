@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from hashlib import sha256
 from html import escape
 from pathlib import Path
@@ -11,6 +12,7 @@ from decimal import Decimal
 from typing import Any, Mapping
 
 from pronto_report.models import ReportData, ReviewState
+from pronto_report.igv.locus import locus_for_variant
 from pronto_report.migration import migrate_review_state_v1
 from pronto_report.renderers.projection import project_reference_ui
 from pronto_report.serialization import serialize_review_state
@@ -292,9 +294,11 @@ def _review_select(
     )
 
 
-def _variant_rows(report: ReportData, review: ReviewState | None, snapshot: bool = False) -> str:
+def _variant_rows(
+    report: ReportData, review: ReviewState | None, snapshot: bool = False, web_igv: bool = False,
+) -> str:
     if not report.variants:
-        span = 11 if review is not None else 7
+        span = (11 if review is not None else 7) + int(web_igv)
         return f'<tr><td colspan="{span}">Ingen varianter tilgjengelig i kildedata.</td></tr>'
     rows = []
     reviews = {item["variantId"]: item for item in review.variant_reviews} if review else {}
@@ -312,6 +316,21 @@ def _variant_rows(report: ReportData, review: ReviewState | None, snapshot: bool
         )
         cells = (gene, location, dna, protein, vaf, tier)
         search = " ".join(str(value) for value in cells).casefold()
+        igv_cell = ""
+        if web_igv:
+            variant_id = escape(str(variant["variantId"]), quote=True)
+            locus = locus_for_variant(variant, str(report.sample["referenceBuild"]))
+            if locus is None:
+                igv_cell = (
+                    '<td><span class="igv-unavailable">'
+                    'IGV utilgjengelig: ukjent eller ulikt referansegenom, '
+                    'eller manglende posisjon</span></td>'
+                )
+            else:
+                igv_cell = (
+                    '<td><button type="button" data-igv-locus="{}" data-variant-id="{}">'
+                    'Vis i IGV</button></td>'
+                ).format(escape(locus, quote=True), variant_id)
         review_cells = ""
         if review is not None:
             variant_id = str(variant["variantId"])
@@ -349,7 +368,8 @@ def _variant_rows(report: ReportData, review: ReviewState | None, snapshot: bool
                 escape(search, quote=True),
                 escape(str(frequency) if frequency is not None else "", quote=True),
                 "".join(f"<td>{escape(value)}</td>" for value in cells)
-                + f'<td class="identifier">{escape(str(variant["occurrenceId"]))}</td>',
+                + f'<td class="identifier">{escape(str(variant["occurrenceId"]))}</td>'
+                + igv_cell,
                 review_cells,
             )
         )
@@ -496,19 +516,30 @@ def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bo
     )
 
 
-def _inline_assets(*, allow_same_origin_requests: bool = False) -> tuple[str, str, str]:
+def _inline_assets(
+    web_igv: bool = False, *, allow_same_origin_requests: bool = False
+) -> tuple[str, str, str]:
     stylesheet = (_STATIC_ROOT / "report.css").read_text(encoding="utf-8")
     script = (_STATIC_ROOT / "report.js").read_text(encoding="utf-8")
     if "</style" in stylesheet.casefold() or "</script" in script.casefold():
         raise ValueError("Unsafe static report asset")
     style_hash = base64.b64encode(sha256(stylesheet.encode("utf-8")).digest()).decode("ascii")
     script_hash = base64.b64encode(sha256(script.encode("utf-8")).digest()).decode("ascii")
-    policy = (
-        "default-src 'none'; img-src data:; "
-        f"style-src 'sha256-{style_hash}'; script-src 'sha256-{script_hash}'; "
-        + ("connect-src 'self'; " if allow_same_origin_requests else "")
-        + "base-uri 'none'; form-action 'none'; object-src 'none'"
-    )
+    if web_igv:
+        # igv.js injects style rules at runtime; keep this exception web-only.
+        policy = (
+            "default-src 'none'; connect-src 'self'; img-src 'self' data: blob:; "
+            "font-src 'self' data:; worker-src blob:; style-src 'self' 'unsafe-inline'; "
+            f"script-src 'self' 'wasm-unsafe-eval' 'sha256-{script_hash}'; "
+            "base-uri 'none'; form-action 'none'; object-src 'none'"
+        )
+    else:
+        policy = (
+            "default-src 'none'; img-src data:; "
+            f"style-src 'sha256-{style_hash}'; script-src 'sha256-{script_hash}'; "
+            + ("connect-src 'self'; " if allow_same_origin_requests else "")
+            + "base-uri 'none'; form-action 'none'; object-src 'none'"
+        )
     return (
         f'<meta http-equiv="Content-Security-Policy" content="{escape(policy, quote=True)}">',
         f"<style>{stylesheet}</style>",
@@ -543,6 +574,11 @@ def render_html(
     finalize_url: str | None = None,
     csrf_token: str | None = None,
     actor_id: str | None = None,
+    web_igv: bool = False,
+    igv_save_enabled: bool = False,
+    igv_sources: tuple[Mapping[str, str], ...] = (),
+    igv_references: Mapping[str, Mapping[str, str]] | None = None,
+    igv_registry_error: bool = False,
 ) -> str:
     """Render validated contracts as a development page or offline artifact."""
     if snapshot and not inline_assets:
@@ -551,6 +587,8 @@ def render_html(
         raise ValueError("Live saving requires a non-snapshot report, CSRF token, and actor")
     if finalize_url and not save_url:
         raise ValueError("Finalization requires live saving")
+    if (igv_sources or igv_references or igv_save_enabled) and not web_igv:
+        raise ValueError("IGV configuration requires web_igv=True")
     if review is not None and review.report_id != report.report_id:
         raise ValueError("Review state does not belong to this report")
     if review is not None and review.schema_version == "1.0":
@@ -564,10 +602,39 @@ def render_html(
         raise ValueError("Plot image does not match a declared attachment")
     status_label = "Endelig" if status == "FINAL" else "Utkast"
     csp_meta, stylesheet_tag, script_tag = (
-        _inline_assets(allow_same_origin_requests=save_url is not None) if inline_assets else
+        _inline_assets(web_igv, allow_same_origin_requests=save_url is not None)
+        if inline_assets else
         ("", '<link rel="stylesheet" href="/pronto_report/static/report.css">',
          '<script src="/pronto_report/static/report.js" defer></script>')
     )
+    if web_igv:
+        igv_scripts = '<script type="module" src="/static/report-igv.js"></script>'
+    else:
+        igv_scripts = ""
+    def safe_path(value: str) -> bool:
+        return (isinstance(value, str) and value.startswith("/") and not value.startswith("//")
+                and "\\" not in value and ".." not in value.split("/")
+                and not any(ord(character) < 32 for character in value))
+
+    safe_sources = []
+    for source in igv_sources:
+        if set(source) != {"sourceId", "role", "format", "referenceBuild", "dataURL", "indexURL"}:
+            raise ValueError("Invalid IGV source descriptor")
+        if not all(isinstance(value, str) for value in source.values()):
+            raise ValueError("Invalid IGV source value")
+        if any(not safe_path(source[key]) for key in ("dataURL", "indexURL")):
+            raise ValueError("IGV source URL must be same-origin")
+        safe_sources.append(dict(source))
+    safe_references = dict(igv_references or {})
+    for build, reference in safe_references.items():
+        if build not in {"GRCh37", "GRCh38"}:
+            raise ValueError("Invalid IGV reference build")
+        if set(reference) != {"fastaURL", "indexURL"}:
+            raise ValueError("Invalid IGV reference")
+        if any(not safe_path(value) for value in reference.values()):
+            raise ValueError("IGV reference URL must be same-origin")
+    def safe_json(value: object) -> str:
+        return json.dumps(value, separators=(",", ":"), ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     review_columns = (
         '<th scope="col">Rapporteringsbeslutning</th><th scope="col">Klinisk klassifikasjon</th>'
         '<th scope="col">IGV-vurdering</th>'
@@ -668,11 +735,58 @@ def render_html(
         "status_code": status.lower(),
         "status_label": status_label,
     }
+    registry_notice = (
+        '<p id="igv-registry-error" role="alert">Registrerte IGV-kilder er utilgjengelige. '
+        'Kontakt administrator, eller velg lokale filer.</p>'
+        if igv_registry_error else ""
+    )
+    igv_save_controls = (
+        '<div id="igv-save-controls">'
+        '<label for="igv-role">Filens rolle</label>'
+        '<select id="igv-role">'
+        '<option value="TUMOUR_DNA">Tumor DNA</option><option value="NORMAL_DNA">Normal DNA</option>'
+        '<option value="TUMOUR_RNA">Tumor RNA</option><option value="NORMAL_RNA">Normal RNA</option>'
+        '</select>'
+        '<button type="button" id="igv-save" disabled>Lagre filer for senere bruk</button>'
+        '<p id="igv-saved-state" role="status" hidden>Lagret for senere bruk</p>'
+        '<p id="igv-save-error" role="alert" hidden></p>'
+        '<div id="igv-upload-progress" hidden><label for="igv-upload-meter">Lagrer hele filparet</label>'
+        '<progress id="igv-upload-meter" value="0" max="100"></progress>'
+        '<button type="button" id="igv-cancel-upload">Avbryt opplasting</button></div>'
+        '<dialog id="igv-save-confirm"><h4>Bekreft lagring</h4>'
+        '<p>Hele BAM/CRAM-filen og indeksen blir lagret for senere bruk.</p>'
+        '<p id="igv-save-summary"></p>'
+        '<button type="button" id="igv-confirm-cancel">Avbryt</button>'
+        '<button type="button" id="igv-confirm-save">Bekreft lagring</button></dialog>'
+        '</div>'
+    ) if igv_save_enabled else ""
     html_context = {
         "case_facts": _case_facts(ui, review, editable),
         "biomarker_cards": _biomarker_cards(ui, report, review, editable),
         "key_variant_rows": _key_variant_rows(report),
-        "variant_rows": _variant_rows(report, review, snapshot),
+        "variant_rows": _variant_rows(report, review, snapshot, web_igv),
+        "igv_column": '<th scope="col">IGV</th>' if web_igv else "",
+        "igv_panel": (
+            '<section id="igv-panel" aria-label="IGV-visning" hidden '
+            f'data-reference-build="{escape(str(report.sample["referenceBuild"]), quote=True)}" '
+            f'data-report-id="{escape(report.report_id, quote=True)}" '
+            f'data-sample-id="{escape(str(report.sample["sampleId"]), quote=True)}">'
+            '<div class="igv-panel__heading"><h3>IGV</h3><button type="button" id="igv-close">Lukk IGV</button></div>'
+            '<p id="igv-status" role="status" aria-live="polite">Velg en kilde.</p>'
+            + registry_notice +
+            '<label for="igv-source">Registrert kilde</label><select id="igv-source"><option value="">Velg kilde</option></select>'
+            '<button type="button" id="igv-open-source">Åpne registrert kilde</button>'
+            '<fieldset><legend>Eller velg filer kun for denne visningen</legend>'
+            '<label for="igv-data">BAM/CRAM</label><input id="igv-data" name="igv-data" type="file" accept=".bam,.cram">'
+            '<label for="igv-index">Indeks</label><input id="igv-index" name="igv-index" type="file" accept=".bai,.csi,.crai">'
+            '<button type="button" id="igv-open-local">Åpne lokale filer</button></fieldset>'
+            '<p id="igv-local-state" hidden>Ikke lagret · filene brukes bare i denne nettleserfanen.</p>'
+            + igv_save_controls +
+            '<div id="igv-viewer"></div>'
+            f'<script type="application/json" id="igv-sources">{safe_json(safe_sources)}</script>'
+            f'<script type="application/json" id="igv-references">{safe_json(safe_references)}</script>'
+            '</section>'
+        ) if web_igv else "",
         "review_columns": review_columns,
         "review_toolbar": review_toolbar,
         "review_filters": review_filters,
@@ -690,6 +804,7 @@ def render_html(
         "csp_meta": csp_meta,
         "stylesheet_tag": stylesheet_tag,
         "script_tag": script_tag,
+        "igv_scripts": igv_scripts,
     }
     context["variant_count"] = str(len(report.variants))
     return _render_variables(_assemble_template(), context, html_context)

@@ -118,7 +118,7 @@ def test_failed_save_preserves_correction_and_requires_reason(browser):
             correction = commands[0]["draft"]["valueCorrections"][-1]
             assert correction["author"] == "7"
             assert correction["reason"] == "Syntetisk kontroll"
-            assert page.locator("#dirty-lbl").inner_text() == "Ulagrede kildekorreksjoner"
+            expect(page.locator("#dirty-lbl")).to_have_text("Ulagrede kildekorreksjoner")
             assert page.locator("#tmb-edit-value").input_value() == "12"
             assert all("422" in item for item in diagnostics)
         finally:
