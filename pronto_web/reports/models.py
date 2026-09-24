@@ -60,7 +60,7 @@ class ReportAsset(models.Model):
 
 
 class SavedAlignment(models.Model):
-    """READY metadata only; complete bytes live outside the database/web root."""
+    """READY-visible metadata or hidden deletion tombstone; bytes stay private."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     report = models.ForeignKey(ReportRecord, on_delete=models.PROTECT, related_name="saved_alignments")
@@ -74,7 +74,9 @@ class SavedAlignment(models.Model):
     index_size = models.PositiveBigIntegerField()
     data_sha256 = models.CharField(max_length=64)
     index_sha256 = models.CharField(max_length=64)
-    status = models.CharField(max_length=8, default="READY", choices=[("READY", "READY")])
+    status = models.CharField(max_length=8, default="READY", choices=[
+        ("READY", "READY"), ("DELETING", "DELETING"),
+    ])
     saved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     saved_at = models.DateTimeField(auto_now_add=True)
 
@@ -82,7 +84,7 @@ class SavedAlignment(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["report", "sample_id", "reference_build", "role"],
                                     condition=Q(status="READY"), name="unique_ready_alignment_identity"),
-            models.CheckConstraint(condition=Q(status="READY"), name="saved_alignment_ready_only"),
+            models.CheckConstraint(condition=Q(status__in=["READY", "DELETING"]), name="saved_alignment_state_valid"),
             models.CheckConstraint(condition=Q(data_size__gt=0) & Q(index_size__gt=0), name="saved_alignment_sizes_positive"),
         ]
 

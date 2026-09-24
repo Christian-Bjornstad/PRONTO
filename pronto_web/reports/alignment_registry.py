@@ -81,7 +81,8 @@ def _configured_pairs() -> tuple[RegisteredPair, ...]:
         if not all(isinstance(entry[field], str) and entry[field] for field in _FIELDS):
             raise InvalidAlignmentRegistry("source fields must be nonempty strings")
         source_id = entry["id"]
-        if source_id in seen or len(source_id) > 128 or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", source_id) is None:
+        if (source_id in seen or source_id.startswith("saved-") or len(source_id) > 128
+                or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", source_id) is None):
             raise InvalidAlignmentRegistry("duplicate or invalid source ID")
         seen.add(source_id)
         if entry["role"] not in _ROLES or entry["format"] not in _FORMATS or entry["referenceBuild"] not in _BUILDS:
@@ -118,3 +119,40 @@ def resolve_registered_component(report_id: str, source_id: str, component: Lite
         if pair.report_id == report_id and pair.source_id == source_id:
             return pair.data_path if component == "data" else pair.index_path
     raise InvalidAlignmentRegistry("unknown source for report")
+
+
+def lookup_saved(report_id: str, sample_id: str, reference_build: str) -> tuple[RegisteredPair, ...]:
+    """Expose only READY managed pairs with exact report/sample/build identity."""
+    from .models import SavedAlignment
+
+    root_text = getattr(settings, "PRONTO_ALIGNMENT_STORE_ROOT", "")
+    if not root_text:
+        return ()
+    root = Path(root_text)
+    if root.is_symlink() or not root.is_dir():
+        raise InvalidAlignmentRegistry("managed source root is unavailable")
+    root = root.resolve(strict=True)
+    result = []
+    records = SavedAlignment.objects.filter(
+        report_id=report_id, sample_id=sample_id,
+        reference_build=reference_build, status="READY",
+    ).order_by("role", "saved_at")
+    for record in records:
+        data_parts = record.data_key.split("/")
+        index_parts = record.index_key.split("/")
+        if (len(data_parts) != 2 or len(index_parts) != 2
+                or data_parts[0] != index_parts[0]
+                or re.fullmatch(r"[0-9a-f]{32}", data_parts[0]) is None
+                or data_parts[1] != "data" or index_parts[1] != "index"):
+            raise InvalidAlignmentRegistry("managed source key is invalid")
+        directory = root / data_parts[0]
+        data, index = directory / "data", directory / "index"
+        if (directory.is_symlink() or data.is_symlink() or index.is_symlink()
+                or not data.is_file() or not index.is_file()):
+            raise InvalidAlignmentRegistry("managed source pair is unavailable")
+        result.append(RegisteredPair(
+            source_id=f"saved-{record.id.hex}", report_id=record.report_id,
+            sample_id=record.sample_id, reference_build=record.reference_build,
+            role=record.role, format=record.format, data_path=data, index_path=index,
+        ))
+    return tuple(result)

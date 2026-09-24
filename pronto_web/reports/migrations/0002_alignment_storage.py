@@ -104,7 +104,8 @@ class Migration(migrations.Migration):
                 (
                     "status",
                     models.CharField(
-                        choices=[("READY", "READY")], default="READY", max_length=8
+                        choices=[("READY", "READY"), ("DELETING", "DELETING")],
+                        default="READY", max_length=8
                     ),
                 ),
                 ("saved_at", models.DateTimeField(auto_now_add=True)),
@@ -272,8 +273,8 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name="savedalignment",
             constraint=models.CheckConstraint(
-                condition=models.Q(("status", "READY")),
-                name="saved_alignment_ready_only",
+                condition=models.Q(("status__in", ["READY", "DELETING"])),
+                name="saved_alignment_state_valid",
             ),
         ),
         migrations.AddConstraint(
