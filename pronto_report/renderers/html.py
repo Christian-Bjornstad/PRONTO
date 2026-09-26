@@ -479,12 +479,18 @@ def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bo
             continue
         shown.add(identifier)
         activity = included[identifier]
+        classification = {
+            'UNCLASSIFIED': 'Ikke klassifisert', 'PATHOGENIC': 'Patogen',
+            'UNCERTAIN': 'Usikker', 'OTHER': 'Annet',
+        }[activity['clinicalClassification']]
+        comment = str(activity.get('comment', '')).strip()
         findings.append(
-            '<li><strong>{}</strong> · {} · {} · Klassifikasjon: {}</li>'.format(
+            '<li><strong>{}</strong> · {} · {} · Klassifikasjon: {}{}</li>'.format(
                 escape(_display(variant.get("gene"))),
                 escape(_display(variant.get("genomicLocation"))),
                 escape(_display(variant.get("dnaChange"))),
-                escape(str(activity["clinicalClassification"])),
+                escape(classification),
+                ' · Kommentar: ' + escape(comment) if comment else '',
             )
         )
     finding_html = (

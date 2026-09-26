@@ -16,7 +16,8 @@ the validated contract, not a pixel-by-pixel copy of the presentation.
 The adapter deliberately does not infer clinical diagnosis, tumour type, QC
 thresholds, or final clinical decisions from slide layout or metadata. Missing
 structured fields are shown explicitly. HTML `FINAL` is read-only and displays
-review finalization details; draft changes require downloading the updated
+review finalization details. The live Django report saves drafts explicitly to
+the database; standalone working copies require downloading the updated
 `ReviewState`. The HTML export contains no remote fonts, scripts, stylesheets,
 or image requests.
 
@@ -34,3 +35,24 @@ browser checks. The browser checks require `requirements-browser.txt` and a
 local Chrome/Edge/Chromium executable; set `PRONTO_BROWSER_EXECUTABLE` if it is
 not in a standard location. Print CSS is verified by Chromium's print-media
 emulation and PDF generation.
+
+## Tumour-board export parity
+
+Included findings carry their review comment and the same readable clinical
+classification label in the live page, server rendering and read-only HTML
+snapshot. Duplicate occurrences are listed once; excluded variant comments are
+not included in the tumour-board section. Comments are HTML-escaped. A browser
+PDF regression test verifies that the comment survives read-only export/print.
+
+## Demo variant population
+
+The original local prototype builder takes its variant rows from
+`extra_files/*_preMTB_workingTable.txt`, enriching them with judgment fields from
+`*_small_variant_table_forQC.tsv`. The current pipeline adapter instead prefers
+the full `*_small_variant_table_forQC.tsv` (falling back to the small-variant
+table). For the approved IPD2225-D01-P01-A08 demo, this gives 24 occurrences
+(23 unique variants) in the prototype versus 30 (29 unique) in the adapter.
+Both contain a duplicate TERT occurrence. The six additional rows are CHEK2,
+PREX2, DNMT3A, CDKN2A, KMT2B and PRKDC. This is a source-population difference,
+not evidence that those rows should automatically be excluded. Review selection
+remains explicit; no clinical filter rule has been inferred from the prototype.

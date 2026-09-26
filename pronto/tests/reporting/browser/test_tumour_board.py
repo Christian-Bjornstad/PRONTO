@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+from dataclasses import replace
 
 from pronto.tests.reporting.browser.test_report import _page, _serve, browser
 from pronto.tests.reporting.test_pronto_output_adapter import build_report
@@ -14,6 +15,27 @@ from pronto_report.validation import validate_review_state
 
 
 pypdf = pytest.importorskip("pypdf")
+
+
+def test_read_only_export_print_preserves_included_variant_comment(browser):
+    report = build_report()
+    review = validate_review_state(review_document(report, report.variants[2]['variantId']), report=report)
+    activity = dict(review.variant_reviews[0], comment='Kontrollert i IGV. Diskuteres i MDT.')
+    review = replace(review, variant_reviews=(activity,))
+    html = render_html(report, review, inline_assets=True, snapshot=True)
+    with _serve(html) as url:
+        context, page, diagnostics, requests = _page(browser, html)
+        try:
+            page.goto(url)
+            page.get_by_role('tab', name='Molekylært tumorboard').click()
+            assert page.locator('#board-findings').inner_text().count('Kontrollert i IGV.') == 1
+            assert page.locator('#board-findings script').count() == 0
+            pdf = page.pdf()
+            printed = '\n'.join(sheet.extract_text() or '' for sheet in pypdf.PdfReader(BytesIO(pdf)).pages)
+            assert 'Kontrollert i IGV. Diskuteres i MDT.' in printed
+            assert diagnostics == []
+        finally:
+            context.close()
 
 
 def test_three_board_notes_update_preview_and_review_export_without_network_write(browser):
