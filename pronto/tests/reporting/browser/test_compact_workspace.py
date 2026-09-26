@@ -71,6 +71,18 @@ def test_compact_workspace_responsive_layout(browser, width, tmp_path):
                 header = page.locator('.report-topbar').bounding_box()
                 nav = page.locator('.report-nav').bounding_box()
                 assert abs(nav['y'] - (header['y'] + header['height'])) <= 1
+            page.get_by_role('link', name='Forhåndsvis rapport · 0 valgte funn').click()
+            assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+            cards = page.locator('.board-note-grid > *')
+            assert cards.count() == 4
+            first, second = cards.nth(0).bounding_box(), cards.nth(1).bounding_box()
+            if width > 768:
+                assert abs(first['y'] - second['y']) <= 1
+                assert second['x'] > first['x']
+            else:
+                assert second['y'] >= first['y'] + first['height']
+            page.screenshot(path=str(tmp_path / f'board-{width}.png'), full_page=True)
+            print(f'Board screenshot: {tmp_path / f"board-{width}.png"}')
             assert diagnostics == []
         finally:
             context.close()
@@ -89,6 +101,9 @@ def test_preview_is_available_for_saved_and_read_only_selection(browser, snapsho
             page.get_by_role('link', name='Forhåndsvis rapport · 1 valgte funn').click()
             assert page.locator('#panel-tumour-board').is_visible()
             assert page.locator('#board-findings li').count() == 1
+            assert page.locator('.board-note-grid > *').count() == 4
+            assert page.locator('.board-note-grid > .board-signoff').count() == 1
+            assert page.locator('#load-btn, #reset-btn').count() == 0
             assert requests == [url]
             assert diagnostics == []
         finally:

@@ -91,6 +91,12 @@
     if (reviewState.lastSavedAttribution) entries.push(`Lagret av: ${reviewState.lastSavedAttribution.declaredInitials} (selvoppgitte initialer)`);
     if (reviewState.finalizationAttribution) entries.push(`Ferdigstilt av: ${reviewState.finalizationAttribution.declaredInitials} (selvoppgitte initialer)`);
     element.textContent = entries.join(' · ') || 'Initialer ikke registrert';
+    const savedBy = document.getElementById('board-saved-attribution');
+    if (savedBy) savedBy.textContent = reviewState.lastSavedAttribution
+      ? `Sist lagret av: ${reviewState.lastSavedAttribution.declaredInitials} (selvoppgitte initialer)`
+      : 'Sist lagret av: initialer ikke registrert';
+    const savedRevision = document.getElementById('board-saved-revision');
+    if (savedRevision) savedRevision.textContent = `Lagret revisjon: ${reviewState.revision}`;
   }
 
   function refreshDirty() {

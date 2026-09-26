@@ -603,6 +603,22 @@ adds a merge migration; it is not a clinical release approval.
 
 ## Checkpoint: Database-backed review
 
+Approved Tuesday demo package (2026-09-26):
+
+- [x] Omit inactive import/reset controls.
+- [x] Group three notes and sign-off as a responsive reference-style four-card panel.
+- [x] Show saved self-reported initials and revision, not a technical reviewer label.
+- [x] Add `docs/demo-walkthrough-nb.md` with startup, review steps and remaining decisions.
+- [x] Verify this increment's full regression suite and fresh local demo before handoff.
+
+Verification: 294 pytest cases passed (17 existing skips), 50 Django reports
+tests passed. Layout checked at 320/768/1024/1440 px; desktop and mobile
+screenshots inspected. New Chrome/Django end-to-end test covers save/reload,
+same-person finalization, PDF contents and audit records. In-app browser
+confirmation stalled; the walkthrough explicitly directs finalization to
+Chrome/Edge. Fresh user demo on port 8772 remains an untouched draft; previous
+databases and reviews are preserved.
+
 - [ ] All Task 24–29 criteria and tests pass.
 - [ ] A biologist verifies **Lagre**, conflict warning, and same-user FINAL against the reference-style page.
 - [ ] Production authentication, retention, backups, and deployment receive a separate operational approval before real patient use.

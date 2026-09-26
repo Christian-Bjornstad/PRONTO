@@ -26,8 +26,7 @@ def test_reference_shell_has_sticky_topbar_actions_and_five_tabs():
     assert any(item.get("class") == "report-topbar" for item in attrs)
     assert any(item.get("id") == "edit-btn" and "disabled" in item for item in attrs)
     assert any(item.get("id") == "save-btn" and "disabled" in item for item in attrs)
-    assert any(item.get("id") == "load-btn" and "disabled" in item for item in attrs)
-    assert any(item.get("id") == "reset-btn" and "disabled" in item for item in attrs)
+    assert not any(item.get("id") in {"load-btn", "reset-btn"} for item in attrs)
     assert 'class="report-tab__count"' in html
     assert ">30</span>" in html
     assert len([item for item in attrs if item.get("role") == "tab"]) == 5

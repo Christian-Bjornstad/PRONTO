@@ -830,7 +830,7 @@ button {
 
 .board-note-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
   margin: var(--space-4) 0;
 }
@@ -892,7 +892,18 @@ button {
   padding: var(--space-3);
   border-left: 0.25rem solid var(--color-brand-700);
   background: var(--color-brand-050);
-  font-weight: 700;
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
+
+.board-signoff h3 {
+  margin-top: 0;
+}
+
+@media (max-width: 48rem) {
+  .board-note-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 #print-mdt-btn {

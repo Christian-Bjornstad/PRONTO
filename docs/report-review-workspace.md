@@ -76,6 +76,21 @@ not a simultaneous production-database load test.
 
 ## Local initials demo
 
+For the Tuesday walkthrough, use the [Norwegian startup guide and checklist](demo-walkthrough-nb.md).
+The note/sign-off panel follows the reference's two-column, four-card layout,
+collapsing to one column on narrow screens. Sign-off displays the last saved
+self-reported initials and revision, updated only after an acknowledged save;
+historical records without initials say so instead of presenting a technical
+service account as the biologist. Snapshot exports retain these labels.
+The unimplemented import/reset toolbar controls are omitted.
+
+`browser/test_demo_workflow.py` exercises real Chrome against an isolated Django
+test database without mocking the save/finalize/print endpoints: selection,
+QC and report notes, initials, save/reload, same-person finalization, PDF
+contents, distinct print requester and audit records. The in-app browser's
+native finalization confirmation stalled during manual verification; use
+Chrome/Edge for the walkthrough. The user-facing demo remains an untouched draft.
+
 Set a process-local `PRONTO_DJANGO_SECRET_KEY`, then run:
 
 ```powershell

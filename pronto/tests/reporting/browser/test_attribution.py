@@ -38,6 +38,8 @@ def test_initials_dialog_cancel_validation_save_and_print_failure(browser):
             assert commands[0]['declaredInitials'] == 'ABØ'
             assert page.locator('#review-attribution').inner_text().find('ABØ') >= 0
             page.get_by_role('tab', name='Molekylært tumorboard').click()
+            playwright.expect(page.locator('#board-saved-attribution')).to_have_text('Sist lagret av: ABØ (selvoppgitte initialer)')
+            playwright.expect(page.locator('#board-saved-revision')).to_have_text('Lagret revisjon: 2')
             page.locator('#print-mdt-btn').click()
             page.locator('#declared-initials').fill('CD')
             page.locator('#initials-confirm').click()

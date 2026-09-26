@@ -60,3 +60,20 @@ def test_final_report_labels_declared_finalizer_not_technical_actor(snapshot):
     assert 'Ferdigstilt av 1' not in html
     assert 'Signert av 1' not in html
     assert 'Ferdigstilt av CD' in html
+
+
+@pytest.mark.parametrize('snapshot', [False, True])
+@pytest.mark.parametrize('initials', [None, 'ABØ'])
+def test_board_signoff_uses_saved_initials_and_revision_not_technical_user(snapshot, initials):
+    from dataclasses import replace
+    from pronto_report.renderers.html import render_html
+    report = build_report()
+    review = replace(migrate_review_state_v1(draft_review(report)),
+        reviewer={'reviewerId': 'local-demo-service'}, revision=3,
+        last_saved_attribution=({'declaredInitials': initials, 'method': 'SELF_REPORTED'} if initials else None))
+    html = render_html(report, review, snapshot=snapshot, inline_assets=True)
+    assert 'Gjennomgås av: local-demo-service' not in html
+    assert 'id="board-saved-attribution"' in html
+    assert ('Sist lagret av: ABØ (selvoppgitte initialer)' if initials else
+            'Sist lagret av: initialer ikke registrert') in html
+    assert 'id="board-saved-revision">Lagret revisjon: 3</p>' in html

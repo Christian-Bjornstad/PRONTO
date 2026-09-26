@@ -529,18 +529,22 @@ def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bo
         '<div class="board-legacy-note"><h3>Importert eldre notat</h3>'
         f'<p>{escape(legacy)}</p></div>' if legacy else ""
     )
-    reviewer = str(review.reviewer.get("displayName") or review.reviewer["reviewerId"])
+    saved_by = (
+        f'{escape(review.last_saved_attribution["declaredInitials"])} (selvoppgitte initialer)'
+        if review.last_saved_attribution else 'initialer ikke registrert'
+    )
     return (
         f'<h3>Funn til diskusjon</h3>{finding_html}'
-        f'<div class="board-note-grid">{note_cards}</div>{legacy_note}'
+        f'<div class="board-note-grid">{note_cards}'
         f'<div class="board-signoff"><h3>Signering</h3>'
-        f'<p>Gjennomgås av: {escape(reviewer)}</p>'
+        f'<p id="board-saved-attribution">Sist lagret av: {saved_by}</p>'
+        f'<p id="board-saved-revision">Lagret revisjon: {review.revision}</p>'
         f'<p>Signeringsstatus: {signoff}</p>'
         + ('<p>Ferdigstilling krever lagret gjennomgang i databasen.</p>' if review.status != "FINAL" else "")
-        + '</div>'
+        + '<button id="print-mdt-btn" type="button">Generer MDT-utskrift</button>'
+        + f'</div></div>{legacy_note}'
         + ('<p class="board-warning">Utkast / arbeidskopi – ikke signert. Dette er ikke en ferdigstilt rapport.</p>'
            if review.status != "FINAL" else "")
-        + '<button id="print-mdt-btn" type="button">Generer MDT-utskrift</button>'
     )
 
 
@@ -762,8 +766,6 @@ def render_html(
            '<button id="edit-btn" type="button" disabled title="Rapporten er skrivebeskyttet">Edit mode: OFF</button>')
         + save_button
         + finalize_button
-        + '<button id="load-btn" type="button" disabled title="Import av gjennomgang er ikke aktivert">Laster</button>'
-        + '<button id="reset-btn" type="button" disabled title="Tilbakestilling er ikke aktivert">Reset</button>'
     )
     context = {
         "sample_id": str(report.sample["sampleId"]),
