@@ -99,6 +99,37 @@ class DraftSaveTests(TestCase):
         self.record.refresh_from_db()
         assert self.record.report_data == original
 
+    def test_stale_workspace_cannot_replace_saved_qc_selection_or_initials(self):
+        from pronto_web.reports.models import ReviewAudit
+
+        ReportGrant.objects.create(report=self.record, user=self.other)
+        first_client, stale_client = Client(), Client()
+        first_client.force_login(self.writer)
+        stale_client.force_login(self.other)
+        original_source = json.loads(json.dumps(self.record.report_data))
+        stale_draft = json.loads(json.dumps(self.draft))
+        stale_draft['runQcAssessment'] = {'status': 'FAIL', 'comment': 'Annen lokal vurdering'}
+        stale_draft['variantReviews'][0]['reportingDecision'] = 'EXCLUDE'
+        self.draft['runQcAssessment'] = {'status': 'CONDITIONAL', 'comment': 'Kontroller dybde'}
+        self.draft['variantReviews'][0]['reportingDecision'] = 'INCLUDE'
+
+        saved = self.post(first_client, self.payload(declaredInitials='AB'))
+        assert saved.status_code == 201
+        latest = saved.json()['review']
+        stale = self.post(stale_client, self.payload(draft=stale_draft, declaredInitials='CD'))
+
+        assert stale.status_code == 409
+        assert stale.json()['error']['code'] == 'REVISION_CONFLICT'
+        assert stale.json()['error']['currentRevision'] == 2
+        assert ReviewRevision.objects.get(report=self.record, revision=2).review_data == latest
+        assert latest['runQcAssessment'] == self.draft['runQcAssessment']
+        assert latest['variantReviews'][0]['reportingDecision'] == 'INCLUDE'
+        assert latest['lastSavedAttribution']['declaredInitials'] == 'AB'
+        assert ReviewRevision.objects.filter(report=self.record).count() == 2
+        assert ReviewAudit.objects.filter(report=self.record).count() == 1
+        self.record.refresh_from_db()
+        assert self.record.report_data == original_source
+
     def test_same_biologist_can_finalize_saved_draft_and_lock_future_writes(self):
         from pronto_web.reports.models import ReviewAudit
 

@@ -568,6 +568,14 @@ HTTP 201; the previous draft remains visible and editable after an error.
 
 **Description:** Verify the full reference UI plus Django flow with approved fixtures and document only intentional deviations from the original.
 
+2026-09-26 recovery coverage: the review workspace now has browser regression
+tests for QC/selection preservation and local backup after conflict, server
+failure and network failure, including the initials dialog and dirty-print
+guard. A Django two-user stale-revision test verifies that saved QC, selection,
+initials, audit count and source facts are not overwritten. See
+`docs/report-review-workspace.md` for recovery steps. This does not close the
+visual/clinical review gate or establish production database load behavior.
+
 The saved-correction projection has been added as an early Task 29 slice:
 previously committed corrections are explicitly shown alongside immutable
 source values in DRAFT and FINAL, and a draft can intentionally remove one.

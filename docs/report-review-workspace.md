@@ -23,6 +23,32 @@ Verification covers browser selection, report output, exported QC state, exact
 AF display with preserved source precision, and database persistence of QC and
 selection without mutation of source ReportData.
 
+## Recovery after an unsuccessful save
+
+If saving fails, do not close the page before securing the working copy:
+
+1. The page keeps the variant selection, QC assessment and QC comment marked
+   unsaved. A failed request does not advance the visible base revision.
+2. Use the offered local draft download to preserve those edits. This JSON is
+   a working-copy backup, not confirmation of a database save or a final report.
+3. For a network/server failure, retry once the service is available. If the
+   first request actually committed but its response was lost, the retry can
+   produce a revision conflict; compare against the saved revision.
+4. For a conflict, secure the local copy before loading the latest saved
+   revision. Reconcile the differences explicitly. There is no automatic merge
+   or overwrite, and the download does not itself resolve the conflict.
+
+The application's audited print action remains blocked while edits are unsaved.
+This does not claim to prevent browser-menu printing or screenshots.
+
+Regression coverage includes browser-level simulated HTTP 409, HTTP 503 and
+network failures with initials, variant selection, QC assessment/comment,
+schema-validated backup and blocked print requests. A separate Django test
+uses two authorized users with distinct initials and conflicting content;
+the stale request cannot replace the first saved revision, create a new audit
+entry or mutate source ReportData. These are complementary browser/API tests,
+not a simultaneous production-database load test.
+
 ## Local initials demo
 
 Set a process-local `PRONTO_DJANGO_SECRET_KEY`, then run:
