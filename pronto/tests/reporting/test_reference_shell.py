@@ -30,6 +30,8 @@ def test_reference_shell_has_sticky_topbar_actions_and_five_tabs():
     assert 'class="report-tab__count"' in html
     assert ">30</span>" in html
     assert len([item for item in attrs if item.get("role") == "tab"]) == 5
+    assert 'Rapporten er et beslutningsstøtteverktøy' not in html
+    assert 'må følge gjeldende kvalitetssikringsprosess' not in html
 
 
 def test_patient_strip_and_kpis_use_approved_facts_with_explicit_gaps():

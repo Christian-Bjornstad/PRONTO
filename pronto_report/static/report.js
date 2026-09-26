@@ -556,7 +556,7 @@
     });
     if (finalizeButton) finalizeButton.addEventListener("click", async () => {
       if (saving || finalizing || askingInitials || reviewDirty || corrections.size || removedCorrections.size || reviewState.status !== "DRAFT") return;
-      if (!window.confirm("Ferdigstille denne lagrede revisjonen? Rapporten låses for videre redigering. Samme biolog kan ferdigstille.")) return;
+      if (!window.confirm("Ferdigstille rapporten? Rapporten låses for videre redigering.")) return;
       const declaredInitials = await actionInitials('Initialer ved ferdigstilling');
       if (declaredInitials === null) return;
       saveError.hidden = true;

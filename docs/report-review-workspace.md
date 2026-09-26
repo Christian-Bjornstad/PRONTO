@@ -83,6 +83,9 @@ self-reported initials and revision, updated only after an acknowledged save;
 historical records without initials say so instead of presenting a technical
 service account as the biologist. Snapshot exports retain these labels.
 The unimplemented import/reset toolbar controls are omitted.
+Report copy is operational: no generic quality-process footer or commentary
+about which biologist should finalize. Finalization still confirms that the
+report will be locked; draft status, attribution and actionable errors remain.
 
 `browser/test_demo_workflow.py` exercises real Chrome against an isolated Django
 test database without mocking the save/finalize/print endpoints: selection,
