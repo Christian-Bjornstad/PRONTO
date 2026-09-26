@@ -1,0 +1,52 @@
+import json
+import pytest
+
+from pronto.tests.reporting.test_pronto_output_adapter import build_report
+from pronto.tests.reporting.test_html_review_state import draft_review
+from pronto_report.migration import migrate_review_state_v1
+from pronto_report.serialization import serialize_review_state, deserialize_review_state
+from pronto_report.review.contracts import SaveDraftRequest, ReviewCommandError
+
+
+def test_normalize_initials():
+    from pronto_report.review.attribution import normalize_initials
+    assert normalize_initials(' abø ') == 'ABØ'
+
+
+@pytest.mark.parametrize('value', [None, 7, '', 'A', 'ABCDEFGHI', '<b>AB</b>', 'A B', 'АB', 'ßa'])
+def test_reject_invalid_initials(value):
+    from pronto_report.review.attribution import normalize_initials
+    with pytest.raises(ReviewCommandError) as error:
+        normalize_initials(value)
+    assert error.value.code == 'INVALID_INITIALS'
+
+
+def test_historical_and_attributed_review_round_trip():
+    report = build_report()
+    old = serialize_review_state(migrate_review_state_v1(draft_review(report)))
+    assert serialize_review_state(deserialize_review_state(old, report=report)) == old
+    raw = json.loads(old)
+    raw['lastSavedAttribution'] = {'declaredInitials': 'ABØ', 'method': 'SELF_REPORTED'}
+    result = deserialize_review_state(json.dumps(raw), report=report)
+    assert json.loads(serialize_review_state(result))['lastSavedAttribution'] == raw['lastSavedAttribution']
+
+
+def test_command_accepts_initials_without_relaxing_unknown_fields():
+    payload = {'schemaVersion': '1.0', 'reportId': 'report', 'baseRevision': 1, 'draft': {}, 'declaredInitials': 'ab'}
+    assert SaveDraftRequest.from_dict(payload).declared_initials == 'AB'
+    with pytest.raises(ReviewCommandError):
+        SaveDraftRequest.from_dict({**payload, 'verified': True})
+
+
+@pytest.mark.parametrize('snapshot', [False, True])
+def test_final_report_labels_declared_finalizer_not_technical_actor(snapshot):
+    from dataclasses import replace
+    from pronto_report.renderers.html import render_html
+    report = build_report()
+    review = replace(migrate_review_state_v1(draft_review(report)), status='FINAL',
+        finalized_by='1', finalized_at='2026-09-26T12:00:00Z',
+        finalization_attribution={'declaredInitials': 'CD', 'method': 'SELF_REPORTED'})
+    html = render_html(report, review, snapshot=snapshot, inline_assets=True)
+    assert 'Ferdigstilt av 1' not in html
+    assert 'Signert av 1' not in html
+    assert 'Ferdigstilt av CD' in html

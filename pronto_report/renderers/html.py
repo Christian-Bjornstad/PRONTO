@@ -15,6 +15,7 @@ from pronto_report.models import ReportData, ReviewState
 from pronto_report.igv.locus import locus_for_variant
 from pronto_report.migration import migrate_review_state_v1
 from pronto_report.renderers.projection import project_reference_ui
+from pronto_report.renderers.attribution import render_attribution, initials_dialog
 from pronto_report.serialization import serialize_review_state
 
 
@@ -239,6 +240,25 @@ def _annotation(variant: Mapping[str, Any], key: str) -> object:
     return None
 
 
+def _af(value: object) -> str:
+    return format(Decimal(str(value)), '.3f').replace('.', ',') if isinstance(value, (int, float)) else 'Ikke oppgitt'
+
+
+def _qc_review(review: ReviewState | None, snapshot: bool) -> str:
+    if review is None:
+        return '<p>Ingen QC-vurdering lagret.</p>'
+    assessment = review.run_qc_assessment
+    labels = {'NOT_REVIEWED': 'Ikke vurdert', 'PASS': 'Godkjent', 'FAIL': 'Ikke godkjent', 'CONDITIONAL': 'Betinget godkjent'}
+    comment = escape(str(assessment.get('comment', '')))
+    if snapshot:
+        return f'<p>{labels[assessment["status"]]}</p><p>{comment}</p>'
+    disabled = ' disabled' if review.status == 'FINAL' else ''
+    options = ''.join(f'<option value="{key}"' + (' selected' if key == assessment['status'] else '') + f'>{label}</option>' for key, label in labels.items())
+    return (f'<label for="qc-review-status">Samlet QC-vurdering</label><select id="qc-review-status"{disabled}>{options}</select>'
+            f'<label for="qc-review-comment">QC-kommentar</label><textarea id="qc-review-comment" maxlength="10000" rows="4"{disabled}>{comment}</textarea>'
+            '<p>Kildemålinger endres ikke. Vurdering og kommentar lagres med rapportgjennomgangen.</p>')
+
+
 def _key_variant_rows(report: ReportData) -> str:
     rows = []
     for variant in report.variants:
@@ -246,11 +266,7 @@ def _key_variant_rows(report: ReportData) -> str:
         if not protein:
             continue
         frequency = variant.get("alleleFrequency")
-        vaf = (
-            _display(float(Decimal(str(frequency)) * 100)) + " %"
-            if isinstance(frequency, (int, float))
-            else "Ikke oppgitt"
-        )
+        vaf = _af(frequency)
         cells = (_display(variant.get("gene")), str(protein), vaf)
         rows.append(
             '<tr class="key-variant-row" data-occurrence-id="{}">{}</tr>'.format(
@@ -298,7 +314,7 @@ def _variant_rows(
     report: ReportData, review: ReviewState | None, snapshot: bool = False, web_igv: bool = False,
 ) -> str:
     if not report.variants:
-        span = (11 if review is not None else 7) + int(web_igv)
+        span = (15 if review is not None else 11) + int(web_igv)
         return f'<tr><td colspan="{span}">Ingen varianter tilgjengelig i kildedata.</td></tr>'
     rows = []
     reviews = {item["variantId"]: item for item in review.variant_reviews} if review else {}
@@ -309,11 +325,7 @@ def _variant_rows(
         protein = _display(variant.get("proteinChange"))
         tier = _display(_annotation(variant, "tier"))
         frequency = variant.get("alleleFrequency")
-        vaf = (
-            _display(float(Decimal(str(frequency)) * 100)) + " %"
-            if isinstance(frequency, (int, float))
-            else "Ikke oppgitt"
-        )
+        vaf = _af(frequency)
         cells = (gene, location, dna, protein, vaf, tier)
         search = " ".join(str(value) for value in cells).casefold()
         igv_cell = ""
@@ -353,7 +365,10 @@ def _variant_rows(
             else:
                 disabled = " disabled" if review.status == "FINAL" else ""
                 review_cells = (
-                    "<td>" + _review_select(variant_id, occurrence_id, "reportingDecision", decision, review.status == "FINAL") + "</td>"
+                    '<td><button type="button" data-include-variant="{}" aria-pressed="{}"{}>{}</button>'.format(
+                        escape(variant_id, quote=True), str(decision == 'INCLUDE').lower(), disabled,
+                        'Med i rapport' if decision == 'INCLUDE' else 'Ta med i rapport')
+                    + _review_select(variant_id, occurrence_id, "reportingDecision", decision, review.status == "FINAL") + "</td>"
                     + "<td>" + _review_select(variant_id, occurrence_id, "clinicalClassification", classification, review.status == "FINAL") + "</td>"
                     + "<td>" + _review_select(variant_id, occurrence_id, "igvAssessment", igv, review.status == "FINAL") + "</td>"
                     + '<td><textarea aria-label="Vurderingskommentar for {}" data-variant-id="{}" '
@@ -368,8 +383,12 @@ def _variant_rows(
                 escape(search, quote=True),
                 escape(str(frequency) if frequency is not None else "", quote=True),
                 "".join(f"<td>{escape(value)}</td>" for value in cells)
-                + f'<td class="identifier">{escape(str(variant["occurrenceId"]))}</td>'
-                + igv_cell,
+                + f'<td class="identifier"><details><summary>ID</summary>{escape(str(variant["occurrenceId"]))}</details></td>'
+                + '<td>' + escape(_display(_annotation(variant, 'depthTumourDna'))) + '</td>'
+                + '<td>Ikke mottatt</td><td>Ikke krysssjekket</td>'
+                + '<td><details><summary>Kildedetaljer</summary><dl>'
+                + ''.join('<dt>' + escape(str(item['key'])) + '</dt><dd>' + escape(_display(item.get('value'))) + '</dd>' for item in variant.get('annotations', ()))
+                + '</dl></details></td>' + igv_cell,
                 review_cells,
             )
         )
@@ -475,7 +494,8 @@ def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bo
         f'{" hidden" if findings else ""}>Ingen funn er markert for rapportering.</p>'
     )
     signoff = (
-        f'Signert av {escape(review.finalized_by or "")} {escape(review.finalized_at or "")}'
+        (f'Ferdigstilt av {escape(review.finalization_attribution["declaredInitials"])} (selvoppgitte initialer) {escape(review.finalized_at or "")}'
+         if review.finalization_attribution else f'Signert av {escape(review.finalized_by or "")} {escape(review.finalized_at or "")}')
         if review.status == "FINAL" else "Ikke signert"
     )
     notes = review.notes or {}
@@ -520,7 +540,7 @@ def _inline_assets(
     web_igv: bool = False, *, allow_same_origin_requests: bool = False
 ) -> tuple[str, str, str]:
     stylesheet = (_STATIC_ROOT / "report.css").read_text(encoding="utf-8")
-    script = (_STATIC_ROOT / "report.js").read_text(encoding="utf-8")
+    script = (_STATIC_ROOT / "report-attribution.js").read_text(encoding="utf-8") + '\n' + (_STATIC_ROOT / "report.js").read_text(encoding="utf-8")
     if "</style" in stylesheet.casefold() or "</script" in script.casefold():
         raise ValueError("Unsafe static report asset")
     style_hash = base64.b64encode(sha256(stylesheet.encode("utf-8")).digest()).decode("ascii")
@@ -573,6 +593,8 @@ def render_html(
     save_url: str | None = None,
     finalize_url: str | None = None,
     csrf_token: str | None = None,
+    require_initials: bool = False,
+    print_url: str | None = None,
     actor_id: str | None = None,
     web_igv: bool = False,
     igv_save_enabled: bool = False,
@@ -601,11 +623,15 @@ def render_html(
     if set(plot_images) - known_assets:
         raise ValueError("Plot image does not match a declared attachment")
     status_label = "Endelig" if status == "FINAL" else "Utkast"
+    finalizer_label = (
+        str(review.finalization_attribution['declaredInitials']) + ' (selvoppgitte initialer)'
+        if review and review.finalization_attribution else str(review.finalized_by or '') if review else ''
+    )
     csp_meta, stylesheet_tag, script_tag = (
-        _inline_assets(web_igv, allow_same_origin_requests=save_url is not None)
+        _inline_assets(web_igv, allow_same_origin_requests=save_url is not None or print_url is not None)
         if inline_assets else
         ("", '<link rel="stylesheet" href="/pronto_report/static/report.css">',
-         '<script src="/pronto_report/static/report.js" defer></script>')
+         '<script src="/pronto_report/static/report-attribution.js" defer></script><script src="/pronto_report/static/report.js" defer></script>')
     )
     if web_igv:
         igv_scripts = '<script type="module" src="/static/report-igv.js"></script>'
@@ -617,6 +643,8 @@ def render_html(
                 and not any(ord(character) < 32 for character in value))
 
     safe_sources = []
+    if print_url and (not safe_path(print_url) or snapshot or not csrf_token):
+        raise ValueError('Printing requires a live same-origin URL and CSRF token')
     for source in igv_sources:
         if set(source) != {"sourceId", "role", "format", "referenceBuild", "dataURL", "indexURL"}:
             raise ValueError("Invalid IGV source descriptor")
@@ -636,7 +664,7 @@ def render_html(
     def safe_json(value: object) -> str:
         return json.dumps(value, separators=(",", ":"), ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     review_columns = (
-        '<th scope="col">Rapporteringsbeslutning</th><th scope="col">Klinisk klassifikasjon</th>'
+        '<th scope="col" class="review-decision-heading">Til sluttrapport</th><th scope="col">Klinisk klassifikasjon</th>'
         '<th scope="col">IGV-vurdering</th>'
         '<th scope="col">Vurderingskommentar</th>'
         if review is not None else ""
@@ -653,7 +681,7 @@ def render_html(
         review_toolbar = f'<p class="review-notice">Skrivebeskyttet eksport · revisjon {review.revision}</p>'
         review_script = ""
         finalization = (
-            f'Ferdigstilt av {escape(review.finalized_by or "")} '
+            f'Ferdigstilt av {escape(finalizer_label)} '
             f'<time datetime="{escape(review.finalized_at or "")}">{escape(review.finalized_at or "")}</time>'
             if status == "FINAL" else ""
         )
@@ -692,7 +720,7 @@ def render_html(
         payload = payload.replace("<", r"\u003c").replace(">", r"\u003e").replace("&", r"\u0026")
         review_script = f'<script type="application/json" id="review-state-data">{payload}</script>'
         finalization = (
-            f'Ferdigstilt av {escape(review.finalized_by or "")} '
+            f'Ferdigstilt av {escape(finalizer_label)} '
             f'<time datetime="{escape(review.finalized_at or "")}">{escape(review.finalized_at or "")}</time>'
             if status == "FINAL" else ""
         )
@@ -761,6 +789,12 @@ def render_html(
         '</div>'
     ) if igv_save_enabled else ""
     html_context = {
+        'attribution_controls': (
+            render_attribution(review, snapshot)
+            + (('<div id="attribution-config" data-required="{}" data-print-url="{}" data-csrf-token="{}"></div>'.format(
+                str(require_initials).lower(), escape(print_url or '', quote=True), escape(csrf_token or '', quote=True))
+                + initials_dialog()) if not snapshot else '')
+        ),
         "case_facts": _case_facts(ui, review, editable),
         "biomarker_cards": _biomarker_cards(ui, report, review, editable),
         "key_variant_rows": _key_variant_rows(report),
@@ -799,6 +833,7 @@ def render_html(
         "cnv_content": _plot_content(report, plot_images, "cnv"),
         "qc_content": _plot_content(report, plot_images, "qc"),
         "qc_metrics": _qc_metrics(report),
+        "qc_review": _qc_review(review, snapshot),
         "tumour_content": _tumour_content(report, review, snapshot),
         "provenance": _provenance(report),
         "csp_meta": csp_meta,

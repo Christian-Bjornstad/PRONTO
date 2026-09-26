@@ -136,6 +136,7 @@ def test_tmb_gauge_edits_only_page_memory_and_blocks_stale_download(browser):
         try:
             page.goto(url)
             page.locator("#edit-btn").click()
+            page.get_by_role("tab", name="Nøkkelfunn").click()
             gauge = page.locator("#tmb-gauge")
             gauge.focus()
             gauge.press("ArrowRight")
@@ -164,6 +165,7 @@ def test_empty_tmb_number_cannot_become_zero_correction(browser):
             page.goto(url)
             page.locator("#edit-btn").click()
             number = page.locator("#tmb-edit-value")
+            page.get_by_role("tab", name="Nøkkelfunn").click()
             number.fill("")
             number.blur()
             assert page.locator('[data-metric="tmb"] .metric-card__value').inner_text() == "14,9 mut/Mb"
@@ -183,6 +185,7 @@ def test_patient_context_edit_keeps_source_visible_and_needs_reason(browser):
             page.goto(url)
             page.locator("#edit-btn").click()
             field = page.locator('[data-fact="tumourType"]')
+            page.get_by_role("tab", name="Nøkkelfunn").click()
             assert field.locator('[data-source-value="Ikke oppgitt"]').count() == 1
             field.locator('[data-correction-path="/sample/tumourType"]').fill("Lunge")
             field.locator('[data-correction-path="/sample/tumourType"]').blur()
@@ -204,6 +207,7 @@ def test_msi_kpi_edit_is_local_and_does_not_change_source_label(browser):
         try:
             page.goto(url)
             page.locator("#edit-btn").click()
+            page.get_by_role("tab", name="Nøkkelfunn").click()
             page.locator("#msi-edit-value").fill("5.2")
             page.locator("#msi-edit-value").blur()
             card = page.locator('[data-metric="msi"]')

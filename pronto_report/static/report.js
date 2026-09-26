@@ -46,6 +46,8 @@
   if (hashPanel?.getAttribute("role") === "tabpanel") {
     const hashTab = tabs.find((tab) => tab.getAttribute("aria-controls") === hashPanel.id);
     if (hashTab) activateTab(hashTab, { focus: false, updateHash: false });
+  } else if (!window.location.hash) {
+    activateTab(document.getElementById("tab-variant-review"), { focus: false, updateHash: false });
   }
 
   const editButton = document.getElementById("edit-btn");
@@ -61,6 +63,24 @@
   let reviewDirty = false;
   let saving = false;
   let finalizing = false;
+  const attributionConfig = document.getElementById('attribution-config');
+  const initialsRequired = attributionConfig?.dataset.required === 'true';
+  let askingInitials = false;
+  async function actionInitials(action) {
+    if (!initialsRequired) return undefined;
+    if (askingInitials) return null;
+    askingInitials = true;
+    try { return await window.requestDeclaredInitials(action); }
+    finally { askingInitials = false; }
+  }
+  function updateAttribution() {
+    const element = document.getElementById('review-attribution');
+    if (!element) return;
+    const entries = [];
+    if (reviewState.lastSavedAttribution) entries.push(`Lagret av: ${reviewState.lastSavedAttribution.declaredInitials} (selvoppgitte initialer)`);
+    if (reviewState.finalizationAttribution) entries.push(`Ferdigstilt av: ${reviewState.finalizationAttribution.declaredInitials} (selvoppgitte initialer)`);
+    element.textContent = entries.join(' · ') || 'Initialer ikke registrert';
+  }
 
   function refreshDirty() {
     const sourceDirty = corrections.size > 0 || removedCorrections.size > 0;
@@ -339,9 +359,57 @@
 
   const printMdt = document.getElementById("print-mdt-btn");
   if (printMdt) {
-    printMdt.addEventListener("click", () => {
-      document.body.classList.add("print-mdt");
-      window.print();
+    const printStatus = document.createElement('p');
+    printStatus.id = 'print-status';
+    printStatus.setAttribute('role', 'status');
+    printMdt.after(printStatus);
+    let pendingPrint = null;
+    let printing = false;
+    printMdt.addEventListener("click", async () => {
+      if (printing || askingInitials || saving || finalizing) return;
+      if (attributionConfig?.dataset.printUrl && (reviewDirty || corrections.size || removedCorrections.size)) {
+        printStatus.textContent = 'Lagre endringene før utskrift.';
+        return;
+      }
+      if (!attributionConfig?.dataset.printUrl) {
+        printStatus.textContent = 'Lokal utskrift – ikke loggført i database.';
+        document.body.classList.add('print-mdt');
+        window.print();
+        return;
+      }
+      printing = true;
+      printMdt.disabled = true;
+      try {
+        const initials = await window.requestDeclaredInitials('Initialer ved utskrift');
+        if (initials === null) return;
+        if (reviewDirty || corrections.size || removedCorrections.size || saving || finalizing) {
+          printStatus.textContent = 'Lagre endringene før utskrift.';
+          return;
+        }
+        const revision = reviewState.revision;
+        if (!pendingPrint || pendingPrint.revision !== revision || pendingPrint.declaredInitials !== initials) {
+          pendingPrint = {schemaVersion: '1.0', revision, declaredInitials: initials, requestId: crypto.randomUUID()};
+        }
+        const response = await fetch(attributionConfig.dataset.printUrl, {
+          method: 'POST', credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json', 'X-CSRFToken': attributionConfig.dataset.csrfToken},
+          body: JSON.stringify(pendingPrint),
+        });
+        const event = await response.json();
+        if (!response.ok || event.requestId !== pendingPrint.requestId || event.reportId !== reviewState.reportId ||
+            event.revision !== revision || event.declaredInitials !== initials || event.method !== 'SELF_REPORTED' ||
+            event.action !== 'PRINT_REQUESTED' || !Number.isFinite(Date.parse(event.requestedAt))) throw new Error('Print not acknowledged');
+        if (reviewDirty || corrections.size || removedCorrections.size || reviewState.revision !== revision) throw new Error('Review changed');
+        printStatus.textContent = `Utskrift forespurt av ${initials} (selvoppgitte initialer) · revisjon ${revision} · ${event.requestedAt} · ${reviewState.status}`;
+        pendingPrint = null;
+        document.body.classList.add('print-mdt');
+        window.print();
+      } catch (_) {
+        printStatus.textContent = 'Utskrift er ikke loggført eller visningen er endret. Prøv igjen etter at siste revisjon er lagret.';
+      } finally {
+        printing = false;
+        printMdt.disabled = false;
+      }
     });
     window.addEventListener("afterprint", () => document.body.classList.remove("print-mdt"));
   }
@@ -384,7 +452,7 @@
 
   if (saveButton?.dataset.saveUrl) {
     const editableInputs = Array.from(document.querySelectorAll(
-      '.report-edit-controls input, textarea[data-review-note], #variant-table select[data-review-field], #variant-table textarea[data-review-field], [data-bulk-decision]'
+      '.report-edit-controls input, textarea[data-review-note], #variant-table select[data-review-field], #variant-table textarea[data-review-field], [data-bulk-decision], [data-include-variant], #qc-review-status, #qc-review-comment'
     ));
     function lockInputs() {
       const previouslyDisabled = editableInputs.map((input) => input.disabled);
@@ -408,7 +476,7 @@
       }
     });
     saveButton.addEventListener("click", async () => {
-      if (saving || (!reviewDirty && !corrections.size && !removedCorrections.size)) return;
+      if (saving || askingInitials || (!reviewDirty && !corrections.size && !removedCorrections.size)) return;
       saveError.hidden = true;
       recovery.hidden = true;
       saveFeedback.hidden = true;
@@ -420,6 +488,8 @@
         document.querySelector(`[data-correction-path="${missingReason.path}"]`)?.focus();
         return;
       }
+      const declaredInitials = await actionInitials('Initialer ved lagring');
+      if (declaredInitials === null) return;
       const baseRevision = reviewState.revision;
       const draft = localDraft();
       const hadCorrectionEdits = corrections.size > 0 || removedCorrections.size > 0;
@@ -431,7 +501,7 @@
         const response = await fetch(saveButton.dataset.saveUrl, {
           method: "POST", credentials: "same-origin",
           headers: { "Content-Type": "application/json", "X-CSRFToken": saveButton.dataset.csrfToken },
-          body: JSON.stringify({ schemaVersion: "1.0", reportId: reviewState.reportId, baseRevision, draft }),
+          body: JSON.stringify({ schemaVersion: "1.0", reportId: reviewState.reportId, baseRevision, draft, declaredInitials }),
         });
         const result = await response.json();
         if (response.status === 409 && result.error?.code === "REVISION_CONFLICT") {
@@ -446,6 +516,7 @@
           throw new Error("Lagringen ble ikke bekreftet. Endringene er fortsatt lokale.");
         }
         Object.assign(reviewState, result.review);
+        updateAttribution();
         activities.clear();
         reviewState.variantReviews.forEach((item) => activities.set(item.variantId, item));
         corrections.clear();
@@ -467,8 +538,10 @@
       }
     });
     if (finalizeButton) finalizeButton.addEventListener("click", async () => {
-      if (saving || finalizing || reviewDirty || corrections.size || removedCorrections.size || reviewState.status !== "DRAFT") return;
+      if (saving || finalizing || askingInitials || reviewDirty || corrections.size || removedCorrections.size || reviewState.status !== "DRAFT") return;
       if (!window.confirm("Ferdigstille denne lagrede revisjonen? Rapporten låses for videre redigering. Samme biolog kan ferdigstille.")) return;
+      const declaredInitials = await actionInitials('Initialer ved ferdigstilling');
+      if (declaredInitials === null) return;
       saveError.hidden = true;
       recovery.hidden = true;
       saveFeedback.hidden = true;
@@ -483,7 +556,7 @@
           headers: { "Content-Type": "application/json", "X-CSRFToken": saveButton.dataset.csrfToken },
           body: JSON.stringify({
             schemaVersion: "1.0", reportId: reviewState.reportId,
-            baseRevision, draft: localDraft(),
+            baseRevision, draft: localDraft(), declaredInitials,
           }),
         });
         const result = await response.json();
@@ -518,6 +591,11 @@
   }
 
   function updateBoardFindings() {
+    document.querySelectorAll('[data-include-variant]').forEach((button) => {
+      const included = activities.get(button.dataset.includeVariant)?.reportingDecision === 'INCLUDE';
+      button.setAttribute('aria-pressed', String(included));
+      button.textContent = included ? 'Med i rapport' : 'Ta med i rapport';
+    });
     const list = document.getElementById("board-findings");
     if (!list) return;
     list.replaceChildren();
@@ -541,6 +619,26 @@
     document.getElementById("board-empty").hidden = shown.size !== 0;
   }
   updateBoardFindings();
+
+  document.querySelectorAll('[data-include-variant]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (reviewState.status !== 'DRAFT' || saving || finalizing) return;
+      const select = button.closest('tr').querySelector('select[data-review-field="reportingDecision"]');
+      select.value = select.value === 'INCLUDE' ? 'UNREVIEWED' : 'INCLUDE';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+
+  ['status', 'comment'].forEach((field) => {
+    const input = document.getElementById(`qc-review-${field}`);
+    input?.addEventListener(field === 'comment' ? 'input' : 'change', () => {
+      if (reviewState.status !== 'DRAFT' || saving || finalizing) return;
+      reviewState.runQcAssessment[field] = input.value;
+      reviewDirty = true;
+      refreshDirty();
+      feedback.textContent = 'QC-vurderingen er endret. Lagre gjennomgangen for å bevare den.';
+    });
+  });
 
   document.querySelectorAll("textarea[data-review-note]").forEach((input) => {
     input.addEventListener("input", () => {

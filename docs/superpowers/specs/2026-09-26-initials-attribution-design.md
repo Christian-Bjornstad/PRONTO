@@ -1,6 +1,6 @@
 # Initials at save, finalization and print
 
-Status: proposed design for user review; not implemented.
+Status: approved; local-demo implementation verified 2026-09-26. See plan for evidence and scoped limitations.
 
 ## Intent and scope
 

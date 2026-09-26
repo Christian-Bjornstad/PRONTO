@@ -72,7 +72,7 @@ def test_key_findings_summary_handles_missing_protein_changes():
     assert "Ingen varianter med oppgitt proteinendring" in panel
 
 
-def test_key_findings_summary_displays_zero_frequency_as_zero_percent():
+def test_key_findings_summary_displays_zero_frequency_with_three_decimals():
     report = build_report()
     variants = list(report.variants)
     variants[0] = {**variants[0], "proteinChange": "p.Test", "alleleFrequency": 0.0}
@@ -80,7 +80,7 @@ def test_key_findings_summary_displays_zero_frequency_as_zero_percent():
         'id="panel-key-findings"', 1
     )[1].split("</section>", 1)[0]
 
-    assert "p.Test</td><td>0 %" in panel
+    assert "p.Test</td><td>0,000" in panel
 
 
 def test_reference_visual_tokens_are_used_without_remote_font_dependency():

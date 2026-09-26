@@ -86,6 +86,19 @@ class DraftSaveTests(TestCase):
         assert saved["timestamp"] == response.json()["review"]["updatedAt"]
         assert saved["originalValue"] == self.report.sample.get("tumourType")
 
+    def test_qc_assessment_and_variant_selection_persist_without_changing_source(self):
+        self.client.force_login(self.writer)
+        self.draft['runQcAssessment'] = {'status': 'CONDITIONAL', 'comment': 'Kontroller dybde.'}
+        self.draft['variantReviews'][0]['reportingDecision'] = 'INCLUDE'
+        original = self.record.report_data
+        response = self.post(self.client, self.payload())
+        assert response.status_code == 201
+        saved = ReviewRevision.objects.get(report=self.record, revision=2).review_data
+        assert saved['runQcAssessment'] == self.draft['runQcAssessment']
+        assert saved['variantReviews'][0]['reportingDecision'] == 'INCLUDE'
+        self.record.refresh_from_db()
+        assert self.record.report_data == original
+
     def test_same_biologist_can_finalize_saved_draft_and_lock_future_writes(self):
         from pronto_web.reports.models import ReviewAudit
 

@@ -104,4 +104,36 @@
 
 Recommended: native execution in this session because the six tasks share
 contracts and are sequential. User reviews this plan and selects native or
-subagent-driven execution before implementation. No subagents have been started.
+subagent-driven execution before implementation. Native execution was approved;
+one independent final reviewer checked the implementation.
+
+## Implementation evidence (2026-09-26)
+
+Tasks 1–6 implemented in the existing isolated worktree. Red/green evidence:
+12 contract failures -> 12 passes; attribution/save 16 passes; demo access RED
+then green; print audit RED then green; browser dialog RED then green. Final
+reporting suite: 203 passed. Final Django suite: 49 passed; migrations clean.
+Full project `python -m pytest -q`: 270 passed, 17 skipped (existing optional tests).
+Real Chrome-to-Django test: anonymous demo open, save AB, reload AB, finalize CD,
+print EF. UI checked at 320/768/1440px. Separate demo databases preserved the
+previous final report and kept the user-facing example as a draft.
+
+Independent review found one Important issue: technical finalizer IDs still
+appeared in human-facing labels. Regression test failed in live and snapshot
+rendering before the fix and passed afterward.
+
+Execution decisions and limits:
+- Reject Unicode expansion characters before uppercase conversion; cost: unusual
+  initials outside the explicit alphabet require future support.
+- Each run_demo start requires a new filename to avoid reusing clinical/final
+  databases; cost: command restarts do not resume the previous demo database.
+- Offline printing remains local-only, without fresh requester initials or
+  central logging; it is not the live database workflow.
+- UI and prior approved workspace changes share renderer/JS files and are kept
+  together; cost: a larger UI diff, not a rewrite of existing user data.
+- Production deployment, clinical validation, print completion, and SQLite load
+  concurrency are not claimed verified; they require separate deployment work.
+
+Deferred minor review finding: stored JSON Schema's `$` anchor allows a final
+newline in initials. HTTP command normalization is strict and safe; tightening
+the stored contract remains a subsequent hardening task.

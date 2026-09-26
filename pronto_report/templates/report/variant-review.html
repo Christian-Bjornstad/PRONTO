@@ -4,7 +4,7 @@
       <p class="section-heading__eyebrow">Arbeidsflate</p>
       <h2>Variantgjennomgang</h2>
     </div>
-    <p class="section-heading__description">Søk, sorter og dokumenter rapporteringsbeslutninger.</p>
+    <p class="section-heading__description">Se gjennom kildedata og detaljer. Velg «Ta med i rapport» for funn som skal videre til Molekylært tumorboard. AF vises som andel (0–1) med tre desimaler.</p>
   </div>
   <div class="table-toolbar">
     <label for="variant-search">Søk i varianter</label>
@@ -21,9 +21,13 @@
         <th scope="col">Genomisk lokasjon</th>
         <th scope="col">DNA-endring</th>
         <th scope="col">Protein</th>
-        <th scope="col"><button type="button" data-sort="vaf" aria-label="Sorter etter variantallelfrekvens">VAF</button></th>
+        <th scope="col"><button type="button" data-sort="vaf" aria-label="Sorter etter variantallelfrekvens">AF tumor (0–1)</button></th>
         <th scope="col">Kildetier</th>
-        <th scope="col">Forekomst-ID</th>{{ igv_column }}{{ review_columns }}
+        <th scope="col">Forekomst-ID</th>
+        <th scope="col">Dybde tumor DNA</th>
+        <th scope="col">OncoKB</th>
+        <th scope="col">Egen biomarkørliste</th>
+        <th scope="col">Detaljer</th>{{ igv_column }}{{ review_columns }}
       </tr></thead>
       <tbody>{{ variant_rows }}</tbody>
     </table>
