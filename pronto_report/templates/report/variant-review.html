@@ -6,6 +6,10 @@
     </div>
     <p class="section-heading__description">Se gjennom kildedata og detaljer. Velg «Ta med i rapport» for funn som skal videre til Molekylært tumorboard. AF vises som andel (0–1) med tre desimaler.</p>
   </div>
+  <div class="report-preview-action">
+    <a id="preview-report" href="#panel-tumour-board">Forhåndsvis rapport · <span id="preview-selected-count" aria-live="polite">{{ selected_finding_count }}</span> valgte funn</a>
+    <span>Viser utvalget ditt. Lagrer eller ferdigstiller ikke.</span>
+  </div>
   <div class="table-toolbar">
     <label for="variant-search">Søk i varianter</label>
     <input id="variant-search" type="search" autocomplete="off" placeholder="Gen, lokasjon eller endring">
@@ -22,8 +26,6 @@
         <th scope="col">DNA-endring</th>
         <th scope="col">Protein</th>
         <th scope="col"><button type="button" data-sort="vaf" aria-label="Sorter etter variantallelfrekvens">AF tumor (0–1)</button></th>
-        <th scope="col">Kildetier</th>
-        <th scope="col">Forekomst-ID</th>
         <th scope="col">Dybde tumor DNA</th>
         <th scope="col">OncoKB</th>
         <th scope="col">Egen biomarkørliste</th>

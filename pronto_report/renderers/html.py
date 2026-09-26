@@ -314,7 +314,7 @@ def _variant_rows(
     report: ReportData, review: ReviewState | None, snapshot: bool = False, web_igv: bool = False,
 ) -> str:
     if not report.variants:
-        span = (15 if review is not None else 11) + int(web_igv)
+        span = (13 if review is not None else 9) + int(web_igv)
         return f'<tr><td colspan="{span}">Ingen varianter tilgjengelig i kildedata.</td></tr>'
     rows = []
     reviews = {item["variantId"]: item for item in review.variant_reviews} if review else {}
@@ -326,8 +326,8 @@ def _variant_rows(
         tier = _display(_annotation(variant, "tier"))
         frequency = variant.get("alleleFrequency")
         vaf = _af(frequency)
-        cells = (gene, location, dna, protein, vaf, tier)
-        search = " ".join(str(value) for value in cells).casefold()
+        cells = (gene, location, dna, protein, vaf)
+        search = " ".join(str(value) for value in (*cells, tier)).casefold()
         igv_cell = ""
         if web_igv:
             variant_id = escape(str(variant["variantId"]), quote=True)
@@ -383,10 +383,12 @@ def _variant_rows(
                 escape(search, quote=True),
                 escape(str(frequency) if frequency is not None else "", quote=True),
                 "".join(f"<td>{escape(value)}</td>" for value in cells)
-                + f'<td class="identifier"><details><summary>ID</summary>{escape(str(variant["occurrenceId"]))}</details></td>'
                 + '<td>' + escape(_display(_annotation(variant, 'depthTumourDna'))) + '</td>'
                 + '<td>Ikke mottatt</td><td>Ikke krysssjekket</td>'
-                + '<td><details><summary>Kildedetaljer</summary><dl>'
+                + '<td><details><summary>Detaljer</summary><dl>'
+                + '<dt>Forekomst-ID</dt><dd class="identifier">' + escape(str(variant['occurrenceId'])) + '</dd>'
+                + '<dt>Variant-ID</dt><dd class="identifier">' + escape(str(variant['variantId'])) + '</dd>'
+                + '<dt>Kildetier</dt><dd>' + escape(tier) + '</dd>'
                 + ''.join('<dt>' + escape(str(item['key'])) + '</dt><dd>' + escape(_display(item.get('value'))) + '</dd>' for item in variant.get('annotations', ()))
                 + '</dl></details></td>' + igv_cell,
                 review_cells,
@@ -848,4 +850,8 @@ def render_html(
         "igv_scripts": igv_scripts,
     }
     context["variant_count"] = str(len(report.variants))
+    context["selected_finding_count"] = str(len({
+        item['variantId'] for item in review.variant_reviews
+        if item['reportingDecision'] == 'INCLUDE'
+    })) if review else '0'
     return _render_variables(_assemble_template(), context, html_context)

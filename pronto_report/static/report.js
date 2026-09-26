@@ -4,6 +4,13 @@
   const tablist = document.querySelector('[role="tablist"]');
   if (!tablist) return;
 
+  const topbar = document.querySelector('.report-topbar');
+  if (topbar) {
+    new ResizeObserver(() => {
+      document.documentElement.style.setProperty('--report-topbar-height', `${topbar.getBoundingClientRect().height}px`);
+    }).observe(topbar);
+  }
+
   const tabs = Array.from(tablist.querySelectorAll('[role="tab"]'));
   const panels = tabs.map((tab) => document.getElementById(tab.getAttribute("aria-controls")));
 
@@ -51,6 +58,10 @@
   }
 
   const editButton = document.getElementById("edit-btn");
+  document.getElementById('preview-report')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    activateTab(document.getElementById('tab-tumour-board'));
+  });
   const editControls = Array.from(document.querySelectorAll(".report-edit-controls"));
   const dirtyLabel = document.getElementById("dirty-lbl");
   const reviewDownload = document.getElementById("download-review");
@@ -617,6 +628,8 @@
     });
     list.hidden = shown.size === 0;
     document.getElementById("board-empty").hidden = shown.size !== 0;
+    const selectedCount = document.getElementById('preview-selected-count');
+    if (selectedCount) selectedCount.textContent = String(shown.size);
   }
   updateBoardFindings();
 

@@ -406,6 +406,12 @@ PR #4 on the strength of Tasks 10–15 alone. Follow Tasks 16–29 below.
 
 **Description:** Replace PR #4's simplified shell with maintainable templates and CSS matching the reference top bar, tabs, spacing, palette, density, KPI cards, and patient strip.
 
+2026-09-26 approved density slice: compact typography/header/tab/table spacing,
+technical variant fields grouped under Details and a unique-selection preview
+link are implemented. Browser checks cover narrow/desktop layout and sticky
+header alignment. Full masked reference comparisons and clinical acceptance
+remain open; see `docs/report-review-workspace.md`.
+
 **Acceptance criteria:**
 - [x] Five familiar tabs and header controls appear in the original hierarchy.
 - [ ] Desktop/mobile masked comparisons show no unexplained layout drift.

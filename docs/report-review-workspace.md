@@ -23,6 +23,31 @@ Verification covers browser selection, report output, exported QC state, exact
 AF display with preserved source precision, and database persistence of QC and
 selection without mutation of source ReportData.
 
+## Compact reference-style workspace
+
+The owner-approved density increment restores the reference's 14 px body and
+12.5 px table text, tighter header/tab/table spacing and smaller section titles.
+Touch-sized header/preview controls remain on narrow screens; the variant table
+scrolls within its own region rather than widening the whole page. The sticky
+tabs follow the measured header height when the desktop header wraps.
+
+Occurrence ID, stable variant ID, source tier and imported annotations are
+available under each row's **Detaljer** disclosure. They are not removed from
+the underlying report. AF, tumour DNA depth, OncoKB/biomarker placeholders and
+selection controls remain in the table. Tier remains searchable.
+
+**Forhåndsvis rapport** opens the existing tumour-board panel and moves keyboard
+focus to its tab. The count represents unique included variant IDs, not source
+occurrences or only the filtered rows. The link works for saved/read-only
+snapshots as well. Previewing neither saves, finalizes, logs a print request nor
+asks for initials; those remain separate explicit actions. The preview control
+is omitted from print layout.
+
+Browser coverage exercises duplicate inclusion/deselection, filtered-out
+findings, keyboard navigation, read-only preview, source details and layouts at
+320, 768, 1024 and 1440 px. This increment is not full reference parity or
+clinical-user acceptance.
+
 ## Recovery after an unsuccessful save
 
 If saving fails, do not close the page before securing the working copy:
