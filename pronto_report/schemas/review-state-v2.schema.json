@@ -45,7 +45,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["declaredInitials", "method"],
       "properties": {
-        "declaredInitials": {"type": "string", "pattern": "^[A-ZÆØÅ]{2,8}$", "maxLength": 8},
+        "declaredInitials": {"type": "string", "pattern": "^[A-ZÆØÅ]{2,8}$", "maxLength": 8, "not": {"pattern": "[^A-ZÆØÅ]"}},
         "method": {"const": "SELF_REPORTED"}
       }
     },

@@ -134,6 +134,7 @@ Execution decisions and limits:
 - Production deployment, clinical validation, print completion, and SQLite load
   concurrency are not claimed verified; they require separate deployment work.
 
-Deferred minor review finding: stored JSON Schema's `$` anchor allows a final
-newline in initials. HTTP command normalization is strict and safe; tightening
-the stored contract remains a subsequent hardening task.
+Follow-up fixed the minor stored-initials finding: JSON Schema now explicitly
+rejects every character outside A–Z/Æ/Ø/Å, including a terminal newline.
+The regression test failed for `AB\n` before the fix; normalized command input
+and historical records without attribution remain supported.

@@ -31,6 +31,16 @@ def test_historical_and_attributed_review_round_trip():
     assert json.loads(serialize_review_state(result))['lastSavedAttribution'] == raw['lastSavedAttribution']
 
 
+@pytest.mark.parametrize('initials', ['AB\n', 'AB\r\n', ' AB', 'ab', 'AB\u2028'])
+def test_stored_attribution_requires_already_normalized_initials(initials):
+    from pronto_report.validation import ContractValidationError
+    report = build_report()
+    raw = json.loads(serialize_review_state(migrate_review_state_v1(draft_review(report))))
+    raw['lastSavedAttribution'] = {'declaredInitials': initials, 'method': 'SELF_REPORTED'}
+    with pytest.raises(ContractValidationError):
+        deserialize_review_state(json.dumps(raw), report=report)
+
+
 def test_command_accepts_initials_without_relaxing_unknown_fields():
     payload = {'schemaVersion': '1.0', 'reportId': 'report', 'baseRevision': 1, 'draft': {}, 'declaredInitials': 'ab'}
     assert SaveDraftRequest.from_dict(payload).declared_initials == 'AB'
