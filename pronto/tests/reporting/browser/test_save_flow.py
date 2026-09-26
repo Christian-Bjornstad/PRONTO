@@ -106,6 +106,7 @@ def test_failed_save_preserves_correction_and_requires_reason(browser):
             ))
             page.goto(url)
             page.locator("#edit-btn").click()
+            page.get_by_role("tab", name="Nøkkelfunn").click()
             page.locator("#tmb-edit-value").fill("12")
             page.locator("#tmb-edit-value").dispatch_event("change")
             page.locator("#save-btn").click()
@@ -171,6 +172,7 @@ def test_saved_correction_can_be_removed_without_changing_source(browser):
             assert page.locator('[data-fact="tumourType"] dd').text_content() == "Ikke oppgitt"
             page.locator("#edit-btn").click()
             field = page.locator("#tumourType-edit")
+            page.get_by_role("tab", name="Nøkkelfunn").click()
             assert field.input_value() == "Syntetisk korrigert"
             field.fill("")
             assert page.locator("#dirty-lbl").inner_text() == "Ulagrede kildekorreksjoner"

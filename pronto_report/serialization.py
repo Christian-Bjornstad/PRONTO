@@ -71,6 +71,10 @@ def _review_document(review: ReviewState) -> dict[str, Any]:
         document["finalizedAt"] = review.finalized_at
     if review.finalized_by is not None:
         document["finalizedBy"] = review.finalized_by
+    if review.last_saved_attribution is not None:
+        document['lastSavedAttribution'] = _thaw(review.last_saved_attribution)
+    if review.finalization_attribution is not None:
+        document['finalizationAttribution'] = _thaw(review.finalization_attribution)
     return document
 
 

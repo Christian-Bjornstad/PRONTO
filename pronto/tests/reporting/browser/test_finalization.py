@@ -31,8 +31,13 @@ def test_unsaved_changes_disable_finalization_and_cancel_does_not_write(browser)
             page.goto(url)
             final = page.locator("#finalize-btn")
             assert final.is_enabled()
-            page.once("dialog", lambda dialog: dialog.dismiss())
+            messages = []
+            def cancel(dialog):
+                messages.append(dialog.message)
+                dialog.dismiss()
+            page.once("dialog", cancel)
             final.click()
+            assert messages == ['Ferdigstille rapporten? Rapporten låses for videre redigering.']
             assert requests == [url]
             page.get_by_role("tab", name="Molekylært tumorboard").click()
             page.locator('textarea[data-review-note="summary"]').fill("Ulagret syntetisk notat")

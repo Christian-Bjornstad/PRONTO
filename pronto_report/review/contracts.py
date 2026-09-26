@@ -20,6 +20,7 @@ class SaveDraftRequest:
     report_id: str
     base_revision: int
     draft: Mapping[str, Any]
+    declared_initials: str | None = None
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> SaveDraftRequest:
@@ -32,6 +33,7 @@ class FinalizeRequest:
     report_id: str
     base_revision: int
     draft: Mapping[str, Any]
+    declared_initials: str | None = None
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> FinalizeRequest:
@@ -45,6 +47,8 @@ class AuditRecord:
     action: str
     revision: int
     timestamp: str
+    declared_initials: str | None = None
+    attribution_method: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -53,6 +57,7 @@ class AuditRecord:
             "action": self.action,
             "revision": self.revision,
             "timestamp": self.timestamp,
+            **({'declaredInitials': self.declared_initials, 'method': self.attribution_method} if self.declared_initials else {}),
         }
 
 
@@ -97,9 +102,9 @@ class ReviewCommandError(Exception):
         return {"schemaVersion": COMMAND_VERSION, "error": error}
 
 
-def _parse_request(payload: Mapping[str, Any]) -> tuple[str, str, int, Mapping[str, Any]]:
+def _parse_request(payload: Mapping[str, Any]) -> tuple[str, str, int, Mapping[str, Any], str | None]:
     expected = {"schemaVersion", "reportId", "baseRevision", "draft"}
-    if not isinstance(payload, Mapping) or set(payload) != expected:
+    if not isinstance(payload, Mapping) or not expected <= set(payload) or set(payload) - expected - {'declaredInitials'}:
         raise ReviewCommandError("INVALID_COMMAND", "Invalid review command", 422)
     version = payload["schemaVersion"]
     report_id = payload["reportId"]
@@ -108,4 +113,6 @@ def _parse_request(payload: Mapping[str, Any]) -> tuple[str, str, int, Mapping[s
     if (version != COMMAND_VERSION or not isinstance(report_id, str) or not report_id
             or type(revision) is not int or revision < 1 or not isinstance(draft, Mapping)):
         raise ReviewCommandError("INVALID_COMMAND", "Invalid review command", 422)
-    return version, report_id, revision, draft
+    from pronto_report.review.attribution import normalize_initials
+    initials = normalize_initials(payload['declaredInitials']) if 'declaredInitials' in payload else None
+    return version, report_id, revision, draft, initials

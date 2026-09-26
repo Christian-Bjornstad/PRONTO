@@ -60,9 +60,25 @@ class ReviewAudit(models.Model):
     ])
     revision = models.PositiveIntegerField()
     occurred_at = models.DateTimeField()
+    declared_initials = models.CharField(max_length=8, null=True, blank=True)
+    attribution_method = models.CharField(max_length=16, null=True, blank=True)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["report", "revision"], name="unique_review_audit_revision")]
+
+
+class ReportPrintAudit(models.Model):
+    report = models.ForeignKey(ReportRecord, on_delete=models.PROTECT)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    revision = models.PositiveIntegerField()
+    request_id = models.UUIDField()
+    declared_initials = models.CharField(max_length=8)
+    attribution_method = models.CharField(max_length=16, default='SELF_REPORTED')
+    action = models.CharField(max_length=16, default='PRINT_REQUESTED')
+    requested_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['report', 'request_id'], name='unique_report_print_request')]
 
 
 class ReportAsset(models.Model):

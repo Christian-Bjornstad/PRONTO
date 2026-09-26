@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from pronto_report.models import ReportData, ReviewState
+from pronto_report.review.attribution import normalize_initials
 from pronto_report.review.contracts import (
     COMMAND_VERSION, AuditRecord, FinalizeRequest, ReviewCommandError,
     ReviewCommandResponse, SaveDraftRequest,
@@ -24,10 +25,17 @@ class ReviewCommandService:
         authorizer: ReviewAuthorizer,
         *,
         clock: Callable[[], datetime],
+        require_initials: bool = False,
     ) -> None:
         self.repository = repository
         self.authorizer = authorizer
         self.clock = clock
+        self.require_initials = require_initials
+
+    def _attribution(self, request):
+        if request.declared_initials is None and not self.require_initials:
+            return None
+        return {'declaredInitials': normalize_initials(request.declared_initials), 'method': 'SELF_REPORTED'}
 
     def _current(
         self, request: SaveDraftRequest | FinalizeRequest, actor_id: str, report: ReportData
@@ -73,8 +81,11 @@ class ReviewCommandService:
     def _commit(
         self, report_id: str, base_revision: int, review: ReviewState,
         actor_id: str, action: str, timestamp: str,
+        attribution=None,
     ) -> ReviewCommandResponse:
-        audit = AuditRecord(report_id, actor_id, action, review.revision, timestamp)
+        audit = AuditRecord(report_id, actor_id, action, review.revision, timestamp,
+                            attribution['declaredInitials'] if attribution else None,
+                            attribution['method'] if attribution else None)
         if not self.repository.commit(report_id, base_revision, review, audit):
             latest = self.repository.latest(report_id)
             raise ReviewCommandError(
@@ -87,6 +98,7 @@ class ReviewCommandService:
         self, request: SaveDraftRequest, *, actor_id: str, report: ReportData
     ) -> ReviewCommandResponse:
         current = self._current(request, actor_id, report)
+        attribution = self._attribution(request)
         draft = self._draft(request.draft, report, request.base_revision)
         if draft.created_at != current.created_at:
             raise ReviewCommandError("INVALID_DRAFT", "Draft creation time changed", 422)
@@ -120,16 +132,21 @@ class ReviewCommandService:
         document["revision"] = current.revision + 1
         document["updatedAt"] = timestamp
         document["reviewer"] = {"reviewerId": actor_id}
+        document.pop('lastSavedAttribution', None)
+        document.pop('finalizationAttribution', None)
+        if attribution:
+            document['lastSavedAttribution'] = attribution
         for correction in document["valueCorrections"]:
             if previous_corrections.get(correction["path"]) != correction:
                 correction["timestamp"] = timestamp
         saved = validate_review_state(document, report=report)
-        return self._commit(report.report_id, current.revision, saved, actor_id, "SAVE_DRAFT", timestamp)
+        return self._commit(report.report_id, current.revision, saved, actor_id, "SAVE_DRAFT", timestamp, attribution)
 
     def finalize(
         self, request: FinalizeRequest, *, actor_id: str, report: ReportData
     ) -> ReviewCommandResponse:
         current = self._current(request, actor_id, report)
+        attribution = self._attribution(request)
         draft = self._draft(request.draft, report, request.base_revision)
         if serialize_review_state(draft) != serialize_review_state(current):
             raise ReviewCommandError("UNSAVED_CHANGES", "Save changes before finalizing", 409)
@@ -142,5 +159,7 @@ class ReviewCommandService:
             "finalizedAt": timestamp,
             "finalizedBy": actor_id,
         })
+        if attribution:
+            document['finalizationAttribution'] = attribution
         finalized = validate_review_state(document, report=report)
-        return self._commit(report.report_id, current.revision, finalized, actor_id, "FINALIZE", timestamp)
+        return self._commit(report.report_id, current.revision, finalized, actor_id, "FINALIZE", timestamp, attribution)

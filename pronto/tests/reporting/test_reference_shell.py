@@ -26,11 +26,12 @@ def test_reference_shell_has_sticky_topbar_actions_and_five_tabs():
     assert any(item.get("class") == "report-topbar" for item in attrs)
     assert any(item.get("id") == "edit-btn" and "disabled" in item for item in attrs)
     assert any(item.get("id") == "save-btn" and "disabled" in item for item in attrs)
-    assert any(item.get("id") == "load-btn" and "disabled" in item for item in attrs)
-    assert any(item.get("id") == "reset-btn" and "disabled" in item for item in attrs)
+    assert not any(item.get("id") in {"load-btn", "reset-btn"} for item in attrs)
     assert 'class="report-tab__count"' in html
     assert ">30</span>" in html
     assert len([item for item in attrs if item.get("role") == "tab"]) == 5
+    assert 'Rapporten er et beslutningsstøtteverktøy' not in html
+    assert 'må følge gjeldende kvalitetssikringsprosess' not in html
 
 
 def test_patient_strip_and_kpis_use_approved_facts_with_explicit_gaps():
@@ -72,7 +73,7 @@ def test_key_findings_summary_handles_missing_protein_changes():
     assert "Ingen varianter med oppgitt proteinendring" in panel
 
 
-def test_key_findings_summary_displays_zero_frequency_as_zero_percent():
+def test_key_findings_summary_displays_zero_frequency_with_three_decimals():
     report = build_report()
     variants = list(report.variants)
     variants[0] = {**variants[0], "proteinChange": "p.Test", "alleleFrequency": 0.0}
@@ -80,7 +81,7 @@ def test_key_findings_summary_displays_zero_frequency_as_zero_percent():
         'id="panel-key-findings"', 1
     )[1].split("</section>", 1)[0]
 
-    assert "p.Test</td><td>0 %" in panel
+    assert "p.Test</td><td>0,000" in panel
 
 
 def test_reference_visual_tokens_are_used_without_remote_font_dependency():
