@@ -29,10 +29,18 @@ tilsvarende adresse. Serveren binder bare til denne maskinen (127.0.0.1).
 Ikke eksponer den via proxy eller nettverk.
 
 Hver oppstart med `run_demo` krever et nytt databasenavn og lager en ny
-gjennomgang. Kommandoen nekter å overskrive eller gjenåpne eksisterende
-databaser. Tidligere vurderinger blir liggende i sine egne databasefiler;
-de er **ikke** med i en ny demo. Gjenåpning av en lagret demodatabase krever
-separat oppsett – ikke slett databasen for å omgå kontrollen.
+gjennomgang. Tidligere vurderinger blir liggende i sine egne databasefiler.
+For å fortsette en lagret demo etter at serveren er stoppet, bruk samme fil og
+rapport-ID med `resume_demo`:
+
+```powershell
+$env:PRONTO_DJANGO_SECRET_KEY = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N')
+python manage.py resume_demo --database "tuesday-<dato>.demo.sqlite3" --report demo-tuesday --port 8772
+```
+
+`resume_demo` importerer ikke kildedata på nytt og sletter ikke revisjoner. Den
+nekter en manglende/feil database, andre rapporter eller brukere og utvidet
+alignment-tilgang. Stopp den gamle serverprosessen før samme port brukes igjen.
 
 ## Foreslått gjennomgang (15–20 minutter)
 

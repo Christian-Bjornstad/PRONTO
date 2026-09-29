@@ -164,8 +164,17 @@ SQLite-revisjon + handlingslogg → oppdatert rapport/utskrift`.
 
 ## Hvis serveren har stoppet
 
-`run_demo` kan **ikke** gjenåpne den eksisterende databasefilen; den krever
-en ny fil hver gang. Start en **ny, tom** demo i PowerShell fra prosjektmappen:
+For å fortsette med **samme lagrede gjennomgang**, start serveren på nytt i
+PowerShell fra prosjektmappen med samme databasefil og rapport-ID:
+
+```powershell
+$env:PRONTO_DJANGO_SECRET_KEY = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N')
+python manage.py resume_demo --database 'presentation-20260929.demo.sqlite3' --report demo-presentation-20260929 --port 8772
+```
+
+Kommandoen legger ikke inn nye data og bevarer revisjoner og logg. Den nekter
+andre rapporter, brukere og alignment-skrivetilgang. Ikke start to servere mot
+samme demo samtidig. Hvis du i stedet vil ha en **ny, tom** demo, bruk:
 
 ```powershell
 $demoStamp = Get-Date -Format yyyyMMdd-HHmmss
@@ -173,7 +182,7 @@ $env:PRONTO_DJANGO_SECRET_KEY = [Guid]::NewGuid().ToString('N') + [Guid]::NewGui
 python manage.py run_demo --database "presentation-$demoStamp.demo.sqlite3" --report "demo-presentation-$demoStamp" --port 8772
 ```
 
-Kommandoen skriver den nye adressen. Den nye demoen har **egen** database;
+`run_demo` skriver den nye adressen. Den nye demoen har **egen** database;
 ikke bruk databasekommandoen over uten å bytte filnavn. Eldre filer blir
 liggende urørt. Hold dette PowerShell-vinduet åpent gjennom møtet.
 
