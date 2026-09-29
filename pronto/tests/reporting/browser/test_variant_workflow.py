@@ -49,6 +49,7 @@ def test_search_sort_and_duplicate_decision_keep_ids_and_progress(browser):
             assert len(set(variant_ids)) == 1
             page.get_by_role("button", name="Sort by allele frequency").click()
             assert set(rows.evaluate_all("items => items.map(item => item.dataset.occurrenceId)")) == set(occurrence_ids)
+            rows.first.locator('details summary').click()
             rows.first.locator('select[data-review-field="reportingDecision"]').select_option("INCLUDE")
             assert rows.nth(1).locator('select[data-review-field="reportingDecision"]').input_value() == "INCLUDE"
             assert page.locator("#review-progress").inner_text() == "1 of 29 variants reviewed"
@@ -132,6 +133,7 @@ def test_variant_comment_syncs_duplicate_rows_without_changing_decision_or_class
             page.get_by_label("Search variants").fill("TERT")
             comments = page.locator('#variant-table tbody tr:visible textarea[data-review-field="comment"]')
             assert comments.count() == 2
+            page.locator('#variant-table tbody tr:visible').first.locator('details summary').click()
             comments.first.fill("Confirmet i gjennomgang")
             assert comments.nth(1).input_value() == "Confirmet i gjennomgang"
             assert page.locator("#dirty-lbl").inner_text() == "Unsaved review"
@@ -161,6 +163,7 @@ def test_clinical_filter_is_independent_of_reporting_decision(browser):
             rows = page.locator("#variant-table tbody tr:visible")
             assert rows.count() == 2
             assert rows.first.locator('select[data-review-field="reportingDecision"]').input_value() == "EXCLUDE"
+            rows.first.locator('details summary').click()
             rows.first.locator('select[data-review-field="clinicalClassification"]').select_option("UNCERTAIN")
             assert rows.count() == 0
             page.get_by_role("button", name="Uncertain 2").click()
@@ -185,6 +188,7 @@ def test_igv_assessment_syncs_duplicates_without_inventing_source_qc(browser):
             page.get_by_label("Search variants").fill("TERT")
             controls = page.locator('#variant-table tbody tr:visible select[data-review-field="igvAssessment"]')
             assert controls.count() == 2
+            page.locator('#variant-table tbody tr:visible').first.locator('details summary').click()
             controls.first.select_option("SUPPORTS")
             assert controls.nth(1).input_value() == "SUPPORTS"
             with page.expect_download() as pending:

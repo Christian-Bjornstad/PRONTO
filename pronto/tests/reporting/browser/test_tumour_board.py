@@ -80,12 +80,12 @@ def test_board_findings_follow_review_changes_and_keep_duplicate_variant_once(br
             assert page.locator("#board-findings li").count() == 1
             page.get_by_role("tab", name="Variant review").click()
             tert = review.variant_reviews[0]["variantId"]
-            page.locator(f'select[data-variant-id="{tert}"][data-review-field="reportingDecision"]').first.select_option("EXCLUDE")
+            page.locator(f'#variant-table tr:has(select[data-variant-id="{tert}"])').first.get_by_role('button', name='Exclude from report').click()
             page.get_by_role("tab", name="Tumour board report").click()
             assert page.locator("#board-findings li").count() == 0
             assert page.get_by_text("No findings selected for the report.").is_visible()
             page.get_by_role("tab", name="Variant review").click()
-            page.locator('select[data-review-field="reportingDecision"]').first.select_option("INCLUDE")
+            page.locator('#variant-table tbody tr').first.get_by_role('button', name='Include in report').click()
             page.get_by_role("tab", name="Tumour board report").click()
             assert page.locator("#board-findings li").count() == 1
             assert requests == [url]
@@ -106,9 +106,11 @@ def test_generated_mdt_print_contains_only_current_included_reviewed_findings(br
             page.goto(url)
             page.get_by_role("tab", name="Variant review").click()
             tert = review.variant_reviews[0]["variantId"]
-            page.locator(f'select[data-variant-id="{tert}"][data-review-field="reportingDecision"]').first.select_option("EXCLUDE")
-            page.locator('select[data-review-field="reportingDecision"]').first.select_option("INCLUDE")
-            page.locator('textarea[data-review-field="comment"]').first.fill("Kontrollert i IGV")
+            page.locator(f'#variant-table tr:has(select[data-variant-id="{tert}"])').first.get_by_role('button', name='Exclude from report').click()
+            first = page.locator('#variant-table tbody tr').first
+            first.get_by_role('button', name='Include in report').click()
+            first.locator('details summary').click()
+            first.locator('textarea[data-review-field="comment"]').fill("Kontrollert i IGV")
             page.get_by_role("tab", name="Tumour board report").click()
             page.get_by_label("Interpretation summary").fill("Diskuteres i møte")
             page.get_by_role("button", name="Print MDT report").click()

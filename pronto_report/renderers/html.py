@@ -326,7 +326,7 @@ def _variant_rows(
     report: ReportData, review: ReviewState | None, snapshot: bool = False, web_igv: bool = False,
 ) -> str:
     if not report.variants:
-        span = (14 if review is not None else 10) + int(web_igv)
+        span = 8 + (2 if review is not None else 0) + int(web_igv)
         return f'<tr><td colspan="{span}">No variants in source data.</td></tr>'
     rows = []
     reviews = {item["variantId"]: item for item in review.variant_reviews} if review else {}
@@ -339,8 +339,7 @@ def _variant_rows(
         frequency = variant.get("alleleFrequency")
         vaf = _af(frequency)
         coding = _display(_annotation(variant, "codingStatus"))
-        cells = (gene, location, dna, protein, coding, vaf)
-        search = " ".join(str(value) for value in (*cells, tier)).casefold()
+        search = " ".join(str(value) for value in (gene, location, dna, protein, coding, vaf, tier)).casefold()
         igv_cell = ""
         if web_igv:
             variant_id = escape(str(variant["variantId"]), quote=True)
@@ -357,6 +356,7 @@ def _variant_rows(
                     'View in IGV</button></td>'
                 ).format(escape(locus, quote=True), variant_id)
         review_cells = ""
+        review_details = ""
         if review is not None:
             variant_id = str(variant["variantId"])
             occurrence_id = str(variant["occurrenceId"])
@@ -373,8 +373,13 @@ def _variant_rows(
                 }
                 review_cells = "".join(
                     f"<td>{escape(labels[field][value])}</td>"
-                    for field, value in (("reportingDecision", decision), ("clinicalClassification", classification), ("igvAssessment", igv))
-                ) + f'<td class="review-comment-readonly">{escape(comment) if comment else "—"}</td>'
+                    for field, value in (("reportingDecision", decision), ("clinicalClassification", classification))
+                )
+                review_details = (
+                    '<dt>IGV QC</dt><dd>' + escape(labels['igvAssessment'][igv]) + '</dd>'
+                    '<dt>Review comment</dt><dd class="review-comment-readonly">'
+                    + (escape(comment) if comment else '—') + '</dd>'
+                )
             else:
                 disabled = " disabled" if review.status == "FINAL" else ""
                 report_buttons = ''.join(
@@ -402,32 +407,40 @@ def _variant_rows(
                     )
                 )
                 review_cells = (
-                    '<td><div class="review-quick-group" role="group" aria-label="Report choice">' + report_buttons + '</div>'
-                    + _review_select(variant_id, occurrence_id, "reportingDecision", decision, review.status == "FINAL") + "</td>"
-                    + '<td><div class="review-quick-group" role="group" aria-label="Classification choice">' + class_buttons + '</div>'
-                    + _review_select(variant_id, occurrence_id, "clinicalClassification", classification, review.status == "FINAL") + "</td>"
-                    + "<td>" + _review_select(variant_id, occurrence_id, "igvAssessment", igv, review.status == "FINAL") + "</td>"
-                    + '<td><textarea aria-label="Review comment for {}" data-variant-id="{}" '
-                      'data-review-field="comment" maxlength="10000" rows="2"{}>{}</textarea></td>'.format(
+                    '<td><div class="review-quick-group" role="group" aria-label="Report choice">' + report_buttons + '</div></td>'
+                    + '<td><div class="review-quick-group" role="group" aria-label="Classification choice">' + class_buttons + '</div></td>'
+                )
+                review_details = (
+                    '<dt>Report choice</dt><dd>' + _review_select(variant_id, occurrence_id, "reportingDecision", decision, review.status == "FINAL") + '</dd>'
+                    + '<dt>Clinical class</dt><dd>' + _review_select(variant_id, occurrence_id, "clinicalClassification", classification, review.status == "FINAL") + '</dd>'
+                    + '<dt>IGV QC</dt><dd>' + _review_select(variant_id, occurrence_id, "igvAssessment", igv, review.status == "FINAL") + '</dd>'
+                    + '<dt>Review comment</dt><dd><textarea aria-label="Review comment for {}" data-variant-id="{}" '
+                      'data-review-field="comment" maxlength="10000" rows="2"{}>{}</textarea></dd>'.format(
                           escape(occurrence_id, quote=True), escape(variant_id, quote=True),
                           disabled, escape(comment),
                       )
                 )
+        details = (
+            '<td class="variant-detail-cell"><details><summary>Details</summary><dl>'
+            + '<dt>Genomic location</dt><dd>' + escape(location) + '</dd>'
+            + '<dt>DNA change</dt><dd>' + escape(dna) + '</dd>'
+            + '<dt>Occurrence ID</dt><dd class="identifier">' + escape(str(variant['occurrenceId'])) + '</dd>'
+            + '<dt>Variant-ID</dt><dd class="identifier">' + escape(str(variant['variantId'])) + '</dd>'
+            + '<dt>Source tier</dt><dd>' + escape(tier) + '</dd>'
+            + ''.join('<dt>' + escape(str(item['key'])) + '</dt><dd>' + escape(_display(item.get('value'))) + '</dd>' for item in variant.get('annotations', ()))
+            + review_details + '</dl></details></td>'
+        )
         rows.append(
-            '<tr data-occurrence-id="{}" data-search="{}" data-vaf="{}">{}{}</tr>'.format(
+            '<tr data-occurrence-id="{}" data-search="{}" data-vaf="{}">{}{}{}</tr>'.format(
                 escape(str(variant["occurrenceId"]), quote=True),
                 escape(search, quote=True),
                 escape(str(frequency) if frequency is not None else "", quote=True),
-                "".join(f"<td>{escape(value)}</td>" for value in cells)
+                "".join(f"<td>{escape(value)}</td>" for value in (gene, protein, coding, vaf))
                 + '<td>' + escape(_display(_annotation(variant, 'depthTumourDna'))) + '</td>'
                 + '<td>Not received</td><td>Not cross-checked</td>'
-                + '<td><details><summary>Details</summary><dl>'
-                + '<dt>Occurrence ID</dt><dd class="identifier">' + escape(str(variant['occurrenceId'])) + '</dd>'
-                + '<dt>Variant-ID</dt><dd class="identifier">' + escape(str(variant['variantId'])) + '</dd>'
-                + '<dt>Source tier</dt><dd>' + escape(tier) + '</dd>'
-                + ''.join('<dt>' + escape(str(item['key'])) + '</dt><dd>' + escape(_display(item.get('value'))) + '</dd>' for item in variant.get('annotations', ()))
-                + '</dl></details></td>' + igv_cell,
+                + igv_cell,
                 review_cells,
+                details,
             )
         )
     return "".join(rows)
@@ -718,8 +731,6 @@ def render_html(
         return json.dumps(value, separators=(",", ":"), ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     review_columns = (
         '<th scope="col" class="review-decision-heading">Report</th><th scope="col">Clinical class</th>'
-        '<th scope="col">IGV QC</th>'
-        '<th scope="col">Review comment</th>'
         if review is not None else ""
     )
     if review is None:

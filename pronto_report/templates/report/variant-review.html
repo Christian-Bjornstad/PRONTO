@@ -19,15 +19,13 @@
     <table id="variant-table">
       <thead><tr>
         <th scope="col"><button type="button" data-sort="gene" aria-label="Sort by gene">Gene</button></th>
-        <th scope="col">Genomic location</th>
-        <th scope="col">DNA change</th>
         <th scope="col">Protein</th>
         <th scope="col">Coding</th>
         <th scope="col"><button type="button" data-sort="vaf" aria-label="Sort by allele frequency">AF tumour (0–1)</button></th>
         <th scope="col">Tumour DNA depth</th>
         <th scope="col">OncoKB</th>
         <th scope="col">Biomarker list</th>
-        <th scope="col">Details</th>{{ igv_column }}{{ review_columns }}
+        {{ igv_column }}{{ review_columns }}<th scope="col">Details</th>
       </tr></thead>
       <tbody>{{ variant_rows }}</tbody>
     </table>

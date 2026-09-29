@@ -1260,21 +1260,23 @@ button {
 .qc-review { display: grid; gap: 0.5rem; margin-block: 1rem; max-width: 48rem; }
 .qc-review textarea { width: 100%; box-sizing: border-box; }
 [data-include-variant] { white-space: nowrap; }
-#variant-table details { min-width: 10rem; max-width: 24rem; overflow-wrap: anywhere; }
+#variant-table { table-layout: fixed; min-width: 68rem; }
+#variant-table tr:has(details[open]) { height: 26rem; }
+#variant-table details { position: relative; overflow-wrap: anywhere; }
+#variant-table details[open] { z-index: 3; }
+#variant-table details dl { position: absolute; right: 0; z-index: 3; width: min(21rem, calc(100vw - 2rem)); max-height: 24rem; overflow: auto; margin: 0.25rem 0 0; padding: 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); box-shadow: 0 4px 12px rgb(0 0 0 / 14%); white-space: normal; }
 #variant-table details dt { font-weight: 600; margin-top: 0.5rem; }
 #variant-table details dd { margin-left: 0; }
 #variant-table .identifier { max-width: 8rem; overflow-wrap: anywhere; white-space: normal; }
-#variant-table td:has([data-include-variant]) { position: sticky; right: 0; background: #ffffff; box-shadow: -2px 0 0 #b6dff5; }
-#variant-table td:has([data-include-variant]) select { display: block; }
-#variant-table .review-decision-heading { position: sticky; right: 0; background: #e7f2f7; z-index: 1; }
-#variant-table .identifier details { min-width: 3rem; max-width: 8rem; }
-.review-quick-group { display: flex; gap: 0.2rem; margin-bottom: 0.25rem; }
+#variant-table .review-decision-heading { background: #e7f2f7; }
+.review-quick-group { display: flex; gap: 0.2rem; flex-wrap: wrap; }
 .review-quick-choice { padding: 0.25rem 0.4rem; border: 1px solid #b6dff5; border-radius: 0.2rem; background: #fff; color: #00517a; font: inherit; cursor: pointer; }
 .review-quick-choice[aria-pressed="true"] { background: #d8edf8; border-color: #00517a; color: #003955; font-weight: 700; }
 .review-quick-choice:disabled { cursor: default; }
-#variant-table th, #variant-table td { padding: 0.4rem 0.55rem; font-size: 0.82rem; vertical-align: top; }
-#variant-table textarea { min-width: 9rem; }
-#variant-table select { min-width: 7rem; font-size: 0.8rem; }
+#variant-table th, #variant-table td { padding: 0.35rem 0.4rem; font-size: 0.78rem; vertical-align: top; white-space: normal; overflow-wrap: anywhere; }
+#variant-table td:nth-child(4), #variant-table td:nth-child(5) { font-family: var(--font-mono); }
+#variant-table textarea { width: 100%; min-width: 0; box-sizing: border-box; }
+#variant-table select { width: 100%; min-width: 0; font-size: 0.8rem; }
 #review-attribution { margin: 0.5rem auto; max-width: 78rem; padding-inline: 1rem; }
 #initials-dialog { max-width: min(28rem, calc(100vw - 3rem)); border: 1px solid #b6dff5; border-radius: 0.5rem; }
 #initials-dialog::backdrop { background: rgb(0 0 0 / 35%); }

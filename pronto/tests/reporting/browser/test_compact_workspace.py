@@ -50,6 +50,35 @@ def test_compact_details_and_preview_count_follow_unique_selection(browser):
             context.close()
 
 
+def test_variant_review_keeps_primary_facts_and_choices_in_one_desktop_view(browser):
+    report = build_report()
+    html = render_html(report, draft_review(report), inline_assets=True)
+    with _serve(html) as url:
+        context, page, diagnostics, _requests = _page(browser, html, width=1440)
+        try:
+            page.goto(url)
+            row = page.locator('#variant-table tbody tr').first
+            headers = page.locator('#variant-table thead th').all_text_contents()
+            assert [item.strip() for item in headers] == [
+                'Gene', 'Protein', 'Coding', 'AF tumour (0–1)', 'Tumour DNA depth',
+                'OncoKB', 'Biomarker list', 'Report', 'Clinical class', 'Details',
+            ]
+            assert page.locator('#variant-table').evaluate(
+                'table => table.scrollWidth <= table.parentElement.clientWidth'
+            )
+            playwright.expect(row.get_by_role('button', name='Include in report')).to_be_in_viewport()
+            playwright.expect(row.get_by_role('button', name='Pathogenic for')).to_be_in_viewport()
+            row.get_by_text('Details', exact=True).click()
+            details = row.locator('details')
+            assert report.variants[0]['occurrenceId'] in details.inner_text()
+            assert 'Genomic location' in details.inner_text()
+            assert 'DNA change' in details.inner_text()
+            assert details.locator('[data-review-field="comment"]').is_visible()
+            assert diagnostics == []
+        finally:
+            context.close()
+
+
 @pytest.mark.parametrize('width', [320, 768, 1024, 1440])
 def test_compact_workspace_responsive_layout(browser, width, tmp_path):
     report = build_report()
