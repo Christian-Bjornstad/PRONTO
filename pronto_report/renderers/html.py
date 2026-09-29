@@ -679,6 +679,7 @@ def render_html(
     snapshot: bool = False,
     save_url: str | None = None,
     finalize_url: str | None = None,
+    reset_url: str | None = None,
     csrf_token: str | None = None,
     require_initials: bool = False,
     print_url: str | None = None,
@@ -696,6 +697,8 @@ def render_html(
         raise ValueError("Live saving requires a non-snapshot report, CSRF token, and actor")
     if finalize_url and not save_url:
         raise ValueError("Finalization requires live saving")
+    if reset_url and not save_url:
+        raise ValueError("Reset requires live saving")
     if (igv_sources or igv_references or igv_save_enabled) and not web_igv:
         raise ValueError("IGV configuration requires web_igv=True")
     if review is not None and review.report_id != report.report_id:
@@ -732,6 +735,8 @@ def render_html(
     safe_sources = []
     if print_url and (not safe_path(print_url) or snapshot or not csrf_token):
         raise ValueError('Printing requires a live same-origin URL and CSRF token')
+    if reset_url and (not safe_path(reset_url) or snapshot or not csrf_token):
+        raise ValueError('Reset requires a live same-origin URL and CSRF token')
     for source in igv_sources:
         if set(source) != {"sourceId", "role", "format", "referenceBuild", "dataURL", "indexURL"}:
             raise ValueError("Invalid IGV source descriptor")
@@ -839,12 +844,17 @@ def render_html(
         '>Finalize</button>'
         if live_save and finalize_url else ""
     )
+    reset_button = (
+        f'<button id="reset-btn" type="button" data-reset-url="{escape(reset_url, quote=True)}">Reset</button>'
+        if live_save and reset_url else ""
+    )
     topbar_actions = (
         '<span class="report-topbar__saved">Read-only export</span>' if snapshot else
         '<span class="report-topbar__saved" id="dirty-lbl" role="status" aria-live="polite">Local view only</span>'
         + ('<button id="edit-btn" type="button" aria-pressed="false">Edit mode: OFF</button>' if editable else
            '<button id="edit-btn" type="button" disabled title="Report is read-only">Edit mode: OFF</button>')
         + save_button
+        + reset_button
         + finalize_button
     )
     context = {

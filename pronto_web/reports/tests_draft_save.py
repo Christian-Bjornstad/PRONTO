@@ -322,3 +322,51 @@ class DraftSaveTests(TestCase):
             service.reset(contracts.ResetDraftRequest('1.0', self.report.report_id, 1, 'AB'),
                           actor_id=str(self.writer.pk), report=self.report)
         assert caught.exception.code == 'FORBIDDEN'
+
+    def test_reset_http_requires_grant_csrf_initials_and_current_revision(self):
+        from pronto_web.reports.models import ReviewAudit
+        url = f'/reports/{self.report.report_id}/resets/'
+        payload = {'schemaVersion': '1.0', 'reportId': self.report.report_id,
+                   'baseRevision': 1, 'declaredInitials': 'AB'}
+        anonymous = Client().post(url, data=json.dumps(payload), content_type='application/json')
+        assert anonymous.status_code in (401, 404)
+        ungranted = Client()
+        ungranted.force_login(self.other)
+        assert ungranted.post(url, data=json.dumps(payload), content_type='application/json').status_code == 404
+        guarded = Client(enforce_csrf_checks=True)
+        guarded.force_login(self.writer)
+        assert guarded.post(url, data=json.dumps(payload), content_type='application/json').status_code == 403
+        client = Client()
+        client.force_login(self.writer)
+        assert client.post(url, data=json.dumps({**payload, 'declaredInitials': '1'}),
+                           content_type='application/json').status_code == 422
+        assert client.post(url, data=json.dumps({**payload, 'draft': self.draft}),
+                           content_type='application/json').status_code == 422
+        assert client.post(url, data=json.dumps({**payload, 'baseRevision': 2}),
+                           content_type='application/json').status_code == 409
+        assert ReviewRevision.objects.filter(report=self.record).count() == 1
+        assert ReviewAudit.objects.filter(report=self.record).count() == 0
+
+    def test_reset_http_creates_one_revision_and_final_report_stays_locked(self):
+        from pronto_web.reports.models import ReviewAudit
+        url = f'/reports/{self.report.report_id}/resets/'
+        payload = {'schemaVersion': '1.0', 'reportId': self.report.report_id,
+                   'baseRevision': 1, 'declaredInitials': 'AB'}
+        client = Client()
+        client.force_login(self.writer)
+        response = client.post(url, data=json.dumps(payload), content_type='application/json')
+        assert response.status_code == 201
+        assert response.json()['review']['revision'] == 2
+        assert response.json()['review']['variantReviews'] == []
+        assert response.json()['audit']['action'] == 'RESET_DRAFT'
+        assert ReviewRevision.objects.filter(report=self.record).count() == 2
+        assert ReviewAudit.objects.filter(report=self.record).count() == 1
+        final = response.json()['review']
+        final.update({'status': 'FINAL', 'finalizedAt': '2026-09-29T13:00:00Z',
+                      'finalizedBy': str(self.writer.pk), 'updatedAt': '2026-09-29T13:00:00Z'})
+        ReviewRevision.objects.filter(report=self.record, revision=2).update(review_data=final)
+        locked = client.post(url, data=json.dumps({**payload, 'baseRevision': 2}),
+                             content_type='application/json')
+        assert locked.status_code == 409
+        assert locked.json()['error']['code'] == 'FINAL_LOCKED'
+        assert ReviewRevision.objects.filter(report=self.record).count() == 2

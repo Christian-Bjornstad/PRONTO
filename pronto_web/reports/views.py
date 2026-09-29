@@ -17,7 +17,7 @@ from django.views.decorators.http import require_GET, require_POST, require_http
 
 from pronto_report.renderers.assets import load_plot_images_from_bytes
 from pronto_report.renderers.html import render_html
-from pronto_report.review.contracts import FinalizeRequest, ReviewCommandError, SaveDraftRequest
+from pronto_report.review.contracts import FinalizeRequest, ResetDraftRequest, ReviewCommandError, SaveDraftRequest
 from pronto_report.review.service import ReviewCommandService
 from pronto_report.validation import validate_report_data, validate_review_state
 from pronto_web.reports.models import ReportGrant, ReportRecord, ReportWriteGrant, ReviewRevision
@@ -95,6 +95,7 @@ def report_detail(request, report_id: str) -> HttpResponse:
         report, review, plot_images=plot_images, inline_assets=True,
         save_url=reverse("review-save", args=[record.report_id]) if draft else None,
         finalize_url=reverse("review-finalize", args=[record.report_id]) if draft else None,
+        reset_url=reverse("review-reset", args=[record.report_id]) if draft else None,
         csrf_token=csrf_token,
         require_initials=getattr(settings, 'PRONTO_REQUIRE_INITIALS', False),
         print_url=reverse('report-print', args=[record.report_id]),
@@ -272,6 +273,12 @@ def _save_error(exc: Exception) -> HttpResponse:
 @require_POST
 def save_review_revision(request, report_id: str) -> HttpResponse:
     return _review_command(request, report_id, SaveDraftRequest, "save")
+
+
+@csrf_protect
+@require_POST
+def reset_review_revision(request, report_id: str) -> HttpResponse:
+    return _review_command(request, report_id, ResetDraftRequest, "reset")
 
 
 @csrf_protect

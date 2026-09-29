@@ -66,6 +66,7 @@
   const dirtyLabel = document.getElementById("dirty-lbl");
   const reviewDownload = document.getElementById("download-review");
   const saveButton = document.getElementById("save-btn");
+  const resetButton = document.getElementById("reset-btn");
   const finalizeButton = document.getElementById("finalize-btn");
   const finalizeHint = document.getElementById("finalize-hint");
   const corrections = new Map();
@@ -73,12 +74,13 @@
   let savedCorrections = new Map();
   let reviewDirty = false;
   let saving = false;
+  let resetting = false;
   let finalizing = false;
   const attributionConfig = document.getElementById('attribution-config');
   const initialsRequired = attributionConfig?.dataset.required === 'true';
   let askingInitials = false;
-  async function actionInitials(action) {
-    if (!initialsRequired) return undefined;
+  async function actionInitials(action, force = false) {
+    if (!initialsRequired && !force) return undefined;
     if (askingInitials) return null;
     askingInitials = true;
     try { return await window.requestDeclaredInitials(action); }
@@ -102,13 +104,14 @@
 
   function refreshDirty() {
     const sourceDirty = corrections.size > 0 || removedCorrections.size > 0;
-    dirtyLabel.textContent = finalizing ? "Finalizing …" : saving ? "Saving …" : sourceDirty ? "Unsaved source corrections" :
+    dirtyLabel.textContent = resetting ? "Resetting …" : finalizing ? "Finalizing …" : saving ? "Saving …" : sourceDirty ? "Unsaved source corrections" :
       reviewDirty ? "Unsaved review" : saveButton?.dataset.saveUrl ? "All changes saved" : "Local view only";
     if (reviewDownload) reviewDownload.disabled = sourceDirty;
-    if (saveButton?.dataset.saveUrl) saveButton.disabled = saving || finalizing ||
+    if (saveButton?.dataset.saveUrl) saveButton.disabled = saving || resetting || finalizing ||
       reviewState.status !== "DRAFT" || (!sourceDirty && !reviewDirty);
+    if (resetButton) resetButton.disabled = saving || resetting || finalizing || reviewState.status !== "DRAFT";
     if (finalizeButton) {
-      finalizeButton.disabled = saving || finalizing || sourceDirty || reviewDirty || reviewState.status !== "DRAFT";
+      finalizeButton.disabled = saving || resetting || finalizing || sourceDirty || reviewDirty || reviewState.status !== "DRAFT";
       if (finalizeHint) finalizeHint.textContent = sourceDirty || reviewDirty ? "Save changes before finalizing." : "";
     }
   }
@@ -505,7 +508,7 @@
       return () => editableInputs.forEach((input, index) => { input.disabled = previouslyDisabled[index]; });
     }
     window.addEventListener("beforeunload", (event) => {
-      if (!reviewDirty && !corrections.size && !removedCorrections.size && !saving && !finalizing) return;
+      if (!reviewDirty && !corrections.size && !removedCorrections.size && !saving && !resetting && !finalizing) return;
       event.preventDefault();
       event.returnValue = "";
     });
@@ -521,7 +524,7 @@
       }
     });
     saveButton.addEventListener("click", async () => {
-      if (saving || askingInitials || (!reviewDirty && !corrections.size && !removedCorrections.size)) return;
+      if (saving || resetting || finalizing || askingInitials || (!reviewDirty && !corrections.size && !removedCorrections.size)) return;
       saveError.hidden = true;
       recovery.hidden = true;
       saveFeedback.hidden = true;
@@ -582,8 +585,56 @@
         updateReviewSummary();
       }
     });
+    if (resetButton) resetButton.addEventListener('click', async () => {
+      if (saving || resetting || finalizing || askingInitials || reviewState.status !== 'DRAFT') return;
+      if (!window.confirm(`Reset report ${reviewState.reportId} to its starting review state? Saved choices, notes, QC assessment and source corrections will be cleared. Earlier revisions remain in the audit history.`)) return;
+      const declaredInitials = await actionInitials('Initials for reset', true);
+      if (declaredInitials === null) return;
+      saveError.hidden = true;
+      recovery.hidden = true;
+      saveFeedback.hidden = true;
+      const baseRevision = reviewState.revision;
+      resetting = true;
+      const unlockInputs = lockInputs();
+      refreshDirty();
+      try {
+        const response = await fetch(resetButton.dataset.resetUrl, {
+          method: 'POST', credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json', 'X-CSRFToken': saveButton.dataset.csrfToken},
+          body: JSON.stringify({schemaVersion: '1.0', reportId: reviewState.reportId,
+                                baseRevision, declaredInitials}),
+        });
+        const result = await response.json();
+        if (response.status === 409 && result.error?.code === 'REVISION_CONFLICT') {
+          saveError.textContent = `This report is now at revision ${result.error.currentRevision}. Your local changes remain. Load the latest revision before resetting.`;
+          saveError.hidden = false;
+          recovery.hidden = false;
+          saveFeedback.hidden = false;
+          return;
+        }
+        if (!response.ok || result.review?.reportId !== reviewState.reportId ||
+            result.review?.revision !== baseRevision + 1 || result.audit?.action !== 'RESET_DRAFT') {
+          throw new Error('Reset was not confirmed');
+        }
+        Object.assign(reviewState, result.review);
+        reviewDirty = false;
+        corrections.clear();
+        removedCorrections.clear();
+        savedCorrections.clear();
+        window.location.reload();
+      } catch (_error) {
+        saveError.textContent = 'Reset could not be confirmed. Your local changes remain.';
+        saveError.hidden = false;
+        recovery.hidden = false;
+        saveFeedback.hidden = false;
+      } finally {
+        resetting = false;
+        unlockInputs();
+        refreshDirty();
+      }
+    });
     if (finalizeButton) finalizeButton.addEventListener("click", async () => {
-      if (saving || finalizing || askingInitials || reviewDirty || corrections.size || removedCorrections.size || reviewState.status !== "DRAFT") return;
+      if (saving || resetting || finalizing || askingInitials || reviewDirty || corrections.size || removedCorrections.size || reviewState.status !== "DRAFT") return;
       if (!window.confirm("Finalize this report? Further editing will be locked.")) return;
       const declaredInitials = await actionInitials('Initials for finalization');
       if (declaredInitials === null) return;

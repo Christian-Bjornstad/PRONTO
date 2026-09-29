@@ -57,3 +57,19 @@ class DemoAccessTests(TestCase):
             self.record.refresh_from_db()
             assert self.record.report_data == source
             assert client.get(f'/reports/{self.report.report_id}/alignments/anything/data/').status_code == 401
+
+    def test_demo_reset_is_scoped_to_allowlisted_report(self):
+        from pronto_web.reports.models import ReviewAudit
+        self.record.report_data['attachments'] = []
+        self.record.save()
+        with self.demo():
+            client = Client(HTTP_HOST='127.0.0.1')
+            reset = client.post(f'/reports/{self.report.report_id}/resets/', data={
+                'schemaVersion': '1.0', 'reportId': self.report.report_id,
+                'baseRevision': 1, 'declaredInitials': 'AB',
+            }, content_type='application/json')
+            assert reset.status_code == 201
+            assert reset.json()['review']['variantReviews'] == []
+            assert ReviewAudit.objects.get(report=self.record).action == 'RESET_DRAFT'
+            assert client.post('/reports/another-report/resets/', data={},
+                               content_type='application/json').status_code in (401, 404)

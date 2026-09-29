@@ -11,7 +11,7 @@ def demo_principal(request, report_id: str | None):
     reports = getattr(settings, 'PRONTO_DEMO_REPORTS', ())
     if not reports or (report_id is not None and report_id not in reports):
         return None
-    if request.resolver_match.url_name not in {'report-index', 'report-detail', 'review-save', 'review-finalize', 'report-print'}:
+    if request.resolver_match.url_name not in {'report-index', 'report-detail', 'review-save', 'review-reset', 'review-finalize', 'report-print'}:
         return None
     if request.META.get('REMOTE_ADDR') != '127.0.0.1' or request.get_host().split(':')[0] not in {'127.0.0.1', 'localhost'}:
         return None

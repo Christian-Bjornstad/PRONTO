@@ -22,6 +22,79 @@ def _live_report():
     )
 
 
+def test_reset_cancel_then_confirm_reloads_blank_saved_revision(browser):
+    report = build_report()
+    original = migrate_review_state_v1(draft_review(report))
+    base_url = f'/reports/{report.report_id}'
+    initial_html = render_html(report, original, inline_assets=True,
+        save_url=f'{base_url}/revisions/', reset_url=f'{base_url}/resets/',
+        csrf_token='test-csrf-token', actor_id='7', require_initials=True)
+    reset_document = json.loads(serialize_review_state(original))
+    reset_document.update(revision=2, variantReviews=[], runQcAssessment={'status': 'NOT_REVIEWED'},
+        valueCorrections=[], lastSavedAttribution={'declaredInitials': 'AB', 'method': 'SELF_REPORTED'})
+    reset_document['notes'].update(summary='', biomarkerContext='', additional='')
+    reset_review = validate_review_state(reset_document, report=report)
+    reset_html = render_html(report, reset_review, inline_assets=True,
+        save_url=f'{base_url}/revisions/', reset_url=f'{base_url}/resets/',
+        csrf_token='test-csrf-token', actor_id='7', require_initials=True)
+    with _serve(initial_html) as url:
+        context, page, diagnostics, _requests = _page(browser, initial_html)
+        state = {'reset': False, 'commands': []}
+        try:
+            page.route(url, lambda route: route.fulfill(status=200, content_type='text/html',
+                       body=reset_html if state['reset'] else initial_html))
+            def reset(route):
+                state['commands'].append(json.loads(route.request.post_data))
+                state['reset'] = True
+                route.fulfill(status=201, content_type='application/json',
+                              body=json.dumps({'schemaVersion': '1.0', 'review': reset_document,
+                                               'audit': {'action': 'RESET_DRAFT'}}))
+            page.route('**/resets/', reset)
+            page.goto(url)
+            page.locator('[data-include-variant]').first.click()
+            expect(page.locator('#dirty-lbl')).to_have_text('Unsaved review')
+            page.once('dialog', lambda dialog: dialog.dismiss())
+            page.get_by_role('button', name='Reset', exact=True).click()
+            assert state['commands'] == []
+            expect(page.locator('#dirty-lbl')).to_have_text('Unsaved review')
+            page.once('dialog', lambda dialog: dialog.accept())
+            page.get_by_role('button', name='Reset', exact=True).click()
+            page.get_by_label('Your initials').fill('AB')
+            page.get_by_role('button', name='Confirm', exact=True).click()
+            expect(page.locator('#board-saved-revision')).to_have_text('Saved revision: 2')
+            expect(page.locator('#dirty-lbl')).to_have_text('All changes saved')
+            assert page.locator('[data-include-variant][aria-pressed="true"]').count() == 0
+            assert state['commands'][0] == {'schemaVersion': '1.0', 'reportId': report.report_id,
+                                            'baseRevision': 1, 'declaredInitials': 'AB'}
+            assert diagnostics == []
+        finally:
+            context.close()
+
+
+def test_reset_conflict_retains_local_working_copy(browser):
+    report = build_report()
+    html = render_html(report, draft_review(report), inline_assets=True,
+        save_url='/save/', reset_url='/reset/', csrf_token='test', actor_id='7', require_initials=True)
+    with _serve(html) as url:
+        context, page, diagnostics, _requests = _page(browser, html)
+        try:
+            page.route('**/reset/', lambda route: route.fulfill(status=409,
+                content_type='application/json', body=json.dumps({'error': {
+                    'code': 'REVISION_CONFLICT', 'currentRevision': 2}})))
+            page.goto(url)
+            page.locator('[data-include-variant]').first.click()
+            page.once('dialog', lambda dialog: dialog.accept())
+            page.get_by_role('button', name='Reset', exact=True).click()
+            page.get_by_label('Your initials').fill('AB')
+            page.get_by_role('button', name='Confirm', exact=True).click()
+            expect(page.locator('#save-error')).to_contain_text('revision 2')
+            expect(page.locator('#dirty-lbl')).to_have_text('Unsaved review')
+            assert page.locator('[data-include-variant][aria-pressed="true"]').count() == 1
+            assert all('409' in message for message in diagnostics)
+        finally:
+            context.close()
+
+
 def test_explicit_save_advances_revision_once_and_never_autosaves(browser):
     html = _live_report()
     commands = []
