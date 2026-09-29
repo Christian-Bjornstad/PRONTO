@@ -25,9 +25,9 @@ def test_saved_corrections_show_source_and_review_values_in_draft_and_final():
     draft = validate_review_state(document, report=report)
     html = render_html(report, draft)
 
-    assert "Kilde: Ikke oppgitt" in html
-    assert "Lagret korreksjon: Syntetisk type" in html
-    assert "Lagret korreksjon: 12 mut/Mb" in html
+    assert "Source: Not reported" in html
+    assert "Saved correction: Syntetisk type" in html
+    assert "Saved correction: 12 mut/Mb" in html
     assert "Bekreftet i syntetisk kilde" in html
     assert "14,9 mut/Mb" in html
     assert 'value="Syntetisk type"' in html
@@ -36,8 +36,8 @@ def test_saved_corrections_show_source_and_review_values_in_draft_and_final():
                      "finalizedBy": "biologist-1", "updatedAt": "2026-09-24T13:00:00Z"})
     final = validate_review_state(document, report=report)
     final_html = render_html(report, final)
-    assert "Lagret korreksjon: Syntetisk type" in final_html
-    assert "Lagret korreksjon: 12 mut/Mb" in final_html
+    assert "Saved correction: Syntetisk type" in final_html
+    assert "Saved correction: 12 mut/Mb" in final_html
     assert 'id="tmb-edit-value"' not in final_html
 
 

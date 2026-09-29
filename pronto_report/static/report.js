@@ -88,28 +88,28 @@
     const element = document.getElementById('review-attribution');
     if (!element) return;
     const entries = [];
-    if (reviewState.lastSavedAttribution) entries.push(`Lagret av: ${reviewState.lastSavedAttribution.declaredInitials} (selvoppgitte initialer)`);
-    if (reviewState.finalizationAttribution) entries.push(`Ferdigstilt av: ${reviewState.finalizationAttribution.declaredInitials} (selvoppgitte initialer)`);
-    element.textContent = entries.join(' · ') || 'Initialer ikke registrert';
+    if (reviewState.lastSavedAttribution) entries.push(`Saved by: ${reviewState.lastSavedAttribution.declaredInitials} (self-reported initials)`);
+    if (reviewState.finalizationAttribution) entries.push(`Finalized by: ${reviewState.finalizationAttribution.declaredInitials} (self-reported initials)`);
+    element.textContent = entries.join(' · ') || 'No initials recorded';
+    element.hidden = entries.length === 0;
     const savedBy = document.getElementById('board-saved-attribution');
     if (savedBy) savedBy.textContent = reviewState.lastSavedAttribution
-      ? `Sist lagret av: ${reviewState.lastSavedAttribution.declaredInitials} (selvoppgitte initialer)`
-      : 'Sist lagret av: initialer ikke registrert';
+      ? `Last saved by: ${reviewState.lastSavedAttribution.declaredInitials} (self-reported initials)`
+      : 'Last saved by: no initials recorded';
     const savedRevision = document.getElementById('board-saved-revision');
-    if (savedRevision) savedRevision.textContent = `Lagret revisjon: ${reviewState.revision}`;
+    if (savedRevision) savedRevision.textContent = `Saved revision: ${reviewState.revision}`;
   }
 
   function refreshDirty() {
     const sourceDirty = corrections.size > 0 || removedCorrections.size > 0;
-    dirtyLabel.textContent = finalizing ? "Ferdigstiller …" : saving ? "Lagrer …" : sourceDirty ? "Ulagrede kildekorreksjoner" :
-      reviewDirty ? "Ulagret gjennomgang" : saveButton?.dataset.saveUrl ? "Alle endringer lagret" : "Kun lokal visning";
+    dirtyLabel.textContent = finalizing ? "Finalizing …" : saving ? "Saving …" : sourceDirty ? "Unsaved source corrections" :
+      reviewDirty ? "Unsaved review" : saveButton?.dataset.saveUrl ? "All changes saved" : "Local view only";
     if (reviewDownload) reviewDownload.disabled = sourceDirty;
     if (saveButton?.dataset.saveUrl) saveButton.disabled = saving || finalizing ||
       reviewState.status !== "DRAFT" || (!sourceDirty && !reviewDirty);
     if (finalizeButton) {
       finalizeButton.disabled = saving || finalizing || sourceDirty || reviewDirty || reviewState.status !== "DRAFT";
-      finalizeHint.textContent = sourceDirty || reviewDirty ? "Lagre endringene før ferdigstilling." :
-        "Ferdigstilling låser rapporten og krever bekreftelse.";
+      if (finalizeHint) finalizeHint.textContent = sourceDirty || reviewDirty ? "Save changes before finalizing." : "";
     }
   }
 
@@ -179,7 +179,10 @@
       refreshDirty();
     }
 
-    tmbGauge.addEventListener("input", () => updateTmb(tmbGauge.value));
+    tmbGauge.addEventListener("input", () => {
+      if (editButton && editButton.getAttribute('aria-pressed') !== 'true') editButton.click();
+      updateTmb(tmbGauge.value);
+    });
     number.addEventListener("change", () => updateTmb(number.value));
     reason.addEventListener("input", () => {
       updateReason(path, reason.value);
@@ -194,7 +197,7 @@
     input.addEventListener("change", () => {
       const value = Number(input.value);
       if (!input.value || !Number.isFinite(value) || value < 0 || value > 100) {
-        input.setCustomValidity("Oppgi en verdi mellom 0 og 100");
+        input.setCustomValidity("Enter a value between 0 and 100");
         input.reportValidity();
         return;
       }
@@ -228,7 +231,7 @@
     input.addEventListener("input", () => {
       const proposed = input.value.trim();
       const changed = proposed !== original;
-      field.querySelector("dd").textContent = proposed || "Ikke oppgitt";
+      field.querySelector("dd").textContent = proposed || "Not reported";
       field.dataset.correctionPending = String(changed);
       if (changed) {
         recordCorrection(path, {
@@ -287,7 +290,7 @@
       row.hidden = !row.dataset.search.includes(query) || !matchesReview;
       if (!row.hidden) visible += 1;
     });
-    count.textContent = `${visible} av ${rows.length} forekomster`;
+    count.textContent = `${visible} of ${rows.length} occurrences`;
     noMatch.hidden = visible !== 0 || rows.length === 0;
     const hasEligible = rows.some((row) => !row.hidden && decisionForRow(row) === "UNREVIEWED");
     bulkButtons.forEach((button) => { button.disabled = !hasEligible; });
@@ -314,13 +317,13 @@
     progress.max = Math.max(uniqueDecisions.size, 1);
     progress.value = reviewed;
     document.getElementById("review-progress").textContent =
-      `${reviewed} av ${uniqueDecisions.size} varianter vurdert`;
+      `${reviewed} of ${uniqueDecisions.size} variants reviewed`;
     document.querySelectorAll('#key-variant-table tr[data-variant-id]').forEach((row) => {
       const activity = activities.get(row.dataset.variantId);
       const decision = activity?.reportingDecision || 'UNREVIEWED';
       const igv = activity?.igvAssessment || 'NOT_REVIEWED';
-      const decisionLabel = { UNREVIEWED: 'Ikke vurdert', INCLUDE: 'Inkludert', EXCLUDE: 'Ekskludert' };
-      const igvLabel = { NOT_REVIEWED: 'Ikke vurdert', SUPPORTS: 'Støtter', DOES_NOT_SUPPORT: 'Støtter ikke', INCONCLUSIVE: 'Uavklart', NOT_APPLICABLE: 'Ikke relevant' };
+      const decisionLabel = { UNREVIEWED: 'Unreviewed', INCLUDE: 'Included', EXCLUDE: 'Excluded' };
+      const igvLabel = { NOT_REVIEWED: 'Not reviewed', SUPPORTS: 'Supports', DOES_NOT_SUPPORT: 'Does not support', INCONCLUSIVE: 'Inconclusive', NOT_APPLICABLE: 'Not applicable' };
       row.querySelector('[data-review-summary="decision"]').textContent = decisionLabel[decision];
       row.querySelector('[data-review-summary="decision"]').dataset.status = decision;
       row.querySelector('[data-review-summary="igv"]').textContent = igvLabel[igv];
@@ -328,7 +331,13 @@
     const decisions = Array.from(activities.values());
     document.getElementById('kpi-inc').textContent = String(decisions.filter((item) => item.reportingDecision === 'INCLUDE').length);
     document.getElementById('kpi-exc').textContent =
-      `${decisions.filter((item) => item.reportingDecision === 'EXCLUDE').length} ekskludert · ${reviewDirty ? 'ulagret gjennomgang' : `revisjon ${reviewState.revision}`}`;
+      `${decisions.filter((item) => item.reportingDecision === 'EXCLUDE').length} excluded · ${reviewDirty ? 'unsaved review' : `revision ${reviewState.revision}`}`;
+    rows.forEach((row) => {
+      row.querySelectorAll('[data-quick-field]').forEach((button) => {
+        const select = row.querySelector(`select[data-review-field="${button.dataset.quickField}"]`);
+        button.setAttribute('aria-pressed', String(select?.value === button.dataset.quickValue));
+      });
+    });
     filterRows();
   }
 
@@ -399,11 +408,11 @@
     printMdt.addEventListener("click", async () => {
       if (printing || askingInitials || saving || finalizing) return;
       if (attributionConfig?.dataset.printUrl && (reviewDirty || corrections.size || removedCorrections.size)) {
-        printStatus.textContent = 'Lagre endringene før utskrift.';
+        printStatus.textContent = 'Save changes before printing.';
         return;
       }
       if (!attributionConfig?.dataset.printUrl) {
-        printStatus.textContent = 'Lokal utskrift – ikke loggført i database.';
+        printStatus.textContent = 'Local print — not recorded in the database.';
         document.body.classList.add('print-mdt');
         window.print();
         return;
@@ -411,10 +420,10 @@
       printing = true;
       printMdt.disabled = true;
       try {
-        const initials = await window.requestDeclaredInitials('Initialer ved utskrift');
+        const initials = await window.requestDeclaredInitials('Initials for printing');
         if (initials === null) return;
         if (reviewDirty || corrections.size || removedCorrections.size || saving || finalizing) {
-          printStatus.textContent = 'Lagre endringene før utskrift.';
+          printStatus.textContent = 'Save changes before printing.';
           return;
         }
         const revision = reviewState.revision;
@@ -431,12 +440,12 @@
             event.revision !== revision || event.declaredInitials !== initials || event.method !== 'SELF_REPORTED' ||
             event.action !== 'PRINT_REQUESTED' || !Number.isFinite(Date.parse(event.requestedAt))) throw new Error('Print not acknowledged');
         if (reviewDirty || corrections.size || removedCorrections.size || reviewState.revision !== revision) throw new Error('Review changed');
-        printStatus.textContent = `Utskrift forespurt av ${initials} (selvoppgitte initialer) · revisjon ${revision} · ${event.requestedAt} · ${reviewState.status}`;
+        printStatus.textContent = `Print requested by ${initials} (self-reported initials) · revision ${revision} · ${event.requestedAt} · ${reviewState.status}`;
         pendingPrint = null;
         document.body.classList.add('print-mdt');
         window.print();
       } catch (_) {
-        printStatus.textContent = 'Utskrift er ikke loggført eller visningen er endret. Prøv igjen etter at siste revisjon er lagret.';
+        printStatus.textContent = 'Print was not recorded, or this view changed. Save the latest revision and try again.';
       } finally {
         printing = false;
         printMdt.disabled = false;
@@ -483,7 +492,7 @@
 
   if (saveButton?.dataset.saveUrl) {
     const editableInputs = Array.from(document.querySelectorAll(
-      '.report-edit-controls input, textarea[data-review-note], #variant-table select[data-review-field], #variant-table textarea[data-review-field], [data-bulk-decision], [data-include-variant], #qc-review-status, #qc-review-comment'
+      '.report-edit-controls input, textarea[data-review-note], #variant-table select[data-review-field], #variant-table textarea[data-review-field], [data-bulk-decision], [data-include-variant], [data-quick-field], #qc-review-status, #qc-review-comment'
     ));
     function lockInputs() {
       const previouslyDisabled = editableInputs.map((input) => input.disabled);
@@ -499,7 +508,7 @@
       downloadJson(localDraft(), "local-draft");
     });
     document.getElementById("reload-latest").addEventListener("click", () => {
-      if (window.confirm("Lokale endringer går tapt. Last inn nyeste lagrede revisjon?")) {
+      if (window.confirm("Local changes will be lost. Load the latest saved revision?")) {
         reviewDirty = false;
         corrections.clear();
         removedCorrections.clear();
@@ -513,13 +522,13 @@
       saveFeedback.hidden = true;
       const missingReason = Array.from(corrections.values()).find((item) => !item.reason);
       if (missingReason) {
-        saveError.textContent = "Begrunn alle kildekorreksjoner før du lagrer.";
+        saveError.textContent = "Give a reason for every source correction before saving.";
         saveError.hidden = false;
         saveFeedback.hidden = false;
         document.querySelector(`[data-correction-path="${missingReason.path}"]`)?.focus();
         return;
       }
-      const declaredInitials = await actionInitials('Initialer ved lagring');
+      const declaredInitials = await actionInitials('Initials for saving');
       if (declaredInitials === null) return;
       const baseRevision = reviewState.revision;
       const draft = localDraft();
@@ -527,7 +536,7 @@
       saving = true;
       const unlockInputs = lockInputs();
       refreshDirty();
-      feedback.textContent = "Lagrer endringene …";
+      feedback.textContent = "Saving changes …";
       try {
         const response = await fetch(saveButton.dataset.saveUrl, {
           method: "POST", credentials: "same-origin",
@@ -536,7 +545,7 @@
         });
         const result = await response.json();
         if (response.status === 409 && result.error?.code === "REVISION_CONFLICT") {
-          saveError.textContent = `En annen lagring finnes (revisjon ${result.error.currentRevision}). Dine lokale endringer er beholdt. Last dem ned før du eventuelt laster inn nyeste revisjon.`;
+          saveError.textContent = `Another saved revision exists (${result.error.currentRevision}). Your local changes remain. Download them before loading the latest revision.`;
           saveError.hidden = false;
           recovery.hidden = false;
           saveFeedback.hidden = false;
@@ -544,7 +553,7 @@
         }
         if (!response.ok || result.review?.reportId !== reviewState.reportId ||
             result.review?.revision !== baseRevision + 1) {
-          throw new Error("Lagringen ble ikke bekreftet. Endringene er fortsatt lokale.");
+          throw new Error("Save was not confirmed. Changes remain local.");
         }
         Object.assign(reviewState, result.review);
         updateAttribution();
@@ -554,10 +563,10 @@
         removedCorrections.clear();
         savedCorrections = new Map(reviewState.valueCorrections.map((item) => [item.path, item]));
         reviewDirty = false;
-        feedback.textContent = `Lagret som revisjon ${reviewState.revision}.`;
+        feedback.textContent = `Saved as revision ${reviewState.revision}.`;
         if (hadCorrectionEdits) window.location.reload();
       } catch (_error) {
-        saveError.textContent = "Kunne ikke bekrefte lagring. Endringene er fortsatt lokale. Prøv igjen, eller last ned en lokal kopi.";
+        saveError.textContent = "Save could not be confirmed. Changes remain local. Try again or download a local copy.";
         saveError.hidden = false;
         recovery.hidden = false;
         saveFeedback.hidden = false;
@@ -570,8 +579,8 @@
     });
     if (finalizeButton) finalizeButton.addEventListener("click", async () => {
       if (saving || finalizing || askingInitials || reviewDirty || corrections.size || removedCorrections.size || reviewState.status !== "DRAFT") return;
-      if (!window.confirm("Ferdigstille rapporten? Rapporten låses for videre redigering.")) return;
-      const declaredInitials = await actionInitials('Initialer ved ferdigstilling');
+      if (!window.confirm("Finalize this report? Further editing will be locked.")) return;
+      const declaredInitials = await actionInitials('Initials for finalization');
       if (declaredInitials === null) return;
       saveError.hidden = true;
       recovery.hidden = true;
@@ -592,7 +601,7 @@
         });
         const result = await response.json();
         if (response.status === 409 && result.error?.code === "REVISION_CONFLICT") {
-          saveError.textContent = `Rapporten er endret til revisjon ${result.error.currentRevision}. Lokale data er beholdt; last ned en kopi før du laster inn siste revisjon.`;
+          saveError.textContent = `This report is now at revision ${result.error.currentRevision}. Local data remains; download a copy before loading the latest revision.`;
           saveError.hidden = false;
           recovery.hidden = false;
           saveFeedback.hidden = false;
@@ -600,7 +609,7 @@
         }
         if (!response.ok || result.review?.reportId !== reviewState.reportId ||
             result.review?.revision !== baseRevision + 1 || result.review?.status !== "FINAL") {
-          throw new Error("Ferdigstilling ble ikke bekreftet.");
+          throw new Error("Finalization was not confirmed.");
         }
         Object.assign(reviewState, result.review);
         reviewDirty = false;
@@ -608,7 +617,7 @@
         removedCorrections.clear();
         completed = true;
       } catch (_error) {
-        saveError.textContent = "Kunne ikke bekrefte ferdigstilling. Rapporten beholdes som utkast i denne visningen. Kontroller nyeste lagrede revisjon før du prøver igjen.";
+        saveError.textContent = "Finalization could not be confirmed. This view remains a draft. Check the latest saved revision before trying again.";
         saveError.hidden = false;
         recovery.hidden = false;
         saveFeedback.hidden = false;
@@ -625,7 +634,7 @@
     document.querySelectorAll('[data-include-variant]').forEach((button) => {
       const included = activities.get(button.dataset.includeVariant)?.reportingDecision === 'INCLUDE';
       button.setAttribute('aria-pressed', String(included));
-      button.textContent = included ? 'Med i rapport' : 'Ta med i rapport';
+      button.textContent = included ? 'In report' : 'Add to report';
     });
     const list = document.getElementById("board-findings");
     if (!list) return;
@@ -640,10 +649,10 @@
       const gene = document.createElement("strong");
       gene.textContent = row.cells[0].textContent;
       item.append(gene);
-      item.append(` · ${row.cells[1].textContent} · ${row.cells[2].textContent} · Klassifikasjon: `);
+      item.append(` · ${row.cells[1].textContent} · ${row.cells[2].textContent} · Classification: `);
       item.append(row.querySelector('select[data-review-field="clinicalClassification"]').selectedOptions[0].textContent);
       const comment = row.querySelector('textarea[data-review-field="comment"]').value.trim();
-      if (comment) item.append(` · Kommentar: ${comment}`);
+      if (comment) item.append(` · Comment: ${comment}`);
       list.append(item);
     });
     list.hidden = shown.size === 0;
@@ -662,6 +671,16 @@
     });
   });
 
+  table.tBodies[0].addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-quick-field]');
+    if (!button || reviewState.status !== 'DRAFT' || saving || finalizing) return;
+    const select = button.closest('tr').querySelector(`select[data-review-field="${button.dataset.quickField}"]`);
+    if (!select) return;
+    const defaultValue = button.dataset.quickField === 'reportingDecision' ? 'UNREVIEWED' : 'UNCLASSIFIED';
+    select.value = select.value === button.dataset.quickValue ? defaultValue : button.dataset.quickValue;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+
   ['status', 'comment'].forEach((field) => {
     const input = document.getElementById(`qc-review-${field}`);
     input?.addEventListener(field === 'comment' ? 'input' : 'change', () => {
@@ -669,7 +688,7 @@
       reviewState.runQcAssessment[field] = input.value;
       reviewDirty = true;
       refreshDirty();
-      feedback.textContent = 'QC-vurderingen er endret. Lagre gjennomgangen for å bevare den.';
+      feedback.textContent = 'QC assessment changed. Save the review to keep it.';
     });
   });
 
@@ -681,7 +700,7 @@
       document.querySelector(`[data-print-note="${key}"]`).textContent = input.value;
       reviewDirty = true;
       refreshDirty();
-      feedback.textContent = "Endringer er ikke lagret. Last ned ReviewState for å bevare dem.";
+      feedback.textContent = "Changes are not saved. Download ReviewState to keep a local copy.";
     });
   });
 
@@ -705,9 +724,9 @@
     const eligible = new Set(rows.filter((row) => !row.hidden && decisionForRow(row) === "UNREVIEWED")
       .map((row) => row.querySelector("select[data-variant-id]").dataset.variantId));
     if (!eligible.size) return;
-    const noun = eligible.size === 1 ? "unik variant" : "unike varianter";
-    const action = button.dataset.bulkDecision === "INCLUDE" ? "inkludert" : "ekskludert";
-    if (!window.confirm(`Merk ${eligible.size} ${noun} som ${action}? Kun synlige, ikke-vurderte varianter endres. Kodende status er ikke verifisert.`)) return;
+    const noun = eligible.size === 1 ? "unique variant" : "unique variants";
+    const action = button.dataset.bulkDecision === "INCLUDE" ? "included" : "excluded";
+    if (!window.confirm(`Mark ${eligible.size} ${noun} as ${action}? Only visible, unreviewed variants will change.`)) return;
     eligible.forEach((variantId) => {
       activityFor(variantId).reportingDecision = button.dataset.bulkDecision;
     });
@@ -719,7 +738,7 @@
     refreshDirty();
     updateReviewSummary();
     updateBoardFindings();
-    feedback.textContent = `${eligible.size} ${noun} endret lokalt. Endringene er ikke lagret.`;
+    feedback.textContent = `${eligible.size} ${noun} changed locally. Changes are not saved.`;
   }));
 
   table.tBodies[0].addEventListener("change", (event) => {
@@ -737,7 +756,7 @@
     });
     updateReviewSummary();
     updateBoardFindings();
-    feedback.textContent = "Endringer er ikke lagret. Last ned ReviewState for å bevare dem.";
+    feedback.textContent = "Changes are not saved. Download ReviewState to keep a local copy.";
   });
 
   table.tBodies[0].addEventListener("input", (event) => {
@@ -751,7 +770,7 @@
     reviewDirty = true;
     refreshDirty();
     updateBoardFindings();
-    feedback.textContent = "Endringer er ikke lagret. Last ned ReviewState for å bevare dem.";
+    feedback.textContent = "Changes are not saved. Download ReviewState to keep a local copy.";
   });
 
   download.addEventListener("click", () => {
@@ -761,6 +780,6 @@
       exported.updatedAt = new Date().toISOString();
     }
     downloadJson(exported, "review-state");
-    feedback.textContent = "ReviewState er lastet ned. Oppbevar filen i godkjent lagring.";
+    feedback.textContent = "ReviewState downloaded. Store the file in approved storage.";
   });
 })();

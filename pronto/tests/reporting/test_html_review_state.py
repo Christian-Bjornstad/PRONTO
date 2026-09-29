@@ -43,7 +43,7 @@ def test_draft_review_keeps_decision_and_classification_independent():
     assert '<option value="EXCLUDE" selected>' in html
     assert '<option value="PATHOGENIC" selected>' in html
     assert 'id="review-state-data"' in html
-    assert "Last ned ReviewState" in html
+    assert "Download ReviewState" in html
 
 
 def test_final_review_locks_controls_and_shows_finalization_provenance():
@@ -60,8 +60,8 @@ def test_final_review_locks_controls_and_shows_finalization_provenance():
     review = validate_review_state(document, report=report)
 
     html = render_html(report, review)
-    assert "Rapportstatus: Endelig" in html
-    assert "Ferdigstilt av reviewer-002" in html
+    assert "Report status: Final" in html
+    assert "Finalized by reviewer-002" in html
     assert 'data-review-field="reportingDecision" disabled' in html
     assert 'data-review-field="clinicalClassification" disabled' in html
     assert 'data-review-field="igvAssessment" disabled' in html

@@ -62,11 +62,11 @@ def test_renderer_outputs_semantic_page_landmarks_and_modular_assets():
     assert "main" in tag_names
     assert "footer" in tag_names
     assert any(
-        tag == "link" and attrs.get("href") == "/pronto_report/static/report.css"
+        tag == "link" and attrs.get("href") == "/static/report.css"
         for tag, attrs in tags
     )
     assert any(
-        tag == "script" and attrs.get("src") == "/pronto_report/static/report.js"
+        tag == "script" and attrs.get("src") == "/static/report.js"
         for tag, attrs in tags
     )
     assert "{{" not in document
@@ -103,8 +103,7 @@ def test_renderer_exposes_identity_and_text_status_without_color_only_meaning():
     document = render_html(build_report())
 
     assert "IPD-TEST-001" in document
-    assert "report_test_001" in document
-    assert "Rapportstatus: Utkast" in document
+    assert "Report status: Draft" in document
 
 
 def test_igv_launcher_exists_only_in_authenticated_web_surface():
@@ -126,7 +125,7 @@ def test_igv_launcher_explains_unavailable_reference_build():
     web = render_html(report, inline_assets=True, snapshot=True, web_igv=True)
 
     assert 'data-igv-locus=' not in web
-    assert 'IGV utilgjengelig: ukjent eller ulikt referansegenom' in web
+    assert 'IGV unavailable: unknown or mismatched reference genome' in web
 
 
 def test_approved_report_renders_source_biomarkers_and_every_variant_occurrence():
@@ -144,8 +143,8 @@ def test_approved_report_renders_source_biomarkers_and_every_variant_occurrence(
 def test_empty_report_explains_missing_biomarkers_and_variants():
     document = render_html(build_report())
 
-    assert "Ingen biomarkørverdier tilgjengelig" in document
-    assert "Ingen varianter tilgjengelig" in document
+    assert "No biomarker values in source data" in document
+    assert "No variants in source data" in document
 
 
 def test_variant_and_measurement_text_is_escaped():

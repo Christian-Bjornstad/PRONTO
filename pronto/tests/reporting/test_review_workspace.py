@@ -12,10 +12,10 @@ def test_workspace_displays_depth_fixed_precision_and_pending_annotations():
     html = render_html(report)
     assert '<td>0,061</td>' in html
     assert 'data-vaf="0.06123456"' in html
-    assert 'Dybde tumor DNA' in html
+    assert 'Tumour DNA depth' in html
     assert 'OncoKB' in html
-    assert 'Ikke mottatt' in html
-    assert 'Ikke krysssjekket' in html
+    assert 'Not received' in html
+    assert 'Not cross-checked' in html
 
 
 def test_draft_has_selection_buttons_and_escaped_qc_comment():
@@ -25,7 +25,7 @@ def test_draft_has_selection_buttons_and_escaped_qc_comment():
     })
     html = render_html(report, review)
     assert 'data-include-variant=' in html
-    assert 'Ta med i rapport' in html
+    assert 'Include in report' in html
     assert 'id="qc-review-comment"' in html
     assert '&lt;script&gt;not executable&lt;/script&gt;' in html
     assert '<option value="CONDITIONAL" selected>' in html

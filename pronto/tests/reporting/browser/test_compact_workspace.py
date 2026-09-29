@@ -16,23 +16,23 @@ def test_compact_details_and_preview_count_follow_unique_selection(browser):
         context, page, diagnostics, requests = _page(browser, html)
         try:
             page.goto(url)
-            preview = page.get_by_role('link', name='Forhåndsvis rapport · 0 valgte funn')
+            preview = page.get_by_role('link', name='Preview report · 0 selected')
             playwright.expect(preview).to_be_visible()
             headings = page.locator('#variant-table thead').text_content()
             assert 'Forekomst-ID' not in headings
-            assert 'Kildetier' not in headings
-            for label in ('AF tumor', 'Dybde tumor DNA', 'OncoKB', 'Egen biomarkørliste'):
+            assert 'Source tier' not in headings
+            for label in ('AF tumour', 'Tumour DNA depth', 'OncoKB', 'Biomarker list'):
                 assert label in headings
             row = page.locator('#variant-table tbody tr').first
-            row.get_by_text('Detaljer', exact=True).click()
+            row.get_by_text('Details', exact=True).click()
             assert report.variants[0]['occurrenceId'] in row.locator('details').inner_text()
             assert report.variants[0]['variantId'] in row.locator('details').inner_text()
-            assert 'Kildetier' in row.locator('details').inner_text()
+            assert 'Source tier' in row.locator('details').inner_text()
             duplicate_id = report.variants[2]['variantId']
             duplicates = page.locator(f'[data-include-variant="{duplicate_id}"]')
             assert duplicates.count() == 2
             duplicates.first.click()
-            playwright.expect(page.locator('#preview-report')).to_have_text('Forhåndsvis rapport · 1 valgte funn')
+            playwright.expect(page.locator('#preview-report')).to_have_text('Preview report · 1 selected')
             page.locator('#variant-search').fill('CHEK2')
             page.locator('#preview-report').focus()
             page.keyboard.press('Enter')
@@ -40,7 +40,7 @@ def test_compact_details_and_preview_count_follow_unique_selection(browser):
             playwright.expect(page.locator('#tab-tumour-board')).to_be_focused()
             assert page.locator('#board-findings li').count() == 1
             assert 'TERT' in page.locator('#board-findings').inner_text()
-            page.get_by_role('tab', name='Variantgjennomgang').click()
+            page.get_by_role('tab', name='Variant review').click()
             page.locator('#variant-search').fill('')
             duplicates.last.click()
             playwright.expect(page.locator('#preview-selected-count')).to_have_text('0')
@@ -71,7 +71,7 @@ def test_compact_workspace_responsive_layout(browser, width, tmp_path):
                 header = page.locator('.report-topbar').bounding_box()
                 nav = page.locator('.report-nav').bounding_box()
                 assert abs(nav['y'] - (header['y'] + header['height'])) <= 1
-            page.get_by_role('link', name='Forhåndsvis rapport · 0 valgte funn').click()
+            page.get_by_role('link', name='Preview report · 0 selected').click()
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             cards = page.locator('.board-note-grid > *')
             assert cards.count() == 4
@@ -98,7 +98,7 @@ def test_preview_is_available_for_saved_and_read_only_selection(browser, snapsho
         context, page, diagnostics, requests = _page(browser, html)
         try:
             page.goto(url)
-            page.get_by_role('link', name='Forhåndsvis rapport · 1 valgte funn').click()
+            page.get_by_role('link', name='Preview report · 1 selected').click()
             assert page.locator('#panel-tumour-board').is_visible()
             assert page.locator('#board-findings li').count() == 1
             assert page.locator('.board-note-grid > *').count() == 4

@@ -17,7 +17,7 @@ def test_included_comment_and_classification_survive_server_rendering(snapshot):
     html = render_html(report, review, inline_assets=True, snapshot=snapshot)
     board = html.split('id="board-findings"', 1)[1].split('</ul>', 1)[0]
     assert 'Kontrollert &lt;ikke HTML&gt; &amp; diskutert i MDT.' in board
-    assert 'Klassifikasjon: Patogen' in board
+    assert 'Classification: Pathogenic' in board
     # The source contains two TERT occurrences, but the report includes it once.
     assert board.count('<li>') == 1
 

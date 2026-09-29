@@ -14,7 +14,7 @@
       const accept = () => {
         const raw = input.value.trim();
         if (!/^[A-Za-zÆØÅæøå]{2,8}$/.test(raw)) {
-          error.textContent = 'Oppgi 2–8 bokstaver som initialer.';
+          error.textContent = 'Enter 2–8 letters for your initials.';
           input.focus();
           return;
         }

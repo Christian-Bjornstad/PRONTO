@@ -47,7 +47,7 @@ def test_patient_strip_and_kpis_use_approved_facts_with_explicit_gaps():
     assert "Variants · include" in html
     assert "CNV / amplifications" in html
     assert "Fusions / splicing" in html
-    assert "Ikke oppgitt" in html
+    assert "Not reported" in html
     assert "CNS/Brain" not in html
 
 
@@ -57,8 +57,8 @@ def test_key_findings_summary_uses_only_source_backed_protein_changes():
     panel = html.split('id="panel-key-findings"', 1)[1].split("</section>", 1)[0]
     expected = [variant for variant in report.variants if variant.get("proteinChange")]
 
-    assert "Varianter med oppgitt proteinendring" in panel
-    assert "Coding status" not in panel
+    assert "Variants with a protein change" in panel
+    assert '<th scope="col">Coding</th>' in panel
     assert panel.count('class="key-variant-row"') == len(expected)
     for variant in expected:
         assert f'data-occurrence-id="{variant["occurrenceId"]}"' in panel
@@ -71,7 +71,7 @@ def test_key_findings_summary_handles_missing_protein_changes():
     panel = html.split('id="panel-key-findings"', 1)[1].split("</section>", 1)[0]
 
     assert 'class="key-variant-row"' not in panel
-    assert "Ingen varianter med oppgitt proteinendring" in panel
+    assert "No variants with a reported protein change" in panel
 
 
 def test_key_findings_summary_displays_zero_frequency_with_three_decimals():
@@ -82,10 +82,11 @@ def test_key_findings_summary_displays_zero_frequency_with_three_decimals():
         'id="panel-key-findings"', 1
     )[1].split("</section>", 1)[0]
 
-    assert "p.Test</td><td>0,000" in panel
+    test_row = next(row for row in panel.split('</tr>') if 'p.Test</td>' in row)
+    assert '<td>0,000</td>' in test_row
 
 
-def test_key_findings_joins_source_depth_with_review_without_inventing_coding_status():
+def test_key_findings_joins_source_depth_and_coding_annotation_with_review():
     report = build_report()
     review = replace(draft_review(report), variant_reviews=({
         'variantId': report.variants[0]['variantId'], 'reportingDecision': 'EXCLUDE',
@@ -95,12 +96,12 @@ def test_key_findings_joins_source_depth_with_review_without_inventing_coding_st
         'id="panel-key-findings"', 1
     )[1].split('</section>', 1)[0]
 
-    assert '<th scope="col">Dybde tumor DNA</th>' in panel
-    assert '<th scope="col">IGV-vurdering</th>' in panel
-    assert '<th scope="col">Rapportvalg</th>' in panel
-    assert 'data-review-summary="decision" data-status="EXCLUDE">Ekskludert</span>' in panel
-    assert 'data-review-summary="igv">Ikke vurdert</span>' in panel
-    assert 'Coding status' not in panel
+    assert '<th scope="col">Tumour DNA depth</th>' in panel
+    assert '<th scope="col">IGV QC</th>' in panel
+    assert '<th scope="col">Report</th>' in panel
+    assert 'data-review-summary="decision" data-status="EXCLUDE">Exclude</span>' in panel
+    assert 'data-review-summary="igv">Not reviewed</span>' in panel
+    assert '<th scope="col">Coding</th>' in panel
 
 
 def test_reference_visual_tokens_are_used_without_remote_font_dependency():

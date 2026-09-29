@@ -34,16 +34,16 @@ def test_initials_dialog_cancel_validation_save_and_print_failure(browser):
             assert commands == []
             page.locator('#declared-initials').fill('abø')
             page.locator('#initials-confirm').click()
-            playwright.expect(page.locator('#dirty-lbl')).to_have_text('Alle endringer lagret')
+            playwright.expect(page.locator('#dirty-lbl')).to_have_text('All changes saved')
             assert commands[0]['declaredInitials'] == 'ABØ'
             assert page.locator('#review-attribution').inner_text().find('ABØ') >= 0
-            page.get_by_role('tab', name='Molekylært tumorboard').click()
-            playwright.expect(page.locator('#board-saved-attribution')).to_have_text('Sist lagret av: ABØ (selvoppgitte initialer)')
-            playwright.expect(page.locator('#board-saved-revision')).to_have_text('Lagret revisjon: 2')
+            page.get_by_role('tab', name='Tumour board report').click()
+            playwright.expect(page.locator('#board-saved-attribution')).to_have_text('Last saved by: ABØ (self-reported initials)')
+            playwright.expect(page.locator('#board-saved-revision')).to_have_text('Saved revision: 2')
             page.locator('#print-mdt-btn').click()
             page.locator('#declared-initials').fill('CD')
             page.locator('#initials-confirm').click()
-            playwright.expect(page.locator('#print-status')).to_contain_text('ikke loggført')
+            playwright.expect(page.locator('#print-status')).to_contain_text('not recorded')
             assert page.locator('body').get_attribute('class') != 'print-mdt'
             assert all('503' in message for message in diagnostics)
         finally:
@@ -70,16 +70,16 @@ def test_print_retry_reuses_id_and_only_prints_after_acknowledgment(browser):
                         'action': 'PRINT_REQUESTED', 'requestedAt': '2026-09-26T12:00:00Z'}))
             page.route('**/print/', print_route)
             page.goto(url)
-            page.get_by_role('tab', name='Molekylært tumorboard').click()
+            page.get_by_role('tab', name='Tumour board report').click()
             for attempt in range(2):
                 page.locator('#print-mdt-btn').click()
                 page.locator('#declared-initials').fill('AB')
                 page.locator('#initials-confirm').click()
                 if attempt == 0:
-                    playwright.expect(page.locator('#print-status')).to_contain_text('ikke loggført')
+                    playwright.expect(page.locator('#print-status')).to_contain_text('not recorded')
                     assert page.evaluate('window.printEvents') == 0
                 else:
-                    playwright.expect(page.locator('#print-status')).to_contain_text('Utskrift forespurt av AB')
+                    playwright.expect(page.locator('#print-status')).to_contain_text('Print requested by AB')
             assert commands[0]['requestId'] == commands[1]['requestId']
             assert page.evaluate('window.printEvents') == 1
         finally:

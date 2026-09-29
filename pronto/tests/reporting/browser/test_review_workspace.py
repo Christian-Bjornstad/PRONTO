@@ -22,14 +22,14 @@ def test_selection_and_qc_are_preserved_in_download(browser):
             row.locator('[data-include-variant]').click()
             assert row.locator('[data-include-variant]').get_attribute('aria-pressed') == 'true'
             assert row.locator('[data-review-field="clinicalClassification"]').input_value() == 'UNCLASSIFIED'
-            page.get_by_role('tab', name='Molekylært tumorboard').click()
+            page.get_by_role('tab', name='Tumour board report').click()
             assert 'CHEK2' in page.locator('#board-findings').inner_text()
-            page.get_by_role('tab', name='Sekvenserings-QC').click()
+            page.get_by_role('tab', name='Sequencing QC').click()
             page.locator('#qc-review-status').select_option('CONDITIONAL')
             page.locator('#qc-review-comment').fill('Demo: kontroller dybde.')
-            page.get_by_role('tab', name='Variantgjennomgang').click()
+            page.get_by_role('tab', name='Variant review').click()
             with page.expect_download() as pending:
-                page.get_by_role('button', name='Last ned ReviewState').click()
+                page.get_by_role('button', name='Download ReviewState').click()
             saved = json.loads(Path(pending.value.path()).read_text(encoding='utf-8'))
             assert saved['runQcAssessment'] == {'status': 'CONDITIONAL', 'comment': 'Demo: kontroller dybde.'}
             assert any(v['variantId'] == report.variants[0]['variantId'] and v['reportingDecision'] == 'INCLUDE' for v in saved['variantReviews'])
@@ -73,7 +73,7 @@ def test_failed_save_preserves_workspace_and_blocks_audited_print(browser, failu
             page.goto(url)
             row = page.locator('#variant-table tbody tr').first
             row.locator('[data-include-variant]').click()
-            page.get_by_role('tab', name='Sekvenserings-QC').click()
+            page.get_by_role('tab', name='Sequencing QC').click()
             page.locator('#qc-review-status').select_option('CONDITIONAL')
             page.locator('#qc-review-comment').fill(comment)
             assert commands == []
@@ -90,9 +90,9 @@ def test_failed_save_preserves_workspace_and_blocks_audited_print(browser, failu
             }
             assert page.locator('#qc-review-status').input_value() == 'CONDITIONAL'
             assert page.locator('#qc-review-comment').input_value() == comment
-            assert page.locator('#dirty-lbl').inner_text() == 'Ulagret gjennomgang'
+            assert page.locator('#dirty-lbl').inner_text() == 'Unsaved review'
             if failure == 'conflict':
-                playwright.expect(page.locator('#save-error')).to_contain_text('revisjon 3')
+                playwright.expect(page.locator('#save-error')).to_contain_text('revision exists (3)')
             with page.expect_download() as pending:
                 page.locator('#export-local-draft').click()
             exported = deserialize_review_state(
@@ -102,12 +102,12 @@ def test_failed_save_preserves_workspace_and_blocks_audited_print(browser, failu
             assert exported.run_qc_assessment == {'status': 'CONDITIONAL', 'comment': comment}
             assert any(v['variantId'] == report.variants[0]['variantId'] and
                        v['reportingDecision'] == 'INCLUDE' for v in exported.variant_reviews)
-            page.get_by_role('tab', name='Variantgjennomgang').click()
+            page.get_by_role('tab', name='Variant review').click()
             assert row.locator('[data-include-variant]').get_attribute('aria-pressed') == 'true'
-            page.get_by_role('tab', name='Molekylært tumorboard').click()
+            page.get_by_role('tab', name='Tumour board report').click()
             assert 'CHEK2' in page.locator('#board-findings').inner_text()
             page.locator('#print-mdt-btn').click()
-            playwright.expect(page.locator('#print-status')).to_have_text('Lagre endringene før utskrift.')
+            playwright.expect(page.locator('#print-status')).to_have_text('Save changes before printing.')
             assert page.locator('#initials-dialog').is_visible() is False
             assert print_requests == []
             expected_error = {'conflict': '409', 'server': '503', 'network': 'ERR_FAILED'}[failure]

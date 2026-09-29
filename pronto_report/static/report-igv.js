@@ -40,7 +40,7 @@ if (panel) {
   function referenceForBuild(requestedBuild) {
     const reference = references[requestedBuild];
     if (!reference || !sameOriginPath(reference.fastaURL) || !sameOriginPath(reference.indexURL)) {
-      throw new Error(`Referansefiler for ${requestedBuild} er ikke konfigurert på denne serveren.`);
+      throw new Error(`Reference files for ${requestedBuild} are not configured on this server.`);
     }
     return { id: requestedBuild, name: requestedBuild, fastaURL: reference.fastaURL, indexURL: reference.indexURL };
   }
@@ -49,12 +49,12 @@ if (panel) {
     const dataFile = dataInput.files[0];
     const indexFile = indexInput.files[0];
     if (!dataFile || !indexFile || !dataFile.size || !indexFile.size) {
-      throw new Error("Velg både en BAM/CRAM-fil og tilhørende indeks.");
+      throw new Error("Select a BAM/CRAM file and its index.");
     }
     const format = dataFile.name.toLowerCase().endsWith(".bam") ? "bam" :
       dataFile.name.toLowerCase().endsWith(".cram") ? "cram" : null;
     if (!format || !(format === "bam" ? /\.(bai|csi)$/i : /\.crai$/i).test(indexFile.name)) {
-      throw new Error("Filformat og indeks passer ikke sammen.");
+      throw new Error("The file format and index do not match.");
     }
     return { dataFile, indexFile, format };
   }
@@ -69,7 +69,7 @@ if (panel) {
     if (saveError) saveError.hidden = true;
     if (saveButton) saveButton.disabled = true;
     activePair = null;
-    setStatus("Åpner IGV …");
+    setStatus("Opening IGV …");
     try {
       const reference = referenceForBuild(build);
       igvModule ??= (await import("./igv/igv.esm.min.js")).default;
@@ -96,7 +96,7 @@ if (panel) {
         await createdBrowser.search(locus);
         if (currentGeneration !== generation) return;
       }
-      setStatus(isLocal ? "Lokal fil åpnet i IGV. Ikke lagret." : `Registrert kilde åpnet: ${track.name}.`);
+      setStatus(isLocal ? "Local file opened in IGV. Not saved." : `Registered source opened: ${track.name}.`);
       localState.hidden = !isLocal;
       activePair = isLocal ? { kind: "local", dataFile: track.data, indexFile: track.index, format: track.format }
         : { kind: source.sourceId.startsWith("saved-") ? "saved" : "registered", source };
@@ -105,7 +105,7 @@ if (panel) {
     } catch (_error) {
       if (currentGeneration === generation) {
         viewer.replaceChildren();
-        setStatus(`IGV kunne ikke åpnes. ${_error.message || "Kontroller filer og referanse."}`);
+        setStatus(`IGV could not open. ${_error.message || "Check the files and reference."}`);
       }
     } finally {
       busy = false;
@@ -122,14 +122,14 @@ if (panel) {
       if (activeBrowser) {
         try {
           await activeBrowser.search(locus);
-          setStatus(`IGV flyttet til ${locus}.`);
+          setStatus(`IGV moved to ${locus}.`);
         } catch (_error) {
-          setStatus("Kunne ikke flytte IGV til denne varianten.");
+          setStatus("IGV could not move to this variant.");
         }
       } else {
         setStatus(document.getElementById("igv-registry-error")
-          ? "Registrerte kilder er utilgjengelige. Velg lokale filer eller kontakt administrator."
-          : sources.length ? "Velg en registrert kilde eller lokale filer." : "Ingen registrert kilde. Velg lokale filer.");
+          ? "Registered sources are unavailable. Select local files or contact your administrator."
+          : sources.length ? "Select a registered source or local files." : "No registered source. Select local files.");
       }
     });
   });
@@ -138,7 +138,7 @@ if (panel) {
     if (source.referenceBuild !== build || !sameOriginPath(source.dataURL) || !sameOriginPath(source.indexURL)) continue;
     const option = document.createElement("option");
     option.value = source.sourceId;
-    option.textContent = `${source.sourceId.startsWith("saved-") ? "Lagret · " : ""}${source.role.replaceAll("_", " ")} · ${source.format.toUpperCase()}`;
+    option.textContent = `${source.sourceId.startsWith("saved-") ? "Saved · " : ""}${source.role.replaceAll("_", " ")} · ${source.format.toUpperCase()}`;
     select.append(option);
   }
   select.disabled = select.options.length < 2;
@@ -146,7 +146,7 @@ if (panel) {
     if (uploadController) return;
     const source = sources.find((item) => item.sourceId === select.value && item.referenceBuild === build);
     if (!source || !sameOriginPath(source.dataURL) || !sameOriginPath(source.indexURL)) {
-      setStatus("Velg en registrert kilde først.");
+      setStatus("Select a registered source first.");
       return;
     }
     void openPair({ format: source.format, name: source.role, data: source.dataURL, index: source.indexURL }, false, source);
@@ -155,7 +155,7 @@ if (panel) {
     if (uploadController) return;
     try {
       const pair = selectedLocalPair();
-      void openPair({ format: pair.format, name: "Lokal fil", data: pair.dataFile, index: pair.indexFile }, true);
+      void openPair({ format: pair.format, name: "Local file", data: pair.dataFile, index: pair.indexFile }, true);
     } catch (error) {
       setStatus(error.message);
     }
@@ -179,15 +179,15 @@ if (panel) {
     function csrfToken() {
       const token = document.cookie.split(";").map((item) => item.trim())
         .find((item) => item.startsWith("csrftoken="));
-      if (!token) throw new Error("CSRF-token mangler. Last inn rapporten på nytt.");
+      if (!token) throw new Error("CSRF token is missing. Reload the report.");
       return decodeURIComponent(token.slice("csrftoken=".length));
     }
 
     async function checkedFetch(url, options) {
       const response = await fetch(url, { credentials: "same-origin", cache: "no-store", ...options });
       if (!response.ok) {
-        if (response.status === 409) throw new Error("Et annet filpar er allerede lagret for denne prøven og rollen.");
-        throw new Error(`Lagring feilet (${response.status}). Filene er ikke lagret.`);
+        if (response.status === 409) throw new Error("Another file pair is already saved for this sample and role.");
+        throw new Error(`Save failed (${response.status}). Files were not saved.`);
       }
       return response;
     }
@@ -222,9 +222,9 @@ if (panel) {
       const role = activePair.kind === "local" ? roleSelect.value : activePair.source.role;
       const details = activePair.kind === "local"
         ? `${activePair.dataFile.name} + ${activePair.indexFile.name} (${(
-          activePair.dataFile.size + activePair.indexFile.size).toLocaleString("nb-NO")} byte)`
-        : `Registrert kilde: ${activePair.source.sourceId}`;
-      summary.textContent = `Prøve ${sampleId} · ${build} · ${role.replaceAll("_", " ")} · ${details}`;
+          activePair.dataFile.size + activePair.indexFile.size).toLocaleString("en-US")} bytes)`
+        : `Registered source: ${activePair.source.sourceId}`;
+      summary.textContent = `Sample ${sampleId} · ${build} · ${role.replaceAll("_", " ")} · ${details}`;
       saveDialog.showModal();
     });
     document.getElementById("igv-confirm-cancel").addEventListener("click", () => saveDialog.close());
@@ -273,19 +273,19 @@ if (panel) {
           });
           saved = await response.json();
         }
-        if (!saved?.sourceId?.startsWith("saved-")) throw new Error("Uventet bekreftelse fra serveren.");
+        if (!saved?.sourceId?.startsWith("saved-")) throw new Error("Unexpected server response.");
         activePair = { kind: "saved", source: { sourceId: saved.sourceId } };
         localState.hidden = true;
         savedState.hidden = false;
-        setStatus("Lagret for senere bruk.");
+        setStatus("Saved for later use.");
       } catch (error) {
         if (!finalizationStarted && uploadSession && token) await cancelSession(uploadSession, token);
         saveError.textContent = finalizationStarted
-          ? "Lagringsstatus er usikker. Last inn rapporten på nytt og kontroller lagrede kilder før du prøver igjen."
-          : error.name === "AbortError" ? "Opplasting avbrutt. Filene er ikke lagret."
-            : error.message || "Filene er ikke lagret.";
+          ? "Save status is uncertain. Reload the report and check saved sources before retrying."
+          : error.name === "AbortError" ? "Upload cancelled. Files were not saved."
+            : error.message || "Files were not saved.";
         saveError.hidden = false;
-        setStatus(finalizationStarted ? "Kontroller lagringsstatus." : "Ikke lagret.");
+        setStatus(finalizationStarted ? "Check save status." : "Not saved.");
         saveButton.disabled = false;
       } finally {
         uploadSession = null;
@@ -308,7 +308,7 @@ if (panel) {
     if (saveButton) saveButton.disabled = true;
     if (savedState) savedState.hidden = true;
     if (saveError) saveError.hidden = true;
-    setStatus("Velg en variant.");
+    setStatus("Select a variant.");
     launcher?.focus();
   }
   document.getElementById("igv-close").addEventListener("click", closePanel);

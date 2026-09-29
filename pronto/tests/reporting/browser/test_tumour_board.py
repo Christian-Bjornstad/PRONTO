@@ -27,7 +27,7 @@ def test_read_only_export_print_preserves_included_variant_comment(browser):
         context, page, diagnostics, requests = _page(browser, html)
         try:
             page.goto(url)
-            page.get_by_role('tab', name='Molekylært tumorboard').click()
+            page.get_by_role('tab', name='Tumour board report').click()
             assert page.locator('#board-findings').inner_text().count('Kontrollert i IGV.') == 1
             assert page.locator('#board-findings script').count() == 0
             pdf = page.pdf()
@@ -46,15 +46,15 @@ def test_three_board_notes_update_preview_and_review_export_without_network_writ
         context, page, diagnostics, requests = _page(browser, html)
         try:
             page.goto(url)
-            page.get_by_role("tab", name="Molekylært tumorboard").click()
+            page.get_by_role("tab", name="Tumour board report").click()
             page.get_by_label("Interpretation summary").fill("Oppsummert funn")
-            page.get_by_label("Biomarkører og terapeutisk kontekst").fill("TMB og MSI vurdert")
-            page.get_by_label("Tilleggskommentarer").fill("Drøftes i MDT")
-            assert page.locator("#dirty-lbl").inner_text() == "Ulagret gjennomgang"
+            page.get_by_label("Biomarkers and therapeutic context").fill("TMB og MSI vurdert")
+            page.get_by_label("Additional comments").fill("Drøftes i MDT")
+            assert page.locator("#dirty-lbl").inner_text() == "Unsaved review"
             assert page.locator('[data-print-note="summary"]').inner_text() == "Oppsummert funn"
-            page.get_by_role("tab", name="Variantgjennomgang").click()
+            page.get_by_role("tab", name="Variant review").click()
             with page.expect_download() as pending:
-                page.get_by_role("button", name="Last ned ReviewState").click()
+                page.get_by_role("button", name="Download ReviewState").click()
             saved = json.loads(Path(pending.value.path()).read_text(encoding="utf-8"))
             assert saved["notes"] == {
                 "summary": "Oppsummert funn",
@@ -76,17 +76,17 @@ def test_board_findings_follow_review_changes_and_keep_duplicate_variant_once(br
         context, page, diagnostics, requests = _page(browser, html)
         try:
             page.goto(url)
-            page.get_by_role("tab", name="Molekylært tumorboard").click()
+            page.get_by_role("tab", name="Tumour board report").click()
             assert page.locator("#board-findings li").count() == 1
-            page.get_by_role("tab", name="Variantgjennomgang").click()
+            page.get_by_role("tab", name="Variant review").click()
             tert = review.variant_reviews[0]["variantId"]
             page.locator(f'select[data-variant-id="{tert}"][data-review-field="reportingDecision"]').first.select_option("EXCLUDE")
-            page.get_by_role("tab", name="Molekylært tumorboard").click()
+            page.get_by_role("tab", name="Tumour board report").click()
             assert page.locator("#board-findings li").count() == 0
-            assert page.get_by_text("Ingen funn er markert for rapportering.").is_visible()
-            page.get_by_role("tab", name="Variantgjennomgang").click()
+            assert page.get_by_text("No findings selected for the report.").is_visible()
+            page.get_by_role("tab", name="Variant review").click()
             page.locator('select[data-review-field="reportingDecision"]').first.select_option("INCLUDE")
-            page.get_by_role("tab", name="Molekylært tumorboard").click()
+            page.get_by_role("tab", name="Tumour board report").click()
             assert page.locator("#board-findings li").count() == 1
             assert requests == [url]
             assert diagnostics == []
@@ -104,14 +104,14 @@ def test_generated_mdt_print_contains_only_current_included_reviewed_findings(br
             page.add_init_script("window.print = () => { window.__printCalls = (window.__printCalls || 0) + 1; }")
             page.set_default_timeout(3000)
             page.goto(url)
-            page.get_by_role("tab", name="Variantgjennomgang").click()
+            page.get_by_role("tab", name="Variant review").click()
             tert = review.variant_reviews[0]["variantId"]
             page.locator(f'select[data-variant-id="{tert}"][data-review-field="reportingDecision"]').first.select_option("EXCLUDE")
             page.locator('select[data-review-field="reportingDecision"]').first.select_option("INCLUDE")
             page.locator('textarea[data-review-field="comment"]').first.fill("Kontrollert i IGV")
-            page.get_by_role("tab", name="Molekylært tumorboard").click()
+            page.get_by_role("tab", name="Tumour board report").click()
             page.get_by_label("Interpretation summary").fill("Diskuteres i møte")
-            page.get_by_role("button", name="Generer MDT-utskrift").click()
+            page.get_by_role("button", name="Print MDT report").click()
             assert page.evaluate("window.__printCalls") == 1
             assert page.locator("body").get_attribute("class") == "print-mdt"
             page.emulate_media(media="print")
@@ -123,8 +123,8 @@ def test_generated_mdt_print_contains_only_current_included_reviewed_findings(br
             assert "TERT" not in printed
             assert "Diskuteres i møte" in printed
             assert "Kontrollert i IGV" in printed
-            assert "ikke signert" in printed.lower()
-            assert "Variantgjennomgang" not in printed
+            assert "not signed" in printed.lower()
+            assert "Variant review" not in printed
             page.evaluate("window.dispatchEvent(new Event('afterprint'))")
             assert page.locator("body").get_attribute("class") == ""
             assert requests == [url]

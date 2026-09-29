@@ -37,12 +37,12 @@ def test_unsaved_changes_disable_finalization_and_cancel_does_not_write(browser)
                 dialog.dismiss()
             page.once("dialog", cancel)
             final.click()
-            assert messages == ['Ferdigstille rapporten? Rapporten låses for videre redigering.']
+            assert messages == ['Finalize this report? Further editing will be locked.']
             assert requests == [url]
-            page.get_by_role("tab", name="Molekylært tumorboard").click()
+            page.get_by_role("tab", name="Tumour board report").click()
             page.locator('textarea[data-review-note="summary"]').fill("Ulagret syntetisk notat")
             assert final.is_disabled()
-            assert "Lagre endringene" in page.locator("#finalize-hint").inner_text()
+            assert page.locator("#finalize-hint").count() == 0
             assert requests == [url]
             assert diagnostics == []
         finally:
@@ -74,7 +74,7 @@ def test_confirmed_finalization_reloads_locked_server_snapshot(browser):
             page.route("**/finalizations/", finalize)
             page.once("dialog", lambda dialog: dialog.accept())
             page.locator("#finalize-btn").click()
-            expect(page.locator(".status-badge")).to_have_text("Rapportstatus: Endelig")
+            expect(page.locator(".status-badge")).to_have_text("Report status: Final")
             assert commands[0]["baseRevision"] == 1
             assert commands[0]["draft"]["status"] == "DRAFT"
             assert page.locator("#finalize-btn").count() == 0
@@ -99,10 +99,10 @@ def test_finalization_conflict_preserves_draft_and_offers_recovery(browser):
             page.goto(url)
             page.once("dialog", lambda dialog: dialog.accept())
             page.locator("#finalize-btn").click()
-            expect(page.locator("#save-error")).to_contain_text("revisjon 2")
+            expect(page.locator("#save-error")).to_contain_text("revision 2")
             assert page.locator("#export-local-draft").is_visible()
             assert page.locator("#finalize-btn").is_enabled()
-            assert page.locator(".status-badge").text_content() == "Rapportstatus: Utkast"
+            assert page.locator(".status-badge").text_content() == "Report status: Draft"
             assert all("409" in item for item in diagnostics)
         finally:
             context.close()
@@ -118,12 +118,12 @@ def test_failed_finalization_keeps_draft_editable(browser):
             page.goto(url)
             page.once("dialog", lambda dialog: dialog.accept())
             page.locator("#finalize-btn").click()
-            expect(page.locator("#save-error")).to_contain_text("Kunne ikke bekrefte ferdigstilling")
+            expect(page.locator("#save-error")).to_contain_text("Finalization could not be confirmed")
             assert page.locator("#finalize-btn").is_enabled()
-            assert page.locator(".status-badge").text_content() == "Rapportstatus: Utkast"
-            page.get_by_role("tab", name="Molekylært tumorboard").click()
+            assert page.locator(".status-badge").text_content() == "Report status: Draft"
+            page.get_by_role("tab", name="Tumour board report").click()
             note = page.locator('textarea[data-review-note="summary"]')
             note.fill("Kan fortsatt redigeres")
-            assert page.locator("#dirty-lbl").inner_text() == "Ulagret gjennomgang"
+            assert page.locator("#dirty-lbl").inner_text() == "Unsaved review"
         finally:
             context.close()

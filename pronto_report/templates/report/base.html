@@ -1,16 +1,16 @@
 <!doctype html>
-<html lang="nb">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <link rel="icon" href="data:,">
   {{ csp_meta }}
-  <title>PRONTO-rapport – {{ sample_id }}</title>
+  <title>PRONTO report – {{ sample_id }}</title>
   {{ stylesheet_tag }}
 </head>
 <body>
-  <a class="skip-link" href="#report-content">Gå til rapportinnhold</a>
+  <a class="skip-link" href="#report-content">Skip to report</a>
   <header class="report-topbar">
     <div class="report-topbar__inner">
       <div class="report-topbar__brand">
@@ -18,24 +18,24 @@
         <h1>InPreD · MTB Report</h1>
       </div>
       <span class="report-topbar__sample">{{ sample_id }}</span>
-      <span class="status-badge status-badge--{{ status_code }}">Rapportstatus: {{ status_label }}</span>
+      <span class="status-badge status-badge--{{ status_code }}">Report status: {{ status_label }}</span>
       <div class="report-topbar__actions">
         {{ topbar_actions }}
       </div>
     </div>
-    <p class="report-topbar__meta">Rapport-ID {{ report_id }} <span>{{ revision_label }}</span> <span>{{ finalization }}</span></p>
+    <p class="report-topbar__meta"><span>{{ revision_label }}</span> <span>{{ finalization }}</span></p>
   </header>
   {{ save_feedback }}
   {{ attribution_controls }}
 
-  <nav class="report-nav" aria-label="Rapportseksjoner">
+  <nav class="report-nav" aria-label="Report sections">
     <div class="report-nav__scroller">
-      <div class="report-tabs" role="tablist" aria-label="Rapportvisninger">
-        <button class="report-tab" type="button" role="tab" id="tab-key-findings" aria-controls="panel-key-findings" aria-selected="true" tabindex="0">Nøkkelfunn</button>
-        <button class="report-tab" type="button" role="tab" id="tab-variant-review" aria-controls="panel-variant-review" aria-selected="false" tabindex="-1">Variantgjennomgang <span class="report-tab__count">{{ variant_count }}</span></button>
-        <button class="report-tab" type="button" role="tab" id="tab-cnv-plots" aria-controls="panel-cnv-plots" aria-selected="false" tabindex="-1">CNV-plott</button>
-        <button class="report-tab" type="button" role="tab" id="tab-sequencing-qc" aria-controls="panel-sequencing-qc" aria-selected="false" tabindex="-1">Sekvenserings-QC</button>
-        <button class="report-tab" type="button" role="tab" id="tab-tumour-board" aria-controls="panel-tumour-board" aria-selected="false" tabindex="-1">Molekylært tumorboard</button>
+      <div class="report-tabs" role="tablist" aria-label="Report views">
+        <button class="report-tab" type="button" role="tab" id="tab-key-findings" aria-controls="panel-key-findings" aria-selected="true" tabindex="0">Key findings</button>
+        <button class="report-tab" type="button" role="tab" id="tab-variant-review" aria-controls="panel-variant-review" aria-selected="false" tabindex="-1">Variant review <span class="report-tab__count">{{ variant_count }}</span></button>
+        <button class="report-tab" type="button" role="tab" id="tab-cnv-plots" aria-controls="panel-cnv-plots" aria-selected="false" tabindex="-1">CNV plots</button>
+        <button class="report-tab" type="button" role="tab" id="tab-sequencing-qc" aria-controls="panel-sequencing-qc" aria-selected="false" tabindex="-1">Sequencing QC</button>
+        <button class="report-tab" type="button" role="tab" id="tab-tumour-board" aria-controls="panel-tumour-board" aria-selected="false" tabindex="-1">Tumour board report</button>
       </div>
     </div>
   </nav>
@@ -48,12 +48,9 @@
     {% include "report/tumour-board.html" %}
   </main>
 
-  <footer class="report-footer">
-    <p>PRONTO · Rapport {{ report_id }} · Status: {{ status_label }}</p>
-    {{ provenance }}
-  </footer>
-  <dialog id="plot-dialog" aria-label="Forstørret plott">
-    <button type="button" id="close-plot">Lukk plott</button>
+  <footer class="report-footer">{{ provenance }}</footer>
+  <dialog id="plot-dialog" aria-label="Enlarged plot">
+    <button type="button" id="close-plot">Close plot</button>
     <img id="dialog-plot-image" alt="">
     <p id="dialog-plot-caption"></p>
   </dialog>

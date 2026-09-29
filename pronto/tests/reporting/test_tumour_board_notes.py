@@ -20,9 +20,9 @@ def test_v2_board_shows_three_separate_editable_note_fields():
     assert '<textarea id="note-summary"' in panel
     assert '<textarea id="note-biomarker-context"' in panel
     assert '<textarea id="note-additional"' in panel
-    assert "Kort oppsummering" in panel
+    assert "Interpretation summary" in panel
     assert "TMB vurdert" in panel
-    assert "Ferdigstilling krever lagret gjennomgang" in panel
+    assert "Draft — not signed" in panel
 
 
 def test_v1_board_migrates_legacy_text_without_reinterpreting_it():

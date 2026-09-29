@@ -16,7 +16,8 @@ def test_draft_has_reference_style_tmb_gauge_and_reason_field():
     assert 'id="tmb-correction-reason"' in html
     assert 'data-original-value="14.9"' in html
     assert 'id="edit-btn" type="button" aria-pressed="false"' in html
-    assert 'class="tmb-gauge report-edit-controls" hidden' in html
+    assert 'class="tmb-gauge"' in html
+    assert 'class="tmb-gauge__details report-edit-controls" hidden' in html
 
 
 def test_draft_patient_context_fields_are_editable_corrections():
@@ -25,7 +26,7 @@ def test_draft_patient_context_fields_are_editable_corrections():
 
     assert 'data-correction-path="/sample/tumourType"' in html
     assert 'data-correction-path="/sample/specimenType"' in html
-    assert 'data-source-value="Ikke oppgitt"' in html
+    assert 'data-source-value="Not reported"' in html
     assert 'id="tumourType-correction-reason"' in html
 
 

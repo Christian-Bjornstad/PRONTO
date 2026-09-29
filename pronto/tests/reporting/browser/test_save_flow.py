@@ -36,26 +36,26 @@ def test_explicit_save_advances_revision_once_and_never_autosaves(browser):
 
             page.route("**/revisions/", save)
             page.goto(url)
-            page.get_by_role("tab", name="Molekylært tumorboard").click()
+            page.get_by_role("tab", name="Tumour board report").click()
             page.locator('textarea[data-review-note="summary"]').fill("Syntetisk oppsummering")
             assert commands == []
-            assert page.locator("#dirty-lbl").inner_text() == "Ulagret gjennomgang"
+            assert page.locator("#dirty-lbl").inner_text() == "Unsaved review"
             assert page.evaluate("window.dispatchEvent(new Event('beforeunload', {cancelable:true}))") is False
             page.locator("#save-btn").click()
-            expect(page.locator("#review-feedback")).to_have_text("Lagret som revisjon 2.")
-            assert page.locator("#dirty-lbl").inner_text() == "Alle endringer lagret"
+            expect(page.locator("#review-feedback")).to_have_text("Saved as revision 2.")
+            assert page.locator("#dirty-lbl").inner_text() == "All changes saved"
             assert page.locator("#save-btn").is_disabled()
             assert len(commands) == 1
             assert commands[0]["baseRevision"] == 1
             assert commands[0]["draft"]["notes"]["summary"] == "Syntetisk oppsummering"
             page.locator('textarea[data-review-note="summary"]').fill("Neste syntetiske revisjon")
-            page.get_by_role("tab", name="Variantgjennomgang").click()
+            page.get_by_role("tab", name="Variant review").click()
             with page.expect_download() as pending:
                 page.locator("#download-review").click()
             exported = json.loads(Path(pending.value.path()).read_text(encoding="utf-8"))
             assert exported["revision"] == 2
             page.locator("#save-btn").click()
-            expect(page.locator("#review-feedback")).to_have_text("Lagret som revisjon 3.")
+            expect(page.locator("#review-feedback")).to_have_text("Saved as revision 3.")
             assert len(commands) == 2
             assert commands[1]["baseRevision"] == 2
             assert page.evaluate("localStorage.length") == 0
@@ -76,14 +76,14 @@ def test_conflict_keeps_edit_and_offers_local_export(browser):
                 }}),
             ))
             page.goto(url)
-            page.get_by_role("tab", name="Molekylært tumorboard").click()
+            page.get_by_role("tab", name="Tumour board report").click()
             note = page.locator('textarea[data-review-note="summary"]')
             note.fill("Lokal tekst som må beholdes")
             page.locator("#save-btn").click()
-            expect(page.locator("#save-error")).to_contain_text("revisjon 3")
+            expect(page.locator("#save-error")).to_contain_text("revision exists (3)")
             assert page.locator("#save-error").get_attribute("role") == "alert"
             assert note.input_value() == "Lokal tekst som må beholdes"
-            assert page.locator("#dirty-lbl").inner_text() == "Ulagret gjennomgang"
+            assert page.locator("#dirty-lbl").inner_text() == "Unsaved review"
             with page.expect_download() as pending:
                 page.locator("#export-local-draft").click()
             exported = json.loads(Path(pending.value.path()).read_text(encoding="utf-8"))
@@ -106,12 +106,12 @@ def test_failed_save_preserves_correction_and_requires_reason(browser):
             ))
             page.goto(url)
             page.locator("#edit-btn").click()
-            page.get_by_role("tab", name="Nøkkelfunn").click()
+            page.get_by_role("tab", name="Key findings").click()
             page.locator("#tmb-edit-value").fill("12")
             page.locator("#tmb-edit-value").dispatch_event("change")
             page.locator("#save-btn").click()
             assert commands == []
-            assert "Begrunn" in page.locator("#save-error").inner_text()
+            assert "Give a reason" in page.locator("#save-error").inner_text()
             page.locator("#tmb-correction-reason").fill("Syntetisk kontroll")
             with page.expect_request("**/revisions/"):
                 page.locator("#save-btn").click()
@@ -119,7 +119,7 @@ def test_failed_save_preserves_correction_and_requires_reason(browser):
             correction = commands[0]["draft"]["valueCorrections"][-1]
             assert correction["author"] == "7"
             assert correction["reason"] == "Syntetisk kontroll"
-            expect(page.locator("#dirty-lbl")).to_have_text("Ulagrede kildekorreksjoner")
+            expect(page.locator("#dirty-lbl")).to_have_text("Unsaved source corrections")
             assert page.locator("#tmb-edit-value").input_value() == "12"
             assert all("422" in item for item in diagnostics)
         finally:
@@ -133,13 +133,13 @@ def test_network_failure_does_not_claim_the_draft_was_saved(browser):
         try:
             page.route("**/revisions/", lambda route: route.abort("failed"))
             page.goto(url)
-            page.get_by_role("tab", name="Molekylært tumorboard").click()
+            page.get_by_role("tab", name="Tumour board report").click()
             note = page.locator('textarea[data-review-note="summary"]')
             note.fill("Syntetisk lokalt utkast")
             page.locator("#save-btn").click()
-            expect(page.locator("#save-error")).to_contain_text("Kunne ikke bekrefte lagring")
+            expect(page.locator("#save-error")).to_contain_text("Save could not be confirmed")
             assert note.input_value() == "Syntetisk lokalt utkast"
-            assert page.locator("#dirty-lbl").inner_text() == "Ulagret gjennomgang"
+            assert page.locator("#dirty-lbl").inner_text() == "Unsaved review"
             assert page.locator("#save-btn").is_enabled()
         finally:
             context.close()
@@ -168,14 +168,14 @@ def test_saved_correction_can_be_removed_without_changing_source(browser):
                 route.fulfill(status=422, content_type="application/json", body='{"error":{"code":"INVALID_DRAFT"}}'),
             ))
             page.goto(url)
-            assert "Lagret korreksjon: Syntetisk korrigert" in page.locator('[data-fact="tumourType"]').text_content()
-            assert page.locator('[data-fact="tumourType"] dd').text_content() == "Ikke oppgitt"
+            assert "Saved correction: Syntetisk korrigert" in page.locator('[data-fact="tumourType"]').text_content()
+            assert page.locator('[data-fact="tumourType"] dd').text_content() == "Not reported"
             page.locator("#edit-btn").click()
             field = page.locator("#tumourType-edit")
-            page.get_by_role("tab", name="Nøkkelfunn").click()
+            page.get_by_role("tab", name="Key findings").click()
             assert field.input_value() == "Syntetisk korrigert"
             field.fill("")
-            assert page.locator("#dirty-lbl").inner_text() == "Ulagrede kildekorreksjoner"
+            assert page.locator("#dirty-lbl").inner_text() == "Unsaved source corrections"
             with page.expect_request("**/revisions/"):
                 page.locator("#save-btn").click()
             assert commands[0]["draft"]["valueCorrections"] == []
