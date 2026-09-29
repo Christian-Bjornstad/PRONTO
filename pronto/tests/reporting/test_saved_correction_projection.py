@@ -1,6 +1,7 @@
 """Saved corrections must remain visible without rewriting the source facts."""
 
 import json
+import re
 
 from pronto.tests.reporting.test_html_review_state import draft_review
 from pronto.tests.reporting.test_pronto_output_adapter import build_report
@@ -18,8 +19,14 @@ def test_saved_corrections_show_source_and_review_values_in_draft_and_final():
         {"path": "/sample/tumourType", "originalValue": None,
          "correctedValue": "Syntetisk type", "reason": "Bekreftet i syntetisk kilde",
          "author": "biologist-1", "timestamp": "2026-09-24T12:00:00Z"},
+        {"path": "/sample/specimenType", "originalValue": None,
+         "correctedValue": "Syntetisk prøve", "reason": "Bekreftet i syntetisk kilde",
+         "author": "biologist-1", "timestamp": "2026-09-24T12:00:00Z"},
         {"path": f"/biomarkers/{tmb_index}/value", "originalValue": 14.9,
          "correctedValue": 12, "reason": "Syntetisk målekontroll",
+         "author": "biologist-1", "timestamp": "2026-09-24T12:00:00Z"},
+        {"path": "/biomarkers/1/value", "originalValue": 4.13,
+         "correctedValue": 6.25, "reason": "Syntetisk målekontroll",
          "author": "biologist-1", "timestamp": "2026-09-24T12:00:00Z"},
     ]
     draft = validate_review_state(document, report=report)
@@ -32,6 +39,10 @@ def test_saved_corrections_show_source_and_review_values_in_draft_and_final():
     assert "Bekreftet i syntetisk kilde" in html
     assert "14,9 mut/Mb" in html
     assert 'value="Syntetisk type"' in html
+    assert re.search(r'data-fact="tumourType"[^>]*><dt>Tumour type</dt><dd>Syntetisk type</dd>', html)
+    assert re.search(r'data-fact="specimenType"[^>]*><dt>Sample type</dt><dd>Syntetisk prøve</dd>', html)
+    assert re.search(r'data-metric="tmb"[^>]*>.*?<p class="metric-card__value">12 mut/Mb</p>', html, re.S)
+    assert re.search(r'data-metric="msi"[^>]*>.*?<p class="metric-card__value">6,25 %</p>', html, re.S)
 
     document.update({"status": "FINAL", "finalizedAt": "2026-09-24T13:00:00Z",
                      "finalizedBy": "biologist-1", "updatedAt": "2026-09-24T13:00:00Z"})
@@ -41,6 +52,8 @@ def test_saved_corrections_show_source_and_review_values_in_draft_and_final():
     assert "Corrected" in final_html
     assert "12 mut/Mb" in final_html
     assert 'id="tmb-edit-value"' not in final_html
+    assert re.search(r'data-fact="tumourType"[^>]*><dt>Tumour type</dt><dd>Syntetisk type</dd>', final_html)
+    assert re.search(r'data-metric="msi"[^>]*>.*?<p class="metric-card__value">6,25 %</p>', final_html, re.S)
 
 
 def test_tmb_gauge_keeps_reference_scale_and_saved_provenance_accessible():

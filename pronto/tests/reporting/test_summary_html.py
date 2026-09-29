@@ -1,6 +1,7 @@
 """The delivered HTML is a saved, reduced report, never the editable workspace."""
 
 import json
+import re
 
 from pronto.tests.reporting.test_html_review_state import draft_review
 from pronto.tests.reporting.test_pronto_output_adapter import build_report
@@ -83,3 +84,30 @@ def test_summary_html_escapes_untrusted_facts_and_final_notes():
     assert 'onerror=' not in html.replace('&quot;', '') or '&lt;img' in html
     assert '<link' not in html and '<iframe' not in html
     assert 'Final' in html and 'Revision 1' in html
+
+
+def test_summary_html_uses_all_saved_corrected_key_findings():
+    from pronto_report.renderers.summary_html import render_summary_html
+
+    report = build_report()
+    document = json.loads(serialize_review_state(_saved_review(report)))
+    document['valueCorrections'].extend([
+        {'path': '/sample/tumourType', 'originalValue': None,
+         'correctedValue': 'Corrected tumour', 'reason': 'Source check',
+         'author': 'AB', 'timestamp': '2026-09-29T07:06:49Z'},
+        {'path': '/sample/specimenType', 'originalValue': None,
+         'correctedValue': 'Corrected specimen', 'reason': 'Source check',
+         'author': 'AB', 'timestamp': '2026-09-29T07:06:49Z'},
+        {'path': '/biomarkers/1/value', 'originalValue': 4.13,
+         'correctedValue': 6.25, 'reason': 'Source check',
+         'author': 'AB', 'timestamp': '2026-09-29T07:06:49Z'},
+    ])
+    review = validate_review_state(document, report=report)
+
+    html = render_summary_html(report, review, export_initials='CD')
+
+    for label, expected in (
+        ('Tumour type', 'Corrected tumour'), ('Sample type', 'Corrected specimen'),
+        ('TMB', '17,8 mut/Mb'), ('MSI', '6,25 %'),
+    ):
+        assert re.search(rf'<dt>{label}</dt><dd>{re.escape(expected)}</dd>', html)

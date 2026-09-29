@@ -104,6 +104,7 @@ def _case_facts(ui: Mapping[str, Any], review: ReviewState | None, editable: boo
         original = _display(fact["value"])
         controls = ""
         correction = corrections.get(f"/sample/{name}")
+        current = _display(correction["correctedValue"] if correction else fact["value"])
         if editable and name in {"tumourType", "specimenType"}:
             path = f"/sample/{name}"
             field_value = "" if correction is None and fact["value"] is None else str(
@@ -126,7 +127,7 @@ def _case_facts(ui: Mapping[str, Any], review: ReviewState | None, editable: boo
         cards.append(
             f'<div class="patient-strip__fact" data-fact="{name}" '
             f'data-availability="{fact["availability"]}">'
-            f'<dt>{label}</dt><dd>{escape(original)}</dd>{_correction_notice(correction)}{controls}</div>'
+            f'<dt>{label}</dt><dd>{escape(current)}</dd>{_correction_notice(correction)}{controls}</div>'
         )
     return "".join(cards)
 
@@ -143,9 +144,7 @@ def _biomarker_cards(
     )
     for metric_id, label in (*primary, *extra):
         biomarker = ui["biomarkers"][metric_id]
-        value = _display(biomarker["value"])
         unit = str(biomarker.get("unit", ""))
-        shown = f"{value} {unit}".strip()
         source = biomarker.get("source") or {}
         raw = source.get("rawValue")
         detail = f'Source value: {escape(str(raw))}' if raw is not None else "Not reported in source data"
@@ -159,6 +158,8 @@ def _biomarker_cards(
              if item["metricId"] == metric_id), None,
         )
         correction = corrections.get(correction_path) if correction_path else None
+        value = _display(correction["correctedValue"] if correction else biomarker["value"])
+        shown = f"{value} {unit}".strip()
         correction_notice = _correction_notice(correction, unit)
         gauge = ""
         if metric_id == "tmb" and isinstance(biomarker["value"], (int, float)):

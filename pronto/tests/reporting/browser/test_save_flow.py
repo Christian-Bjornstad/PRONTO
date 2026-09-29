@@ -292,12 +292,13 @@ def test_saved_correction_can_be_removed_without_changing_source(browser):
             page.goto(url)
             assert "Corrected" in page.locator('[data-fact="tumourType"]').text_content()
             assert "Current: Syntetisk korrigert" in page.locator('[data-fact="tumourType"]').text_content()
-            assert page.locator('[data-fact="tumourType"] dd').text_content() == "Not reported"
+            assert page.locator('[data-fact="tumourType"] dd').text_content() == "Syntetisk korrigert"
             page.locator("#edit-btn").click()
             field = page.locator("#tumourType-edit")
             page.get_by_role("tab", name="Key findings").click()
             assert field.input_value() == "Syntetisk korrigert"
             field.fill("")
+            assert page.locator('[data-fact="tumourType"] dd').text_content() == "Not reported"
             assert page.locator("#dirty-lbl").inner_text() == "Unsaved source corrections"
             with page.expect_request("**/revisions/"):
                 page.locator("#save-btn").click()

@@ -48,13 +48,19 @@ def render_summary_html(report: ReportData, review: ReviewState, *, export_initi
     if not export_initials:
         raise ValueError("Export initials are required")
     corrections = {str(item["path"]): item for item in review.value_corrections}
+    def effective(path: str, source: object) -> object:
+        correction = corrections.get(path)
+        return correction["correctedValue"] if correction else source
+
     tmb = next((item for item in report.biomarkers if item["metricId"] == "tmb"), None)
     tmb_index = next((index for index, item in enumerate(report.biomarkers) if item["metricId"] == "tmb"), None)
     tmb_correction = corrections.get(f"/biomarkers/{tmb_index}/value") if tmb_index is not None else None
-    tmb_value = tmb_correction["correctedValue"] if tmb_correction else tmb["value"] if tmb else None
+    tmb_value = effective(f"/biomarkers/{tmb_index}/value", tmb["value"]) if tmb else None
     tmb_label = f'{_shown(tmb_value)} mut/Mb' if tmb_value is not None else 'Not available'
     msi = next((item for item in report.biomarkers if item["metricId"] == "msi"), None)
-    msi_label = f'{_shown(msi["value"])} {msi.get("unit", "")}'.strip() if msi and msi["value"] is not None else 'Not available'
+    msi_index = next((index for index, item in enumerate(report.biomarkers) if item["metricId"] == "msi"), None)
+    msi_value = effective(f"/biomarkers/{msi_index}/value", msi["value"]) if msi else None
+    msi_label = f'{_shown(msi_value)} {msi.get("unit", "")}'.strip() if msi_value is not None else 'Not available'
     selected = {item["variantId"]: item for item in review.variant_reviews
                 if item["reportingDecision"] == "INCLUDE"}
     rows = []
@@ -112,8 +118,8 @@ def render_summary_html(report: ReportData, review: ReviewState, *, export_initi
         + _fact('Sample', report.sample.get('sampleId'))
         + _fact('Patient code', report.sample.get('patientPseudonym'))
         + _fact('Reference genome', report.sample.get('referenceBuild'))
-        + _fact('Tumour type', report.sample.get('tumourType'))
-        + _fact('Sample type', report.sample.get('specimenType'))
+        + _fact('Tumour type', effective('/sample/tumourType', report.sample.get('tumourType')))
+        + _fact('Sample type', effective('/sample/specimenType', report.sample.get('specimenType')))
         + _fact('TMB', tmb_label)
         + _fact('MSI', msi_label)
         + _fact('Selected variants', len(rows))
