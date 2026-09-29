@@ -12,6 +12,7 @@ from pronto_report.review.attribution import normalize_initials
 from pronto_report.review.contracts import (
     COMMAND_VERSION, AuditRecord, FinalizeRequest, ReviewCommandError,
     ReviewCommandResponse, SaveDraftRequest,
+    ResetDraftRequest,
 )
 from pronto_report.review.repository import ReviewAuthorizer, ReviewRepository
 from pronto_report.serialization import serialize_review_state
@@ -38,7 +39,7 @@ class ReviewCommandService:
         return {'declaredInitials': normalize_initials(request.declared_initials), 'method': 'SELF_REPORTED'}
 
     def _current(
-        self, request: SaveDraftRequest | FinalizeRequest, actor_id: str, report: ReportData
+        self, request: SaveDraftRequest | FinalizeRequest | ResetDraftRequest, actor_id: str, report: ReportData
     ) -> ReviewState:
         if not actor_id or not self.authorizer.can_review(actor_id, report.report_id):
             raise ReviewCommandError("FORBIDDEN", "Review access denied", 403)
@@ -163,3 +164,27 @@ class ReviewCommandService:
             document['finalizationAttribution'] = attribution
         finalized = validate_review_state(document, report=report)
         return self._commit(report.report_id, current.revision, finalized, actor_id, "FINALIZE", timestamp, attribution)
+
+    def reset(
+        self, request: ResetDraftRequest, *, actor_id: str, report: ReportData
+    ) -> ReviewCommandResponse:
+        current = self._current(request, actor_id, report)
+        attribution = {'declaredInitials': normalize_initials(request.declared_initials), 'method': 'SELF_REPORTED'}
+        timestamp = self._timestamp()
+        document = json.loads(serialize_review_state(current))
+        document.update({
+            'revision': current.revision + 1,
+            'updatedAt': timestamp,
+            'reviewer': {'reviewerId': actor_id},
+            'variantReviews': [],
+            'runQcAssessment': {'status': 'NOT_REVIEWED'},
+            'notes': {
+                'summary': '', 'biomarkerContext': '', 'additional': '',
+                'importedLegacyNote': current.notes['importedLegacyNote'],
+            },
+            'valueCorrections': [],
+            'lastSavedAttribution': attribution,
+        })
+        reset_review = validate_review_state(document, report=report)
+        return self._commit(report.report_id, current.revision, reset_review,
+                            actor_id, 'RESET_DRAFT', timestamp, attribution)

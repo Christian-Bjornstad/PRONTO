@@ -57,6 +57,7 @@ class ReviewAudit(models.Model):
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     action = models.CharField(max_length=16, choices=[
         ("SAVE_DRAFT", "SAVE_DRAFT"), ("FINALIZE", "FINALIZE"),
+        ("RESET_DRAFT", "RESET_DRAFT"),
     ])
     revision = models.PositiveIntegerField()
     occurred_at = models.DateTimeField()

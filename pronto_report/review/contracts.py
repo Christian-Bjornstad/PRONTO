@@ -41,6 +41,27 @@ class FinalizeRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class ResetDraftRequest:
+    schema_version: str
+    report_id: str
+    base_revision: int
+    declared_initials: str | None = None
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> ResetDraftRequest:
+        expected = {"schemaVersion", "reportId", "baseRevision", "declaredInitials"}
+        if not isinstance(payload, Mapping) or set(payload) != expected:
+            raise ReviewCommandError("INVALID_COMMAND", "Invalid reset command", 422)
+        version = payload["schemaVersion"]
+        report_id = payload["reportId"]
+        revision = payload["baseRevision"]
+        if version != COMMAND_VERSION or not isinstance(report_id, str) or not report_id or type(revision) is not int or revision < 1:
+            raise ReviewCommandError("INVALID_COMMAND", "Invalid reset command", 422)
+        from pronto_report.review.attribution import normalize_initials
+        return cls(version, report_id, revision, normalize_initials(payload["declaredInitials"]))
+
+
+@dataclass(frozen=True, slots=True)
 class AuditRecord:
     report_id: str
     actor_id: str

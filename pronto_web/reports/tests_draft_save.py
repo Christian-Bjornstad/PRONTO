@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import replace
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -268,3 +269,56 @@ class DraftSaveTests(TestCase):
             repository.commit(self.report.report_id, 1, next_review, audit)
         assert caught.exception.code == "FORBIDDEN"
         assert ReviewRevision.objects.filter(report=self.record).count() == 1
+
+    def test_reset_repository_commits_one_blank_revision_and_distinct_audit(self):
+        from pronto_report.review import contracts
+        from pronto_report.review.service import ReviewCommandService
+        from pronto_web.reports.models import ReviewAudit
+        from pronto_web.reports.review_repository import DjangoReviewAuthorizer, DjangoReviewRepository
+
+        service = ReviewCommandService(
+            DjangoReviewRepository(self.record, self.report), DjangoReviewAuthorizer(self.writer),
+            clock=lambda: datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc), require_initials=True,
+        )
+        request = contracts.ResetDraftRequest('1.0', self.report.report_id, 1, 'AB')
+        response = service.reset(request, actor_id=str(self.writer.pk), report=self.report)
+
+        assert response.review.revision == 2
+        assert response.review.variant_reviews == ()
+        assert response.audit.action == 'RESET_DRAFT'
+        assert ReviewRevision.objects.filter(report=self.record).count() == 2
+        audit = ReviewAudit.objects.get(report=self.record, revision=2)
+        assert audit.action == 'RESET_DRAFT'
+        assert audit.declared_initials == 'AB'
+        assert audit.actor_id == self.writer.pk
+
+    def test_reset_repository_conflict_grant_and_audit_failure_leave_no_write(self):
+        from pronto_report.review import contracts
+        from pronto_report.review.contracts import ReviewCommandError
+        from pronto_report.review.service import ReviewCommandService
+        from pronto_web.reports.models import ReviewAudit
+        from pronto_web.reports.review_repository import DjangoReviewAuthorizer, DjangoReviewRepository
+
+        service = ReviewCommandService(
+            DjangoReviewRepository(self.record, self.report), DjangoReviewAuthorizer(self.writer),
+            clock=lambda: datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc), require_initials=True,
+        )
+        with self.assertRaises(ReviewCommandError) as caught:
+            service.reset(contracts.ResetDraftRequest('1.0', self.report.report_id, 2, 'AB'),
+                          actor_id=str(self.writer.pk), report=self.report)
+        assert caught.exception.code == 'REVISION_CONFLICT'
+        with self.assertRaises(ReviewCommandError) as caught:
+            service.reset(contracts.ResetDraftRequest('1.0', self.report.report_id, 1, None),
+                          actor_id=str(self.writer.pk), report=self.report)
+        assert caught.exception.code == 'INVALID_INITIALS'
+        with patch.object(ReviewAudit.objects, 'create', side_effect=IntegrityError('audit unavailable')):
+            with self.assertRaises(IntegrityError):
+                service.reset(contracts.ResetDraftRequest('1.0', self.report.report_id, 1, 'AB'),
+                              actor_id=str(self.writer.pk), report=self.report)
+        assert ReviewRevision.objects.filter(report=self.record).count() == 1
+        assert ReviewAudit.objects.filter(report=self.record).count() == 0
+        ReportGrant.objects.filter(report=self.record, user=self.writer).delete()
+        with self.assertRaises(ReviewCommandError) as caught:
+            service.reset(contracts.ResetDraftRequest('1.0', self.report.report_id, 1, 'AB'),
+                          actor_id=str(self.writer.pk), report=self.report)
+        assert caught.exception.code == 'FORBIDDEN'
