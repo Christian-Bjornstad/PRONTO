@@ -259,22 +259,33 @@ def _qc_review(review: ReviewState | None, snapshot: bool) -> str:
             '<p>Kildemålinger endres ikke. Vurdering og kommentar lagres med rapportgjennomgangen.</p>')
 
 
-def _key_variant_rows(report: ReportData) -> str:
+def _key_variant_rows(report: ReportData, review: ReviewState | None) -> str:
     rows = []
+    reviews = {item["variantId"]: item for item in review.variant_reviews} if review else {}
+    decisions = {"UNREVIEWED": "Ikke vurdert", "INCLUDE": "Inkludert", "EXCLUDE": "Ekskludert"}
+    igv_labels = {"NOT_REVIEWED": "Ikke vurdert", "SUPPORTS": "Støtter", "DOES_NOT_SUPPORT": "Støtter ikke", "INCONCLUSIVE": "Uavklart", "NOT_APPLICABLE": "Ikke relevant"}
     for variant in report.variants:
         protein = variant.get("proteinChange")
         if not protein:
             continue
         frequency = variant.get("alleleFrequency")
         vaf = _af(frequency)
-        cells = (_display(variant.get("gene")), str(protein), vaf)
+        cells = (_display(variant.get("gene")), str(protein), vaf,
+                 _display(_annotation(variant, "depthTumourDna")))
+        activity = reviews.get(variant["variantId"], {})
+        decision = str(activity.get("reportingDecision", "UNREVIEWED"))
+        igv = str(activity.get("igvAssessment", "NOT_REVIEWED"))
         rows.append(
-            '<tr class="key-variant-row" data-occurrence-id="{}">{}</tr>'.format(
+            '<tr class="key-variant-row" data-occurrence-id="{}" data-variant-id="{}">{}'
+            '<td><span class="review-status" data-review-summary="igv">{}</span></td>'
+            '<td><span class="review-status" data-review-summary="decision" data-status="{}">{}</span></td></tr>'.format(
                 escape(str(variant["occurrenceId"]), quote=True),
+                escape(str(variant["variantId"]), quote=True),
                 "".join(f"<td>{escape(value)}</td>" for value in cells),
+                escape(igv_labels[igv]), escape(decision, quote=True), escape(decisions[decision]),
             )
         )
-    return "".join(rows) if rows else '<tr><td colspan="3">Ingen varianter med oppgitt proteinendring.</td></tr>'
+    return "".join(rows) if rows else '<tr><td colspan="6">Ingen varianter med oppgitt proteinendring.</td></tr>'
 
 
 def _review_select(
@@ -807,7 +818,7 @@ def render_html(
         ),
         "case_facts": _case_facts(ui, review, editable),
         "biomarker_cards": _biomarker_cards(ui, report, review, editable),
-        "key_variant_rows": _key_variant_rows(report),
+        "key_variant_rows": _key_variant_rows(report, review),
         "variant_rows": _variant_rows(report, review, snapshot, web_igv),
         "igv_column": '<th scope="col">IGV</th>' if web_igv else "",
         "igv_panel": (

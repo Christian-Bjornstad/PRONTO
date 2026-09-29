@@ -517,6 +517,28 @@ button {
   margin-bottom: var(--space-3);
 }
 
+.key-variant-row .review-status {
+  display: inline-block;
+  white-space: nowrap;
+  font-size: 0.75rem;
+}
+
+.key-variant-row [data-review-summary="decision"] {
+  padding: 0.125rem 0.5rem;
+  border-radius: 1rem;
+  background: var(--color-brand-050);
+}
+
+.key-variant-row [data-status="INCLUDE"] {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.key-variant-row [data-status="EXCLUDE"] {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .patient-strip__fact {
   min-width: 0;
   padding: 0.5rem 0.75rem;

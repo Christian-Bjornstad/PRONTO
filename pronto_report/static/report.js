@@ -315,6 +315,20 @@
     progress.value = reviewed;
     document.getElementById("review-progress").textContent =
       `${reviewed} av ${uniqueDecisions.size} varianter vurdert`;
+    document.querySelectorAll('#key-variant-table tr[data-variant-id]').forEach((row) => {
+      const activity = activities.get(row.dataset.variantId);
+      const decision = activity?.reportingDecision || 'UNREVIEWED';
+      const igv = activity?.igvAssessment || 'NOT_REVIEWED';
+      const decisionLabel = { UNREVIEWED: 'Ikke vurdert', INCLUDE: 'Inkludert', EXCLUDE: 'Ekskludert' };
+      const igvLabel = { NOT_REVIEWED: 'Ikke vurdert', SUPPORTS: 'Støtter', DOES_NOT_SUPPORT: 'Støtter ikke', INCONCLUSIVE: 'Uavklart', NOT_APPLICABLE: 'Ikke relevant' };
+      row.querySelector('[data-review-summary="decision"]').textContent = decisionLabel[decision];
+      row.querySelector('[data-review-summary="decision"]').dataset.status = decision;
+      row.querySelector('[data-review-summary="igv"]').textContent = igvLabel[igv];
+    });
+    const decisions = Array.from(activities.values());
+    document.getElementById('kpi-inc').textContent = String(decisions.filter((item) => item.reportingDecision === 'INCLUDE').length);
+    document.getElementById('kpi-exc').textContent =
+      `${decisions.filter((item) => item.reportingDecision === 'EXCLUDE').length} ekskludert · ${reviewDirty ? 'ulagret gjennomgang' : `revisjon ${reviewState.revision}`}`;
     filterRows();
   }
 

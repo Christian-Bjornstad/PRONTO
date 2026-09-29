@@ -56,6 +56,11 @@ def test_demo_review_save_reload_same_person_finalize_and_print(demo_server):
     try:
         page.goto(url)
         page.locator('[data-include-variant]').first.click()
+        page.get_by_role('tab', name='Nøkkelfunn').click()
+        playwright.expect(page.locator('#kpi-inc')).to_have_text('1')
+        playwright.expect(page.locator('#key-variant-table tr[data-variant-id]').first.locator(
+            '[data-review-summary="decision"]')).to_have_text('Inkludert')
+        playwright.expect(page.locator('#kpi-exc')).to_contain_text('ulagret gjennomgang')
         page.get_by_role('tab', name='Sekvenserings-QC').click()
         page.get_by_label('QC-kommentar', exact=True).fill('DEMO QC-notat – ikke klinisk vurdering')
         page.get_by_role('tab', name='Molekylært tumorboard').click()
@@ -66,6 +71,8 @@ def test_demo_review_save_reload_same_person_finalize_and_print(demo_server):
         playwright.expect(page.locator('#dirty-lbl')).to_have_text('Alle endringer lagret')
         playwright.expect(page.locator('#board-saved-revision')).to_have_text('Lagret revisjon: 2')
         page.reload()
+        playwright.expect(page.locator('#key-variant-table tr[data-variant-id]').first.locator(
+            '[data-review-summary="decision"]')).to_have_text('Inkludert')
         playwright.expect(page.locator('#board-findings')).to_contain_text('CHEK2')
         playwright.expect(page.get_by_label('Interpretation summary', exact=True)).to_have_value('DEMO rapportnotat')
         playwright.expect(page.get_by_label('QC-kommentar', exact=True)).to_have_value('DEMO QC-notat – ikke klinisk vurdering')

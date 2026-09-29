@@ -5,6 +5,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 from pronto.tests.reporting.test_pronto_output_adapter import build_report
+from pronto.tests.reporting.test_html_review_state import draft_review
 from pronto_report.renderers.html import render_html
 
 
@@ -82,6 +83,24 @@ def test_key_findings_summary_displays_zero_frequency_with_three_decimals():
     )[1].split("</section>", 1)[0]
 
     assert "p.Test</td><td>0,000" in panel
+
+
+def test_key_findings_joins_source_depth_with_review_without_inventing_coding_status():
+    report = build_report()
+    review = replace(draft_review(report), variant_reviews=({
+        'variantId': report.variants[0]['variantId'], 'reportingDecision': 'EXCLUDE',
+        'clinicalClassification': 'UNCLASSIFIED', 'igvAssessment': 'NOT_REVIEWED',
+    },))
+    panel = render_html(report, review).split(
+        'id="panel-key-findings"', 1
+    )[1].split('</section>', 1)[0]
+
+    assert '<th scope="col">Dybde tumor DNA</th>' in panel
+    assert '<th scope="col">IGV-vurdering</th>' in panel
+    assert '<th scope="col">Rapportvalg</th>' in panel
+    assert 'data-review-summary="decision" data-status="EXCLUDE">Ekskludert</span>' in panel
+    assert 'data-review-summary="igv">Ikke vurdert</span>' in panel
+    assert 'Coding status' not in panel
 
 
 def test_reference_visual_tokens_are_used_without_remote_font_dependency():
