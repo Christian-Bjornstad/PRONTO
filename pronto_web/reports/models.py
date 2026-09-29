@@ -82,6 +82,22 @@ class ReportPrintAudit(models.Model):
         constraints = [models.UniqueConstraint(fields=['report', 'request_id'], name='unique_report_print_request')]
 
 
+class ReportHtmlExportAudit(models.Model):
+    """An attributed HTML request, not proof of a completed browser download."""
+
+    report = models.ForeignKey(ReportRecord, on_delete=models.PROTECT)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    revision = models.PositiveIntegerField()
+    request_id = models.UUIDField()
+    declared_initials = models.CharField(max_length=8)
+    attribution_method = models.CharField(max_length=16, default='SELF_REPORTED')
+    action = models.CharField(max_length=24, default='HTML_DOWNLOAD_REQUESTED')
+    requested_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['report', 'request_id'], name='unique_report_html_request')]
+
+
 class ReportAsset(models.Model):
     report = models.ForeignKey(ReportRecord, on_delete=models.CASCADE, related_name="assets")
     asset_id = models.CharField(max_length=128)

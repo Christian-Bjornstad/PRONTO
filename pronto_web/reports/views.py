@@ -99,6 +99,7 @@ def report_detail(request, report_id: str) -> HttpResponse:
         csrf_token=csrf_token,
         require_initials=getattr(settings, 'PRONTO_REQUIRE_INITIALS', False),
         print_url=reverse('report-print', args=[record.report_id]),
+        html_export_url=reverse('report-html-export', args=[record.report_id]),
         actor_id=str(request.user.pk) if draft else None,
         web_igv=True, igv_sources=sources, igv_references=references,
         igv_registry_error=registry_error,

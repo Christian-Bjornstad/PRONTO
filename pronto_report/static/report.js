@@ -67,6 +67,8 @@
   const reviewDownload = document.getElementById("download-review");
   const saveButton = document.getElementById("save-btn");
   const resetButton = document.getElementById("reset-btn");
+  const htmlExportButton = document.getElementById('html-export-btn');
+  const htmlExportStatus = document.getElementById('html-export-status');
   const finalizeButton = document.getElementById("finalize-btn");
   const finalizeHint = document.getElementById("finalize-hint");
   const corrections = new Map();
@@ -76,6 +78,7 @@
   let saving = false;
   let resetting = false;
   let finalizing = false;
+  let exportingHtml = false;
   const attributionConfig = document.getElementById('attribution-config');
   const initialsRequired = attributionConfig?.dataset.required === 'true';
   let askingInitials = false;
@@ -110,6 +113,7 @@
     if (saveButton?.dataset.saveUrl) saveButton.disabled = saving || resetting || finalizing ||
       reviewState.status !== "DRAFT" || (!sourceDirty && !reviewDirty);
     if (resetButton) resetButton.disabled = saving || resetting || finalizing || reviewState.status !== "DRAFT";
+    if (htmlExportButton) htmlExportButton.disabled = saving || resetting || finalizing || exportingHtml;
     if (finalizeButton) {
       finalizeButton.disabled = saving || resetting || finalizing || sourceDirty || reviewDirty || reviewState.status !== "DRAFT";
       if (finalizeHint) finalizeHint.textContent = sourceDirty || reviewDirty ? "Save changes before finalizing." : "";
@@ -474,6 +478,54 @@
   const saveFeedback = document.getElementById("save-feedback");
   updateReviewSummary();
   refreshDirty();
+
+  let pendingHtmlRequest = null;
+  if (htmlExportButton) htmlExportButton.addEventListener('click', async () => {
+    if (saving || resetting || finalizing || exportingHtml || askingInitials) return;
+    if (reviewDirty || corrections.size || removedCorrections.size) {
+      htmlExportStatus.textContent = 'Save changes before downloading the report.';
+      return;
+    }
+    const revision = reviewState.revision;
+    if (!pendingHtmlRequest || pendingHtmlRequest.revision !== revision) {
+      const declaredInitials = await actionInitials('Initials for HTML download', true);
+      if (declaredInitials === null) return;
+      pendingHtmlRequest = {revision, declaredInitials, requestId: crypto.randomUUID()};
+    }
+    exportingHtml = true;
+    refreshDirty();
+    htmlExportStatus.textContent = 'Preparing saved report …';
+    try {
+      const response = await fetch(htmlExportButton.dataset.exportUrl, {
+        method: 'POST', credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': attributionConfig.dataset.csrfToken},
+        body: JSON.stringify({schemaVersion: '1.0', reportId: reviewState.reportId, ...pendingHtmlRequest}),
+      });
+      if (!response.ok || !response.headers.get('Content-Type')?.startsWith('text/html')) {
+        throw new Error('HTML export was not confirmed');
+      }
+      if (reviewDirty || corrections.size || removedCorrections.size || reviewState.revision !== revision) {
+        throw new Error('Working copy changed');
+      }
+      const name = response.headers.get('Content-Disposition')?.match(/filename="?([A-Za-z0-9._-]+)"?/i)?.[1]
+        || `PRONTO-${reviewState.reportId}-r${revision}.html`;
+      const blobUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = name;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+      htmlExportStatus.textContent = `HTML download requested for revision ${revision}.`;
+      pendingHtmlRequest = null;
+    } catch (_error) {
+      htmlExportStatus.textContent = 'Report HTML was not delivered. Save the latest revision and try again.';
+    } finally {
+      exportingHtml = false;
+      refreshDirty();
+    }
+  });
 
   function localDraft() {
     const draft = JSON.parse(JSON.stringify(reviewState));

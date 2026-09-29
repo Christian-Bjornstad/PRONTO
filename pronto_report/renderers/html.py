@@ -542,7 +542,8 @@ def _qc_metrics(report: ReportData) -> str:
     return "".join(cards)
 
 
-def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bool = False) -> str:
+def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bool = False,
+                    html_export: bool = False) -> str:
     if review is None:
         return '<p class="empty-state">No review loaded.</p>'
     included = {
@@ -616,7 +617,7 @@ def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bo
         f'<p id="board-saved-attribution">Last saved by: {saved_by}</p>'
         f'<p id="board-saved-revision">Saved revision: {review.revision}</p>'
         f'<p>Sign-off status: {signoff}</p>'
-        + '<button id="print-mdt-btn" type="button">Print MDT report</button>'
+        + ('' if html_export else '<button id="print-mdt-btn" type="button">Print MDT report</button>')
         + f'</div></div>{legacy_note}'
         + ('<p class="board-warning">Draft — not signed.</p>'
            if review.status != "FINAL" else "")
@@ -683,6 +684,7 @@ def render_html(
     csrf_token: str | None = None,
     require_initials: bool = False,
     print_url: str | None = None,
+    html_export_url: str | None = None,
     actor_id: str | None = None,
     web_igv: bool = False,
     igv_save_enabled: bool = False,
@@ -718,7 +720,7 @@ def render_html(
         if review and review.finalization_attribution else str(review.finalized_by or '') if review else ''
     )
     csp_meta, stylesheet_tag, script_tag = (
-        _inline_assets(web_igv, allow_same_origin_requests=save_url is not None or print_url is not None)
+        _inline_assets(web_igv, allow_same_origin_requests=save_url is not None or print_url is not None or html_export_url is not None)
         if inline_assets else
         ("", '<link rel="stylesheet" href="/static/report.css">',
          '<script src="/static/report-attribution.js" defer></script><script src="/static/report.js" defer></script>')
@@ -735,6 +737,8 @@ def render_html(
     safe_sources = []
     if print_url and (not safe_path(print_url) or snapshot or not csrf_token):
         raise ValueError('Printing requires a live same-origin URL and CSRF token')
+    if html_export_url and (not safe_path(html_export_url) or snapshot or not csrf_token or review is None):
+        raise ValueError('HTML export requires a live saved review, same-origin URL, and CSRF token')
     if reset_url and (not safe_path(reset_url) or snapshot or not csrf_token):
         raise ValueError('Reset requires a live same-origin URL and CSRF token')
     for source in igv_sources:
@@ -848,6 +852,11 @@ def render_html(
         f'<button id="reset-btn" type="button" data-reset-url="{escape(reset_url, quote=True)}">Reset</button>'
         if live_save and reset_url else ""
     )
+    html_export_button = (
+        f'<button id="html-export-btn" type="button" data-export-url="{escape(html_export_url, quote=True)}">Download report HTML</button>'
+        '<span id="html-export-status" role="status" aria-live="polite"></span>'
+        if html_export_url and review is not None else ''
+    )
     topbar_actions = (
         '<span class="report-topbar__saved">Read-only export</span>' if snapshot else
         '<span class="report-topbar__saved" id="dirty-lbl" role="status" aria-live="polite">Local view only</span>'
@@ -856,6 +865,7 @@ def render_html(
         + save_button
         + reset_button
         + finalize_button
+        + html_export_button
     )
     context = {
         "sample_id": str(report.sample["sampleId"]),
@@ -935,7 +945,7 @@ def render_html(
         "qc_content": _plot_content(report, plot_images, "qc"),
         "qc_metrics": _qc_metrics(report),
         "qc_review": _qc_review(review, snapshot),
-        "tumour_content": _tumour_content(report, review, snapshot),
+        "tumour_content": _tumour_content(report, review, snapshot, bool(html_export_url)),
         "provenance": _provenance(report),
         "csp_meta": csp_meta,
         "stylesheet_tag": stylesheet_tag,

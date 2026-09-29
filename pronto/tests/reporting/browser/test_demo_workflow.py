@@ -1,16 +1,16 @@
-"""Real browser + isolated Django database; no mocked save/finalize/print APIs."""
+"""Real browser + isolated Django database; no mocked review/export APIs."""
 import json
-from io import BytesIO
+from pathlib import Path
 
 import pytest
 from django.contrib.auth import get_user_model
 
-from pronto.tests.reporting.browser.test_report import _page, _browser_executable, playwright, pypdf
+from pronto.tests.reporting.browser.test_report import _page, _browser_executable, playwright
 from pronto.tests.reporting.test_html_review_state import draft_review
 from pronto.tests.reporting.test_pronto_output_adapter import build_report
 from pronto_report.migration import migrate_review_state_v1
 from pronto_report.serialization import serialize_report_data, serialize_review_state
-from pronto_web.reports.models import ReportRecord, ReportGrant, ReviewRevision, ReviewAudit, ReportPrintAudit
+from pronto_web.reports.models import ReportRecord, ReportGrant, ReviewRevision, ReviewAudit, ReportHtmlExportAudit
 
 
 @pytest.fixture
@@ -45,7 +45,7 @@ def demo_server(configured_demo):
         server.stop()
 
 
-def test_demo_review_save_reload_same_person_finalize_and_print(demo_server):
+def test_demo_review_save_reload_same_person_finalize_and_download_html(demo_server):
     url, record, source = demo_server
     executable = _browser_executable()
     if executable is None:
@@ -84,15 +84,18 @@ def test_demo_review_save_reload_same_person_finalize_and_print(demo_server):
         playwright.expect(page.locator('.status-badge')).to_have_text('Report status: Final')
         playwright.expect(page.get_by_label('Interpretation summary', exact=True)).to_be_disabled()
         playwright.expect(page.locator('.board-signoff')).to_contain_text('Finalized by AB')
-        page.get_by_role('button', name='Print MDT report').click()
+        page.get_by_role('button', name='Download report HTML').click()
         page.get_by_label('Your initials', exact=True).fill('CD')
-        page.get_by_role('button', name='Confirm', exact=True).click()
-        playwright.expect(page.locator('#print-status')).to_contain_text('Print requested by CD')
-        page.emulate_media(media='print')
-        printed = '\n'.join(sheet.extract_text() or '' for sheet in pypdf.PdfReader(BytesIO(page.pdf())).pages)
-        for text in ('CHEK2', 'DEMO rapportnotat', 'Finalized by AB', 'Last saved by: AB'):
-            assert text in printed
-        assert 'TERT' not in printed
+        with page.expect_download() as download_info:
+            page.get_by_role('button', name='Confirm', exact=True).click()
+        downloaded = download_info.value
+        assert downloaded.suggested_filename.endswith('.html')
+        html = Path(downloaded.path()).read_text(encoding='utf-8')
+        for text in ('Key findings', 'Selected variants', 'CHEK2', 'DEMO rapportnotat', 'Prepared by CD'):
+            assert text in html
+        assert 'TERT' not in html
+        assert '<script' not in html
+        playwright.expect(page.locator('#html-export-status')).to_contain_text('HTML download requested for revision 3')
         assert diagnostics == []
     finally:
         context.close()
@@ -101,7 +104,7 @@ def test_demo_review_save_reload_same_person_finalize_and_print(demo_server):
     # Stop Playwright's event loop before synchronous Django ORM assertions.
     assert list(ReviewAudit.objects.filter(report=record).order_by('revision').values_list(
         'action', 'declared_initials')) == [('SAVE_DRAFT', 'AB'), ('FINALIZE', 'AB')]
-    printed_audit = ReportPrintAudit.objects.get(report=record)
-    assert (printed_audit.revision, printed_audit.declared_initials) == (3, 'CD')
+    export_audit = ReportHtmlExportAudit.objects.get(report=record)
+    assert (export_audit.revision, export_audit.declared_initials) == (3, 'CD')
     record.refresh_from_db()
     assert record.report_data == source

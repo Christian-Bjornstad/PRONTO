@@ -73,3 +73,21 @@ class DemoAccessTests(TestCase):
             assert ReviewAudit.objects.get(report=self.record).action == 'RESET_DRAFT'
             assert client.post('/reports/another-report/resets/', data={},
                                content_type='application/json').status_code in (401, 404)
+
+    def test_demo_html_export_is_scoped_to_allowlisted_report(self):
+        import uuid
+        from pronto_web.reports.models import ReportHtmlExportAudit
+
+        self.record.report_data['attachments'] = []
+        self.record.save()
+        with self.demo():
+            client = Client(HTTP_HOST='127.0.0.1')
+            payload = {'schemaVersion': '1.0', 'reportId': self.report.report_id,
+                       'revision': 1, 'declaredInitials': 'AB', 'requestId': str(uuid.uuid4())}
+            exported = client.post(f'/reports/{self.report.report_id}/html-exports/',
+                                   data=payload, content_type='application/json')
+            assert exported.status_code == 200
+            assert exported['Content-Disposition'].endswith('.html"')
+            assert ReportHtmlExportAudit.objects.get(report=self.record).declared_initials == 'AB'
+            assert client.post('/reports/another-report/html-exports/', data=payload,
+                               content_type='application/json').status_code in (401, 404)

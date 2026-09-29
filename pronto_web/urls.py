@@ -3,6 +3,7 @@
 from django.contrib.auth.views import LoginView, LogoutView
 from django.urls import path
 from pronto_web.reports.print_audit import print_request
+from pronto_web.reports.html_export_audit import html_export_request
 
 from pronto_web.reports.views import (
     alignment_component, cancel_alignment_save, complete_alignment_save,
@@ -14,6 +15,7 @@ from pronto_web.reports.views import (
 
 urlpatterns = [
     path('reports/<str:report_id>/print-requests/', print_request, name='report-print'),
+    path('reports/<str:report_id>/html-exports/', html_export_request, name='report-html-export'),
     path("accounts/login/", LoginView.as_view(), name="login"),
     path("accounts/logout/", LogoutView.as_view(next_page="/accounts/login/"), name="logout"),
     path("reports/", report_index, name="report-index"),
