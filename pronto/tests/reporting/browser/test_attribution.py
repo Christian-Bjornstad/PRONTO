@@ -38,7 +38,7 @@ def test_initials_dialog_cancel_validation_save_and_print_failure(browser):
             assert commands[0]['declaredInitials'] == 'ABØ'
             assert page.locator('#review-attribution').inner_text().find('ABØ') >= 0
             page.get_by_role('tab', name='Tumour board report').click()
-            playwright.expect(page.locator('#board-saved-attribution')).to_have_text('Last saved by: ABØ (self-reported initials)')
+            playwright.expect(page.locator('#board-saved-attribution')).to_have_text('Last saved by: ABØ')
             playwright.expect(page.locator('#board-saved-revision')).to_have_text('Saved revision: 2')
             page.locator('#print-mdt-btn').click()
             page.locator('#declared-initials').fill('CD')

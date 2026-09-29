@@ -88,13 +88,13 @@
     const element = document.getElementById('review-attribution');
     if (!element) return;
     const entries = [];
-    if (reviewState.lastSavedAttribution) entries.push(`Saved by: ${reviewState.lastSavedAttribution.declaredInitials} (self-reported initials)`);
-    if (reviewState.finalizationAttribution) entries.push(`Finalized by: ${reviewState.finalizationAttribution.declaredInitials} (self-reported initials)`);
+    if (reviewState.lastSavedAttribution) entries.push(`Saved by: ${reviewState.lastSavedAttribution.declaredInitials}`);
+    if (reviewState.finalizationAttribution) entries.push(`Finalized by: ${reviewState.finalizationAttribution.declaredInitials}`);
     element.textContent = entries.join(' · ') || 'No initials recorded';
     element.hidden = entries.length === 0;
     const savedBy = document.getElementById('board-saved-attribution');
     if (savedBy) savedBy.textContent = reviewState.lastSavedAttribution
-      ? `Last saved by: ${reviewState.lastSavedAttribution.declaredInitials} (self-reported initials)`
+      ? `Last saved by: ${reviewState.lastSavedAttribution.declaredInitials}`
       : 'Last saved by: no initials recorded';
     const savedRevision = document.getElementById('board-saved-revision');
     if (savedRevision) savedRevision.textContent = `Saved revision: ${reviewState.revision}`;
@@ -145,7 +145,7 @@
   }
 
   const tmbGauge = document.getElementById("tmb-gauge");
-  if (tmbGauge) {
+  if (tmbGauge && !tmbGauge.disabled) {
     const number = document.getElementById("tmb-edit-value");
     const reason = document.getElementById("tmb-correction-reason");
     const status = document.getElementById("tmb-correction-status");
@@ -440,7 +440,7 @@
             event.revision !== revision || event.declaredInitials !== initials || event.method !== 'SELF_REPORTED' ||
             event.action !== 'PRINT_REQUESTED' || !Number.isFinite(Date.parse(event.requestedAt))) throw new Error('Print not acknowledged');
         if (reviewDirty || corrections.size || removedCorrections.size || reviewState.revision !== revision) throw new Error('Review changed');
-        printStatus.textContent = `Print requested by ${initials} (self-reported initials) · revision ${revision} · ${event.requestedAt} · ${reviewState.status}`;
+        printStatus.textContent = `Print requested by ${initials} · revision ${revision} · ${event.requestedAt} · ${reviewState.status}`;
         pendingPrint = null;
         document.body.classList.add('print-mdt');
         window.print();

@@ -76,7 +76,7 @@ def test_demo_review_save_reload_same_person_finalize_and_print(demo_server):
         playwright.expect(page.locator('#board-findings')).to_contain_text('CHEK2')
         playwright.expect(page.get_by_label('Interpretation summary', exact=True)).to_have_value('DEMO rapportnotat')
         playwright.expect(page.get_by_label('QC comment', exact=True)).to_have_value('DEMO QC-notat – ikke klinisk vurdering')
-        playwright.expect(page.locator('#board-saved-attribution')).to_contain_text('AB (self-reported initials)')
+        playwright.expect(page.locator('#board-saved-attribution')).to_contain_text('Last saved by: AB')
         page.once('dialog', lambda dialog: dialog.accept())
         page.get_by_role('button', name='Finalize', exact=True).click()
         page.get_by_label('Your initials', exact=True).fill('AB')

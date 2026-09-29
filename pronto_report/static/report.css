@@ -176,8 +176,8 @@ button {
 .save-feedback button { margin: 0.25rem 0.5rem 0.25rem 0; }
 
 .saved-correction {
-  margin: 0.5rem 0 0;
-  padding: 0.5rem 0.65rem;
+  margin: 0.3rem 0 0;
+  padding: 0.2rem 0.4rem;
   border-left: 3px solid #8b6b22;
   border-radius: 0.25rem;
   background: #fff7df;
@@ -185,6 +185,9 @@ button {
   font-size: 0.8rem;
   overflow-wrap: anywhere;
 }
+
+.saved-correction summary { cursor: pointer; font-weight: 650; }
+.saved-correction p { margin: 0.45rem 0 0; line-height: 1.4; }
 
 .status-badge {
   display: inline-flex;
@@ -443,6 +446,28 @@ button {
   font-size: 0.75rem;
 }
 
+.tmb-gauge__scale {
+  position: relative;
+  height: 0.65rem;
+  margin: 0.5rem 0 0.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.4rem;
+  background: linear-gradient(90deg, #dcfce7 0 16.6667%, #fef3c7 16.6667% 66.6667%, #fee2e2 66.6667% 100%);
+}
+
+.tmb-gauge__tick {
+  position: absolute;
+  top: -0.3rem;
+  height: 1.15rem;
+  transform: translateX(-50%);
+  pointer-events: none;
+  width: 1px;
+  background: #0c4a6e;
+}
+
+.tmb-gauge__tick--5 { left: 16.6667%; }
+.tmb-gauge__tick--20 { left: 66.6667%; }
+
 .metric-edit {
   display: grid;
   gap: 0.25rem;
@@ -474,11 +499,38 @@ button {
 }
 
 .tmb-gauge input[type="range"] {
+  position: absolute;
+  inset: -0.65rem 0 auto;
   width: 100%;
-  margin: 0.25rem 0;
-  accent-color: var(--color-brand-900);
-  background: var(--color-brand-050);
+  height: 2rem;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: ew-resize;
 }
+
+.tmb-gauge input[type="range"]::-webkit-slider-runnable-track { height: 0.65rem; background: transparent; }
+.tmb-gauge input[type="range"]::-moz-range-track { height: 0.65rem; background: transparent; }
+.tmb-gauge input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 4px;
+  height: 1.15rem;
+  margin-top: -0.3rem;
+  border: 0;
+  border-radius: 2px;
+  background: #17364a;
+  box-shadow: 0 0 0 2px white;
+}
+.tmb-gauge input[type="range"]::-moz-range-thumb {
+  width: 4px;
+  height: 1.15rem;
+  border: 0;
+  border-radius: 2px;
+  background: #17364a;
+  box-shadow: 0 0 0 2px white;
+}
+.tmb-gauge input[type="range"]:focus-visible { outline: 2px solid #17364a; outline-offset: 3px; }
+.tmb-gauge input[type="range"]:disabled { cursor: default; }
 
 .tmb-gauge__legend {
   display: flex;

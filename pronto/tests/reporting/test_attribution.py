@@ -81,6 +81,6 @@ def test_board_signoff_uses_saved_initials_and_revision_not_technical_user(snaps
     html = render_html(report, review, snapshot=snapshot, inline_assets=True)
     assert 'Gjennomgås av: local-demo-service' not in html
     assert 'id="board-saved-attribution"' in html
-    assert ('Last saved by: ABØ (self-reported initials)' if initials else
+    assert ('Last saved by: ABØ' if initials else
             'Last saved by: initials not recorded') in html
     assert 'id="board-saved-revision">Saved revision: 3</p>' in html

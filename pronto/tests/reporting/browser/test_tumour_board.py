@@ -94,6 +94,30 @@ def test_board_findings_follow_review_changes_and_keep_duplicate_variant_once(br
             context.close()
 
 
+def test_tmb_reference_track_keyboard_edit_requires_reason_before_save(browser):
+    report = build_report()
+    review = validate_review_state(review_document(report, report.variants[2]["variantId"]), report=report)
+    html = render_html(report, review, inline_assets=True)
+    with _serve(html) as url:
+        context, page, diagnostics, requests = _page(browser, html)
+        try:
+            page.goto(url)
+            page.get_by_role('tab', name='Key findings').click()
+            scale = page.locator('.tmb-gauge__scale')
+            assert scale.is_visible()
+            assert 'linear-gradient' in scale.evaluate('(node) => getComputedStyle(node).backgroundImage')
+            slider = page.get_by_role('slider', name='TMB (mut/Mb)')
+            slider.focus()
+            slider.press('ArrowRight')
+            assert page.locator('#dirty-lbl').inner_text() == 'Unsaved source corrections'
+            assert page.locator('[data-metric="tmb"] .metric-card__value').inner_text() == '15 mut/Mb'
+            page.locator('#tmb-correction-reason').fill('Verified against source')
+            assert page.locator('#tmb-correction-reason').input_value() == 'Verified against source'
+            assert diagnostics == []
+        finally:
+            context.close()
+
+
 def test_generated_mdt_print_contains_only_current_included_reviewed_findings(browser):
     report = build_report()
     review = validate_review_state(review_document(report, report.variants[2]["variantId"]), report=report)

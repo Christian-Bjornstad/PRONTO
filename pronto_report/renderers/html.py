@@ -75,13 +75,15 @@ def _correction_notice(correction: Mapping[str, Any] | None, unit: str = "") -> 
     if not correction:
         return ""
     value = f'{_display(correction["correctedValue"])} {unit}'.strip()
+    source = f'{_display(correction["originalValue"])} {unit}'.strip()
     return (
-        '<p class="saved-correction">'
-        f'<strong>Saved correction: {escape(value)}</strong>'
+        '<details class="saved-correction">'
+        '<summary>Corrected</summary>'
+        f'<p>Current: {escape(value)}<br>Source: {escape(source)}'
         f'<br>Reason: {escape(str(correction["reason"]))}'
         f'<br>Recorded by {escape(str(correction["author"]))}'
         f' · <time datetime="{escape(str(correction["timestamp"]), quote=True)}">'
-        f'{escape(str(correction["timestamp"]))}</time></p>'
+        f'{escape(str(correction["timestamp"]))}</time></p></details>'
     )
 
 
@@ -159,27 +161,33 @@ def _biomarker_cards(
         correction = corrections.get(correction_path) if correction_path else None
         correction_notice = _correction_notice(correction, unit)
         gauge = ""
-        if metric_id == "tmb" and editable and isinstance(biomarker["value"], (int, float)):
+        if metric_id == "tmb" and isinstance(biomarker["value"], (int, float)):
             original = escape(str(biomarker["value"]), quote=True)
             index = next(
                 i for i, item in enumerate(report.biomarkers) if item["metricId"] == "tmb"
             )
+            effective = correction["correctedValue"] if correction else biomarker["value"]
             gauge = (
                 '<div class="tmb-gauge">'
                 f'<label for="tmb-gauge">TMB (mut/Mb)</label>'
-                f'<input id="tmb-gauge" type="range" min="0" max="30" step="0.1" '
-                f'value="{escape(str(correction["correctedValue"]), quote=True) if correction else original}" data-original-value="{original}" '
-                f'data-correction-path="/biomarkers/{index}/value">'
+                '<div class="tmb-gauge__scale">'
+                '<span class="tmb-gauge__tick tmb-gauge__tick--5"></span>'
+                '<span class="tmb-gauge__tick tmb-gauge__tick--20"></span>'
+                f'<input id="tmb-gauge" type="range" class="tmb-gauge__cursor" min="0" max="30" step="0.1" '
+                f'value="{escape(str(effective), quote=True)}" data-original-value="{original}" '
+                f'data-correction-path="/biomarkers/{index}/value" {"" if editable else "disabled"}>'
+                '</div>'
                 '<div class="tmb-gauge__legend"><span>0</span><span>5</span><span>10</span>'
-                '<span>15</span><span>20</span><span>25</span><span>30</span></div>'
-                '<div class="tmb-gauge__details report-edit-controls" hidden>'
+                '<span>15</span><span>20</span><span>25</span><span>30 mut/Mb</span></div>'
+                + ('<div class="tmb-gauge__details report-edit-controls" hidden>'
                 '<label for="tmb-edit-value">TMB value</label>'
                 f'<input id="tmb-edit-value" type="number" min="0" step="0.1" value="{escape(str(correction["correctedValue"]), quote=True) if correction else original}">'
                 '<label for="tmb-correction-reason">Reason for correction</label>'
                 '<input id="tmb-correction-reason" type="text" maxlength="10000" '
                 f'placeholder="Required before saving" {"required" if correction else "disabled"} value="{escape(str(correction["reason"]), quote=True) if correction else ""}">'
                 '<p id="tmb-correction-status" hidden>Proposed correction; the source value remains unchanged.</p>'
-                '</div></div>'
+                '</div>' if editable else '')
+                + '</div>'
             )
         elif metric_id == "msi" and editable and isinstance(biomarker["value"], (int, float)):
             original = escape(str(biomarker["value"]), quote=True)
@@ -557,7 +565,7 @@ def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bo
         f'{" hidden" if findings else ""}>No findings selected for the report.</p>'
     )
     signoff = (
-        (f'Finalized by {escape(review.finalization_attribution["declaredInitials"])} (self-reported initials) {escape(review.finalized_at or "")}'
+        (f'Finalized by {escape(review.finalization_attribution["declaredInitials"])} {escape(review.finalized_at or "")}'
          if review.finalization_attribution else f'Signed by {escape(review.finalized_by or "")} {escape(review.finalized_at or "")}')
         if review.status == "FINAL" else "Not signed"
     )
@@ -585,7 +593,7 @@ def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bo
         f'<p>{escape(legacy)}</p></div>' if legacy else ""
     )
     saved_by = (
-        f'{escape(review.last_saved_attribution["declaredInitials"])} (self-reported initials)'
+        f'{escape(review.last_saved_attribution["declaredInitials"])}'
         if review.last_saved_attribution else 'initials not recorded'
     )
     return (
@@ -690,7 +698,7 @@ def render_html(
         raise ValueError("Plot image does not match a declared attachment")
     status_label = "Final" if status == "FINAL" else "Draft"
     finalizer_label = (
-        str(review.finalization_attribution['declaredInitials']) + ' (self-reported initials)'
+        str(review.finalization_attribution['declaredInitials'])
         if review and review.finalization_attribution else str(review.finalized_by or '') if review else ''
     )
     csp_meta, stylesheet_tag, script_tag = (

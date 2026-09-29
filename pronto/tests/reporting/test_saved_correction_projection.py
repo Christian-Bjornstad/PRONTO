@@ -26,8 +26,9 @@ def test_saved_corrections_show_source_and_review_values_in_draft_and_final():
     html = render_html(report, draft)
 
     assert "Source: Not reported" in html
-    assert "Saved correction: Syntetisk type" in html
-    assert "Saved correction: 12 mut/Mb" in html
+    assert '<details class="saved-correction"' in html
+    assert "Corrected" in html
+    assert "12 mut/Mb" in html
     assert "Bekreftet i syntetisk kilde" in html
     assert "14,9 mut/Mb" in html
     assert 'value="Syntetisk type"' in html
@@ -36,9 +37,31 @@ def test_saved_corrections_show_source_and_review_values_in_draft_and_final():
                      "finalizedBy": "biologist-1", "updatedAt": "2026-09-24T13:00:00Z"})
     final = validate_review_state(document, report=report)
     final_html = render_html(report, final)
-    assert "Saved correction: Syntetisk type" in final_html
-    assert "Saved correction: 12 mut/Mb" in final_html
+    assert '<details class="saved-correction"' in final_html
+    assert "Corrected" in final_html
+    assert "12 mut/Mb" in final_html
     assert 'id="tmb-edit-value"' not in final_html
+
+
+def test_tmb_gauge_keeps_reference_scale_and_saved_provenance_accessible():
+    report = build_report()
+    document = json.loads(serialize_review_state(migrate_review_state_v1(draft_review(report))))
+    index = next(i for i, item in enumerate(report.biomarkers) if item["metricId"] == "tmb")
+    document["valueCorrections"] = [{
+        "path": f"/biomarkers/{index}/value", "originalValue": 14.9,
+        "correctedValue": 5, "reason": "Confirmed measurement",
+        "author": "biologist-1", "timestamp": "2026-09-24T12:00:00Z",
+    }]
+    document["lastSavedAttribution"] = {"declaredInitials": "AB", "method": "SELF_REPORTED"}
+    html = render_html(report, validate_review_state(document, report=report))
+
+    assert 'id="tmb-gauge" type="range" class="tmb-gauge__cursor" min="0" max="30"' in html
+    assert 'class="tmb-gauge__scale"' in html
+    assert '<span>5</span>' in html and '<span>20</span>' in html
+    assert '<details class="saved-correction"' in html
+    assert 'Reason: Confirmed measurement' in html
+    assert '14,9 mut/Mb' in html
+    assert '(self-reported initials)' not in html
 
 
 def test_saved_correction_text_is_escaped_in_notice_and_editor():

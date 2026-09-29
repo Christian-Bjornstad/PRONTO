@@ -43,7 +43,8 @@ def test_msi_kpi_is_editable_only_as_a_traced_correction():
 def test_read_only_report_has_no_tmb_edit_controls():
     html = render_html(build_report())
 
-    assert 'id="tmb-gauge"' not in html
+    assert 'id="tmb-gauge"' in html
+    assert 'data-correction-path="/biomarkers/0/value" disabled' in html
     assert 'id="tmb-edit-value"' not in html
 
 
@@ -56,5 +57,7 @@ def test_finalized_review_has_no_tmb_edit_controls():
 
     html = render_html(report, final)
 
-    assert 'id="tmb-gauge"' not in html
+    assert 'id="tmb-gauge"' in html
+    assert 'data-correction-path="/biomarkers/0/value" disabled' in html
+    assert 'id="tmb-edit-value"' not in html
     assert "14,9 mut/Mb" in html

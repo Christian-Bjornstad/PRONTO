@@ -7,7 +7,7 @@ def render_attribution(review, snapshot: bool) -> str:
     if review:
         for label, value in (('Saved by', review.last_saved_attribution), ('Finalized by', review.finalization_attribution)):
             if value:
-                entries.append(f'{label}: {escape(value["declaredInitials"])} (self-reported initials)')
+                entries.append(f'{label}: {escape(value["declaredInitials"])}')
     return '<p id="review-attribution"' + ('>' if entries else ' hidden>') + ' · '.join(entries) + '</p>'
 
 

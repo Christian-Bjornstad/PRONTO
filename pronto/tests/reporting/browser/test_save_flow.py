@@ -168,7 +168,8 @@ def test_saved_correction_can_be_removed_without_changing_source(browser):
                 route.fulfill(status=422, content_type="application/json", body='{"error":{"code":"INVALID_DRAFT"}}'),
             ))
             page.goto(url)
-            assert "Saved correction: Syntetisk korrigert" in page.locator('[data-fact="tumourType"]').text_content()
+            assert "Corrected" in page.locator('[data-fact="tumourType"]').text_content()
+            assert "Current: Syntetisk korrigert" in page.locator('[data-fact="tumourType"]').text_content()
             assert page.locator('[data-fact="tumourType"] dd').text_content() == "Not reported"
             page.locator("#edit-btn").click()
             field = page.locator("#tumourType-edit")
