@@ -492,7 +492,7 @@
 
   if (saveButton?.dataset.saveUrl) {
     const editableInputs = Array.from(document.querySelectorAll(
-      '.report-edit-controls input, textarea[data-review-note], #variant-table select[data-review-field], #variant-table textarea[data-review-field], [data-bulk-decision], [data-include-variant], [data-quick-field], #qc-review-status, #qc-review-comment'
+      '.report-edit-controls input, textarea[data-review-note], #variant-table select[data-review-field], #variant-table textarea[data-review-field], [data-bulk-decision], [data-quick-field], #qc-review-status, #qc-review-comment'
     ));
     function lockInputs() {
       const previouslyDisabled = editableInputs.map((input) => input.disabled);
@@ -631,11 +631,6 @@
   }
 
   function updateBoardFindings() {
-    document.querySelectorAll('[data-include-variant]').forEach((button) => {
-      const included = activities.get(button.dataset.includeVariant)?.reportingDecision === 'INCLUDE';
-      button.setAttribute('aria-pressed', String(included));
-      button.textContent = included ? 'In report' : 'Add to report';
-    });
     const list = document.getElementById("board-findings");
     if (!list) return;
     list.replaceChildren();
@@ -661,15 +656,6 @@
     if (selectedCount) selectedCount.textContent = String(shown.size);
   }
   updateBoardFindings();
-
-  document.querySelectorAll('[data-include-variant]').forEach((button) => {
-    button.addEventListener('click', () => {
-      if (reviewState.status !== 'DRAFT' || saving || finalizing) return;
-      const select = button.closest('tr').querySelector('select[data-review-field="reportingDecision"]');
-      select.value = select.value === 'INCLUDE' ? 'UNREVIEWED' : 'INCLUDE';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-  });
 
   table.tBodies[0].addEventListener('click', (event) => {
     const button = event.target.closest('button[data-quick-field]');

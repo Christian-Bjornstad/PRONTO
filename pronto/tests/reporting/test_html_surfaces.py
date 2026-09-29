@@ -104,3 +104,6 @@ def test_draft_has_compact_review_choices_without_combining_decision_and_classif
     assert 'data-quick-field="reportingDecision" data-quick-value="EXCLUDE"' in html
     assert 'data-quick-field="clinicalClassification" data-quick-value="PATHOGENIC"' in html
     assert 'data-quick-field="clinicalClassification" data-quick-value="UNCERTAIN"' in html
+    assert 'data-quick-value="INCLUDE"' in html
+    assert 'data-include-variant=' in html
+    assert '>Include in report</button>' not in html

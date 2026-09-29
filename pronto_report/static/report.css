@@ -1259,8 +1259,7 @@ button {
 /* Review workspace: retain the reference report's compact, flat controls. */
 .qc-review { display: grid; gap: 0.5rem; margin-block: 1rem; max-width: 48rem; }
 .qc-review textarea { width: 100%; box-sizing: border-box; }
-[data-include-variant] { white-space: nowrap; margin-bottom: 0.5rem; }
-[data-include-variant][aria-pressed="true"] { background: #dcfce7; color: #14532d; border-color: #166534; }
+[data-include-variant] { white-space: nowrap; }
 #variant-table details { min-width: 10rem; max-width: 24rem; overflow-wrap: anywhere; }
 #variant-table details dt { font-weight: 600; margin-top: 0.5rem; }
 #variant-table details dd { margin-left: 0; }
@@ -1269,8 +1268,6 @@ button {
 #variant-table td:has([data-include-variant]) select { display: block; }
 #variant-table .review-decision-heading { position: sticky; right: 0; background: #e7f2f7; z-index: 1; }
 #variant-table .identifier details { min-width: 3rem; max-width: 8rem; }
-[data-include-variant] { padding: 0.5rem; border: 1px solid #b6dff5; border-radius: 0.25rem; background: #ffffff; color: #00517a; font: inherit; cursor: pointer; }
-[data-include-variant]:disabled { cursor: default; }
 .review-quick-group { display: flex; gap: 0.2rem; margin-bottom: 0.25rem; }
 .review-quick-choice { padding: 0.25rem 0.4rem; border: 1px solid #b6dff5; border-radius: 0.2rem; background: #fff; color: #00517a; font: inherit; cursor: pointer; }
 .review-quick-choice[aria-pressed="true"] { background: #d8edf8; border-color: #00517a; color: #003955; font-weight: 700; }

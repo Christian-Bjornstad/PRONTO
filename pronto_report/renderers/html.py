@@ -379,8 +379,10 @@ def _variant_rows(
                 disabled = " disabled" if review.status == "FINAL" else ""
                 report_buttons = ''.join(
                     '<button type="button" class="review-quick-choice" data-quick-field="reportingDecision" '
-                    'data-quick-value="{}" aria-label="{} for {}" aria-pressed="{}"{}>{}</button>'.format(
-                        value, label, escape(occurrence_id, quote=True),
+                    'data-quick-value="{}" {}aria-label="{} for {}" aria-pressed="{}"{}>{}</button>'.format(
+                        value,
+                        f'data-include-variant="{escape(variant_id, quote=True)}" ' if value == "INCLUDE" else "",
+                        label, escape(occurrence_id, quote=True),
                         str(decision == value).lower(), disabled, short,
                     )
                     for value, label, short in (
@@ -400,10 +402,7 @@ def _variant_rows(
                     )
                 )
                 review_cells = (
-                    '<td><button type="button" data-include-variant="{}" aria-pressed="{}"{}>{}</button>'.format(
-                        escape(variant_id, quote=True), str(decision == 'INCLUDE').lower(), disabled,
-                        'In report' if decision == 'INCLUDE' else 'Include in report')
-                    + '<div class="review-quick-group" role="group" aria-label="Report choice">' + report_buttons + '</div>'
+                    '<td><div class="review-quick-group" role="group" aria-label="Report choice">' + report_buttons + '</div>'
                     + _review_select(variant_id, occurrence_id, "reportingDecision", decision, review.status == "FINAL") + "</td>"
                     + '<td><div class="review-quick-group" role="group" aria-label="Classification choice">' + class_buttons + '</div>'
                     + _review_select(variant_id, occurrence_id, "clinicalClassification", classification, review.status == "FINAL") + "</td>"
