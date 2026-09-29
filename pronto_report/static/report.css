@@ -852,6 +852,8 @@ button {
   display: none;
 }
 
+.plot-group[hidden] { display: none; }
+
 .plot-figure img {
   display: block;
   max-width: 100%;
@@ -1293,6 +1295,8 @@ button {
     display: block;
   }
 
+  .plot-group[hidden] { display: block; }
+
   .plot-switcher,
   .plot-figure button,
   #plot-dialog,
@@ -1312,7 +1316,21 @@ button {
 .qc-review { display: grid; gap: 0.5rem; margin-block: 1rem; max-width: 48rem; }
 .qc-review textarea { width: 100%; box-sizing: border-box; }
 [data-include-variant] { white-space: nowrap; }
-#variant-table { table-layout: fixed; min-width: 68rem; }
+#variant-table { table-layout: fixed; min-width: 60rem; }
+#variant-table .variant-col--gene { width: 7%; }
+#variant-table .variant-col--protein { width: 8%; }
+#variant-table .variant-col--coding { width: 11%; }
+#variant-table .variant-col--af { width: 8%; }
+#variant-table .variant-col--depth { width: 8%; }
+#variant-table .variant-col--oncokb { width: 8%; }
+#variant-table .variant-col--biomarker { width: 9%; }
+#variant-table .variant-col--report { width: 15%; }
+#variant-table .variant-col--clinical { width: 15%; }
+#variant-table .variant-col--details { width: 11%; }
+#variant-table:has(.variant-col--igv) .variant-col--igv { width: 7%; }
+#variant-table:has(.variant-col--igv) .variant-col--report { width: 12%; }
+#variant-table:has(.variant-col--igv) .variant-col--clinical { width: 12%; }
+#variant-table:has(.variant-col--igv) .variant-col--details { width: 10%; }
 #variant-table tr:has(details[open]) { height: 26rem; }
 #variant-table details { position: relative; overflow-wrap: anywhere; }
 #variant-table details[open] { z-index: 3; }

@@ -80,6 +80,36 @@ def test_variant_review_keeps_primary_facts_and_choices_in_one_desktop_view(brow
 
 
 @pytest.mark.parametrize('width', [320, 768, 1024, 1440])
+def test_variant_review_headers_track_cells_at_all_target_widths(browser, width, tmp_path):
+    report = build_report()
+    html = render_html(report, draft_review(report), inline_assets=True)
+    with _serve(html) as url:
+        context, page, diagnostics, _requests = _page(browser, html, width=width)
+        try:
+            page.goto(url)
+            page.get_by_role('tab', name='Variant review').click()
+            screenshot = tmp_path / f'variant-review-{width}.png'
+            page.screenshot(path=str(screenshot), full_page=True)
+            print(f'Variant review screenshot: {screenshot}')
+            table = page.locator('#variant-table')
+            geometry = table.evaluate('''table => ({
+                headers: [...table.tHead.rows[0].cells].map(c => [c.offsetLeft, c.offsetWidth]),
+                values: [...table.tBodies[0].rows[0].cells].map(c => [c.offsetLeft, c.offsetWidth]),
+                overflow: table.scrollWidth > table.parentElement.clientWidth,
+                pageOverflow: document.documentElement.scrollWidth > innerWidth,
+            })''')
+            assert geometry['headers'] == geometry['values']
+            assert not geometry['pageOverflow']
+            assert geometry['overflow'] == (width < 1024)
+            assert table.locator('tbody tr').first.locator('td').nth(4).inner_text() != ''
+            assert table.locator('tbody tr').first.locator('td').nth(5).inner_text() == 'Not received'
+            assert table.locator('tbody tr').first.locator('td').nth(6).inner_text() == 'Not cross-checked'
+            assert diagnostics == []
+        finally:
+            context.close()
+
+
+@pytest.mark.parametrize('width', [320, 768, 1024, 1440])
 def test_compact_workspace_responsive_layout(browser, width, tmp_path):
     report = build_report()
     html = render_html(report, draft_review(report), inline_assets=True)

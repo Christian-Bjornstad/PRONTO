@@ -459,7 +459,7 @@ def _plot_figure(kind: str, index: int, total: int, media_type: str, payload: by
         raise ValueError("Unsupported report plot image type")
     label = f"CNV {panel}" if kind == "cnv" and panel else f"CNV page {index} of {total}" if kind == "cnv" else f"QC plot {index} of {total}"
     data_uri = f"data:{media_type};base64,{base64.b64encode(payload).decode('ascii')}"
-    hidden = " hidden" if kind == "cnv" and index != 1 else ""
+    hidden = " hidden" if kind == "cnv" and index != 1 and panel is None else ""
     return (
         f'<figure class="plot-figure" id="{kind}-{index}"{hidden}>'
         f'<img src="{data_uri}" alt="{escape(label)}. {escape(description)}">'
@@ -492,18 +492,31 @@ def _plot_content(
         kind == "cnv" and len(images) == 9 and len(attachments) == 1
         and str(attachments[0]["name"]).endswith("_CNV_overview_plots.pdf")
     ) else ()
-    figures = "".join(
+    figure_items = [
         _plot_figure(kind, index, len(images), media_type, payload, str(item.get("description", "")),
                      panels[index - 1] if panels else None)
         for index, (item, media_type, payload) in enumerate(images, start=1)
-    )
+    ]
     if kind == "cnv":
+        if panels:
+            group_slices = ((0, 2), (2, 4), (4, 6), (6, 8), (8, 9))
+            group_names = ("A1 / A2", "B2 / B3", "C1 / C2", "C3 / C4", "C6")
+            buttons = "".join(
+                f'<button type="button" data-plot-select="cnv-group-{index}" aria-pressed="{str(index == 1).lower()}">{name}</button>'
+                for index, name in enumerate(group_names, start=1)
+            )
+            groups = "".join(
+                f'<div class="plot-group" id="cnv-group-{index}"{" hidden" if index != 1 else ""}>'
+                + "".join(figure_items[start:end]) + "</div>"
+                for index, (start, end) in enumerate(group_slices, start=1)
+            )
+            return f'<div class="plot-switcher" role="group" aria-label="Select CNV plot group">{buttons}</div>{groups}'
         buttons = "".join(
             f'<button type="button" data-plot-select="cnv-{index}" aria-pressed="{str(index == 1).lower()}">{panels[index - 1] if panels else f"Page {index}"}</button>'
             for index in range(1, len(images) + 1)
         )
-        return f'<div class="plot-switcher" role="group" aria-label="Select CNV plot">{buttons}</div>{figures}'
-    return figures
+        return f'<div class="plot-switcher" role="group" aria-label="Select CNV plot">{buttons}</div>{"".join(figure_items)}'
+    return "".join(figure_items)
 
 
 def _qc_metrics(report: ReportData) -> str:
@@ -741,6 +754,15 @@ def render_html(
         '<th scope="col" class="review-decision-heading">Report</th><th scope="col">Clinical class</th>'
         if review is not None else ""
     )
+    variant_colgroup = ""
+    if review is not None:
+        column_names = ["gene", "protein", "coding", "af", "depth", "oncokb", "biomarker"]
+        if web_igv:
+            column_names.append("igv")
+        column_names.extend(("report", "clinical", "details"))
+        variant_colgroup = '<colgroup>' + ''.join(
+            f'<col class="variant-col--{name}">' for name in column_names
+        ) + '</colgroup>'
     if review is None:
         review_toolbar = '<p class="review-notice">No review loaded. Read-only view.</p>'
         review_filters = ""
@@ -890,6 +912,7 @@ def render_html(
             '</section>'
         ) if web_igv else "",
         "review_columns": review_columns,
+        "variant_colgroup": variant_colgroup,
         "review_toolbar": review_toolbar,
         "review_filters": review_filters,
         "review_actions": review_actions,

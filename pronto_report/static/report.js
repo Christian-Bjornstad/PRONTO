@@ -373,9 +373,14 @@
     const selector = event.target.closest("button[data-plot-select]");
     if (selector) {
       const targetId = selector.dataset.plotSelect;
-      document.querySelectorAll("#panel-cnv-plots .plot-figure").forEach((figure) => {
-        figure.hidden = figure.id !== targetId;
-      });
+      const groups = document.querySelectorAll('#panel-cnv-plots .plot-group');
+      if (groups.length) {
+        groups.forEach((group) => { group.hidden = group.id !== targetId; });
+      } else {
+        document.querySelectorAll("#panel-cnv-plots .plot-figure").forEach((figure) => {
+          figure.hidden = figure.id !== targetId;
+        });
+      }
       document.querySelectorAll("button[data-plot-select]").forEach((button) => {
         button.setAttribute("aria-pressed", String(button === selector));
       });

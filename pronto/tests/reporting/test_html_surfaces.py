@@ -37,9 +37,23 @@ def test_nine_page_cnv_pdf_uses_distinct_panel_labels():
     images = {cnv["assetId"]: tuple(("image/png", ONE_PIXEL_PNG) for _ in range(9))}
     html = render_html(report, plot_images=images)
     for label in ("A1", "A2", "B2", "B3", "C1", "C2", "C3", "C4", "C6"):
-        assert f'>{label}</button>' in html
-    assert 'data-plot-select="cnv-1"' in html
-    assert 'data-plot-select="cnv-2"' in html
+        assert f'CNV {label}</strong>' in html
+    assert 'data-plot-select="cnv-group-1"' in html
+    assert 'data-plot-select="cnv-group-2"' in html
+
+
+def test_nine_page_cnv_pairs_are_stacked_with_all_source_pages():
+    report = build_report()
+    cnv = next(item for item in report.attachments if "CNV" in item["name"])
+    images = {cnv["assetId"]: tuple(("image/png", ONE_PIXEL_PNG) for _ in range(9))}
+    html = render_html(report, plot_images=images)
+    assert '<div class="plot-group" id="cnv-group-1">' in html
+    assert html.index('id="cnv-1"') < html.index('id="cnv-2"') < html.index('id="cnv-group-2"')
+    for pair in ('A1 / A2', 'B2 / B3', 'C1 / C2', 'C3 / C4', 'C6'):
+        assert f'>{pair}</button>' in html
+    for index in range(1, 10):
+        assert f'id="cnv-{index}"' in html
+        assert f'data-enlarge="cnv-{index}"' in html
 
 
 def test_missing_plots_and_qc_are_explicit():

@@ -269,6 +269,32 @@ def test_keyboard_table_plots_focus_and_print(browser):
             context.close()
 
 
+def test_nine_cnv_panels_show_a1_above_a2_and_switch_by_pair(browser):
+    report = build_report()
+    cnv = next(asset for asset in report.attachments if "cnv" in asset["name"].lower())
+    report = replace(report, attachments=(cnv,))
+    html = render_html(report, draft_review(report),
+        plot_images={cnv["assetId"]: tuple(("image/png", ONE_PIXEL_PNG) for _ in range(9))},
+        inline_assets=True)
+    with _serve(html) as url:
+        context, page, diagnostics, _requests = _page(browser, html)
+        try:
+            page.goto(url)
+            page.get_by_role("tab", name="CNV plots").click()
+            assert page.locator('#cnv-1').is_visible()
+            assert page.locator('#cnv-2').is_visible()
+            assert page.locator('#cnv-1').bounding_box()['y'] < page.locator('#cnv-2').bounding_box()['y']
+            page.get_by_role('button', name='B2 / B3').click()
+            assert page.locator('#cnv-3').is_visible()
+            assert page.locator('#cnv-4').is_visible()
+            assert not page.locator('#cnv-1').is_visible()
+            page.locator('#cnv-4 [data-enlarge]').click()
+            assert page.get_by_role('dialog').is_visible()
+            assert diagnostics == []
+        finally:
+            context.close()
+
+
 def test_csp_allows_review_download_without_external_network(browser):
     report = build_report()
     review = draft_review(report)
