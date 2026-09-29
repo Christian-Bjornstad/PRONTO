@@ -1,5 +1,10 @@
 # PRONTO: manus for demonstrasjon på denne PC-en
 
+> Historical walkthrough for the original presentation demo. For the current
+> Reset and standalone HTML download workflow, use
+> [the updated demo guide](demo-walkthrough-nb.md). The print/PDF steps and
+> database assumptions below do not describe the current live workspace.
+
 ## Start her
 
 Åpne **[den klargjorte rapporten](http://127.0.0.1:8772/reports/demo-presentation-20260929/)**

@@ -82,15 +82,17 @@ collapsing to one column on narrow screens. Sign-off displays the last saved
 self-reported initials and revision, updated only after an acknowledged save;
 historical records without initials say so instead of presenting a technical
 service account as the biologist. Snapshot exports retain these labels.
-The unimplemented import/reset toolbar controls are omitted.
+Reset is now available for DRAFT reviews. It requires confirmation and initials,
+creates a new blank saved revision, and leaves source facts, older revisions and
+audit rows intact. It is not available after finalization.
 Report copy is operational: no generic quality-process footer or commentary
 about which biologist should finalize. Finalization still confirms that the
 report will be locked; draft status, attribution and actionable errors remain.
 
 `browser/test_demo_workflow.py` exercises real Chrome against an isolated Django
-test database without mocking the save/finalize/print endpoints: selection,
-QC and report notes, initials, save/reload, same-person finalization, PDF
-contents, distinct print requester and audit records. The in-app browser's
+test database without mocking the save/reset/finalize/HTML endpoints: selection,
+QC and report notes, TMB correction, initials, save/reload, reset, same-person
+finalization, downloaded offline HTML, print preview and audit records. The in-app browser's
 native finalization confirmation stalled during manual verification; use
 Chrome/Edge for the walkthrough. The user-facing demo remains an untouched draft.
 
@@ -106,10 +108,13 @@ existing finalized reports; it is not the production deployment entry point.
 The dedicated technical user has report access only. Do not run behind a proxy
 or expose externally; only direct loopback connections are accepted.
 
-Save and Finalize require self-reported initials. Application print requests
-require initials and an acknowledged audit event for the current saved revision.
-The audit means PRINT_REQUESTED, not that paper/PDF was produced. A failed request
-can be retried with the same idempotency key. Initials are not authentication.
+Save, Reset and Finalize require self-reported initials. The Download report HTML
+action requires initials and an acknowledged audit event for the exact saved
+revision. The audit means HTML_DOWNLOAD_REQUESTED, not that the browser saved or
+opened the file. An exact failed retry keeps the same request ID and renders
+the same historical revision; changed request details conflict. Initials are
+not authentication. The older print-request endpoint and its audit records
+remain for compatibility, but the live workspace now offers HTML download.
 
 Offline HTML printing is explicitly local-only: it does not prompt for fresh
 requester initials or create a central audit event. Browser-menu printing and
