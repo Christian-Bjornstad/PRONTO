@@ -1,13 +1,12 @@
 <section class="report-panel" role="tabpanel" id="panel-sequencing-qc" aria-labelledby="tab-sequencing-qc" hidden>
   <div class="section-heading">
     <div>
-      <p class="section-heading__eyebrow">Kvalitetskontroll</p>
-      <h2>Sekvenserings-QC</h2>
+      <h2>Sequencing QC</h2>
     </div>
-    <p class="section-heading__description">Måleverdier, status og kildeplott for sekvenseringskjøringen.</p>
   </div>
-  <h3>QC-målinger</h3>
+  <h3>QC assessment</h3>
+  <div class="qc-review">{{ qc_review }}</div>
   <div class="metrics-grid">{{ qc_metrics }}</div>
-  <h3>Kildeplott</h3>
+  <h3>QC plot</h3>
   <div class="plot-content">{{ qc_content }}</div>
 </section>

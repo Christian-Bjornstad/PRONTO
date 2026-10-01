@@ -2,20 +2,25 @@
 
 from django.contrib.auth.views import LoginView, LogoutView
 from django.urls import path
+from pronto_web.reports.print_audit import print_request
+from pronto_web.reports.html_export_audit import html_export_request
 
 from pronto_web.reports.views import (
     alignment_component, cancel_alignment_save, complete_alignment_save,
     delete_saved_alignment, finalize_review, preserve_registered_alignment,
     report_detail, report_index, save_review_revision, start_alignment_save,
-    upload_alignment_chunk,
+    reset_review_revision, upload_alignment_chunk,
 )
 
 
 urlpatterns = [
+    path('reports/<str:report_id>/print-requests/', print_request, name='report-print'),
+    path('reports/<str:report_id>/html-exports/', html_export_request, name='report-html-export'),
     path("accounts/login/", LoginView.as_view(), name="login"),
     path("accounts/logout/", LogoutView.as_view(next_page="/accounts/login/"), name="logout"),
     path("reports/", report_index, name="report-index"),
     path("reports/<str:report_id>/revisions/", save_review_revision, name="review-save"),
+    path("reports/<str:report_id>/resets/", reset_review_revision, name="review-reset"),
     path("reports/<str:report_id>/finalizations/", finalize_review, name="review-finalize"),
     path("reports/<str:report_id>/alignments/save-sessions/", start_alignment_save,
          name="alignment-save-start"),

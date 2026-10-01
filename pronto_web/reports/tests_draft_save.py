@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import replace
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -85,6 +86,50 @@ class DraftSaveTests(TestCase):
         assert saved["author"] == str(self.writer.pk)
         assert saved["timestamp"] == response.json()["review"]["updatedAt"]
         assert saved["originalValue"] == self.report.sample.get("tumourType")
+
+    def test_qc_assessment_and_variant_selection_persist_without_changing_source(self):
+        self.client.force_login(self.writer)
+        self.draft['runQcAssessment'] = {'status': 'CONDITIONAL', 'comment': 'Kontroller dybde.'}
+        self.draft['variantReviews'][0]['reportingDecision'] = 'INCLUDE'
+        original = self.record.report_data
+        response = self.post(self.client, self.payload())
+        assert response.status_code == 201
+        saved = ReviewRevision.objects.get(report=self.record, revision=2).review_data
+        assert saved['runQcAssessment'] == self.draft['runQcAssessment']
+        assert saved['variantReviews'][0]['reportingDecision'] == 'INCLUDE'
+        self.record.refresh_from_db()
+        assert self.record.report_data == original
+
+    def test_stale_workspace_cannot_replace_saved_qc_selection_or_initials(self):
+        from pronto_web.reports.models import ReviewAudit
+
+        ReportGrant.objects.create(report=self.record, user=self.other)
+        first_client, stale_client = Client(), Client()
+        first_client.force_login(self.writer)
+        stale_client.force_login(self.other)
+        original_source = json.loads(json.dumps(self.record.report_data))
+        stale_draft = json.loads(json.dumps(self.draft))
+        stale_draft['runQcAssessment'] = {'status': 'FAIL', 'comment': 'Annen lokal vurdering'}
+        stale_draft['variantReviews'][0]['reportingDecision'] = 'EXCLUDE'
+        self.draft['runQcAssessment'] = {'status': 'CONDITIONAL', 'comment': 'Kontroller dybde'}
+        self.draft['variantReviews'][0]['reportingDecision'] = 'INCLUDE'
+
+        saved = self.post(first_client, self.payload(declaredInitials='AB'))
+        assert saved.status_code == 201
+        latest = saved.json()['review']
+        stale = self.post(stale_client, self.payload(draft=stale_draft, declaredInitials='CD'))
+
+        assert stale.status_code == 409
+        assert stale.json()['error']['code'] == 'REVISION_CONFLICT'
+        assert stale.json()['error']['currentRevision'] == 2
+        assert ReviewRevision.objects.get(report=self.record, revision=2).review_data == latest
+        assert latest['runQcAssessment'] == self.draft['runQcAssessment']
+        assert latest['variantReviews'][0]['reportingDecision'] == 'INCLUDE'
+        assert latest['lastSavedAttribution']['declaredInitials'] == 'AB'
+        assert ReviewRevision.objects.filter(report=self.record).count() == 2
+        assert ReviewAudit.objects.filter(report=self.record).count() == 1
+        self.record.refresh_from_db()
+        assert self.record.report_data == original_source
 
     def test_same_biologist_can_finalize_saved_draft_and_lock_future_writes(self):
         from pronto_web.reports.models import ReviewAudit
@@ -224,3 +269,104 @@ class DraftSaveTests(TestCase):
             repository.commit(self.report.report_id, 1, next_review, audit)
         assert caught.exception.code == "FORBIDDEN"
         assert ReviewRevision.objects.filter(report=self.record).count() == 1
+
+    def test_reset_repository_commits_one_blank_revision_and_distinct_audit(self):
+        from pronto_report.review import contracts
+        from pronto_report.review.service import ReviewCommandService
+        from pronto_web.reports.models import ReviewAudit
+        from pronto_web.reports.review_repository import DjangoReviewAuthorizer, DjangoReviewRepository
+
+        service = ReviewCommandService(
+            DjangoReviewRepository(self.record, self.report), DjangoReviewAuthorizer(self.writer),
+            clock=lambda: datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc), require_initials=True,
+        )
+        request = contracts.ResetDraftRequest('1.0', self.report.report_id, 1, 'AB')
+        response = service.reset(request, actor_id=str(self.writer.pk), report=self.report)
+
+        assert response.review.revision == 2
+        assert response.review.variant_reviews == ()
+        assert response.audit.action == 'RESET_DRAFT'
+        assert ReviewRevision.objects.filter(report=self.record).count() == 2
+        audit = ReviewAudit.objects.get(report=self.record, revision=2)
+        assert audit.action == 'RESET_DRAFT'
+        assert audit.declared_initials == 'AB'
+        assert audit.actor_id == self.writer.pk
+
+    def test_reset_repository_conflict_grant_and_audit_failure_leave_no_write(self):
+        from pronto_report.review import contracts
+        from pronto_report.review.contracts import ReviewCommandError
+        from pronto_report.review.service import ReviewCommandService
+        from pronto_web.reports.models import ReviewAudit
+        from pronto_web.reports.review_repository import DjangoReviewAuthorizer, DjangoReviewRepository
+
+        service = ReviewCommandService(
+            DjangoReviewRepository(self.record, self.report), DjangoReviewAuthorizer(self.writer),
+            clock=lambda: datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc), require_initials=True,
+        )
+        with self.assertRaises(ReviewCommandError) as caught:
+            service.reset(contracts.ResetDraftRequest('1.0', self.report.report_id, 2, 'AB'),
+                          actor_id=str(self.writer.pk), report=self.report)
+        assert caught.exception.code == 'REVISION_CONFLICT'
+        with self.assertRaises(ReviewCommandError) as caught:
+            service.reset(contracts.ResetDraftRequest('1.0', self.report.report_id, 1, None),
+                          actor_id=str(self.writer.pk), report=self.report)
+        assert caught.exception.code == 'INVALID_INITIALS'
+        with patch.object(ReviewAudit.objects, 'create', side_effect=IntegrityError('audit unavailable')):
+            with self.assertRaises(IntegrityError):
+                service.reset(contracts.ResetDraftRequest('1.0', self.report.report_id, 1, 'AB'),
+                              actor_id=str(self.writer.pk), report=self.report)
+        assert ReviewRevision.objects.filter(report=self.record).count() == 1
+        assert ReviewAudit.objects.filter(report=self.record).count() == 0
+        ReportGrant.objects.filter(report=self.record, user=self.writer).delete()
+        with self.assertRaises(ReviewCommandError) as caught:
+            service.reset(contracts.ResetDraftRequest('1.0', self.report.report_id, 1, 'AB'),
+                          actor_id=str(self.writer.pk), report=self.report)
+        assert caught.exception.code == 'FORBIDDEN'
+
+    def test_reset_http_requires_grant_csrf_initials_and_current_revision(self):
+        from pronto_web.reports.models import ReviewAudit
+        url = f'/reports/{self.report.report_id}/resets/'
+        payload = {'schemaVersion': '1.0', 'reportId': self.report.report_id,
+                   'baseRevision': 1, 'declaredInitials': 'AB'}
+        anonymous = Client().post(url, data=json.dumps(payload), content_type='application/json')
+        assert anonymous.status_code in (401, 404)
+        ungranted = Client()
+        ungranted.force_login(self.other)
+        assert ungranted.post(url, data=json.dumps(payload), content_type='application/json').status_code == 404
+        guarded = Client(enforce_csrf_checks=True)
+        guarded.force_login(self.writer)
+        assert guarded.post(url, data=json.dumps(payload), content_type='application/json').status_code == 403
+        client = Client()
+        client.force_login(self.writer)
+        assert client.post(url, data=json.dumps({**payload, 'declaredInitials': '1'}),
+                           content_type='application/json').status_code == 422
+        assert client.post(url, data=json.dumps({**payload, 'draft': self.draft}),
+                           content_type='application/json').status_code == 422
+        assert client.post(url, data=json.dumps({**payload, 'baseRevision': 2}),
+                           content_type='application/json').status_code == 409
+        assert ReviewRevision.objects.filter(report=self.record).count() == 1
+        assert ReviewAudit.objects.filter(report=self.record).count() == 0
+
+    def test_reset_http_creates_one_revision_and_final_report_stays_locked(self):
+        from pronto_web.reports.models import ReviewAudit
+        url = f'/reports/{self.report.report_id}/resets/'
+        payload = {'schemaVersion': '1.0', 'reportId': self.report.report_id,
+                   'baseRevision': 1, 'declaredInitials': 'AB'}
+        client = Client()
+        client.force_login(self.writer)
+        response = client.post(url, data=json.dumps(payload), content_type='application/json')
+        assert response.status_code == 201
+        assert response.json()['review']['revision'] == 2
+        assert response.json()['review']['variantReviews'] == []
+        assert response.json()['audit']['action'] == 'RESET_DRAFT'
+        assert ReviewRevision.objects.filter(report=self.record).count() == 2
+        assert ReviewAudit.objects.filter(report=self.record).count() == 1
+        final = response.json()['review']
+        final.update({'status': 'FINAL', 'finalizedAt': '2026-09-29T13:00:00Z',
+                      'finalizedBy': str(self.writer.pk), 'updatedAt': '2026-09-29T13:00:00Z'})
+        ReviewRevision.objects.filter(report=self.record, revision=2).update(review_data=final)
+        locked = client.post(url, data=json.dumps({**payload, 'baseRevision': 2}),
+                             content_type='application/json')
+        assert locked.status_code == 409
+        assert locked.json()['error']['code'] == 'FINAL_LOCKED'
+        assert ReviewRevision.objects.filter(report=self.record).count() == 2

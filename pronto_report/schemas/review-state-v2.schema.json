@@ -20,6 +20,8 @@
     "updatedAt": {"type": "string", "format": "date-time"},
     "finalizedAt": {"type": "string", "format": "date-time"},
     "finalizedBy": {"$ref": "#/$defs/identifier"},
+    "lastSavedAttribution": {"$ref": "#/$defs/attribution"},
+    "finalizationAttribution": {"$ref": "#/$defs/attribution"},
     "variantReviews": {
       "type": "array", "maxItems": 10000,
       "items": {"$ref": "#/$defs/variantReview"}
@@ -39,6 +41,14 @@
     ]}}
   }],
   "$defs": {
+    "attribution": {
+      "type": "object", "additionalProperties": false,
+      "required": ["declaredInitials", "method"],
+      "properties": {
+        "declaredInitials": {"type": "string", "pattern": "^[A-ZÆØÅ]{2,8}$", "maxLength": 8, "not": {"pattern": "[^A-ZÆØÅ]"}},
+        "method": {"const": "SELF_REPORTED"}
+      }
+    },
     "identifier": {
       "type": "string", "minLength": 1, "maxLength": 128,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"

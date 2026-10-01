@@ -62,6 +62,8 @@ class DjangoReviewRepository:
                     report_id=report_id, actor_id=audit.actor_id, action=audit.action,
                     revision=audit.revision,
                     occurred_at=datetime.fromisoformat(audit.timestamp.replace("Z", "+00:00")),
+                    declared_initials=audit.declared_initials,
+                    attribution_method=audit.attribution_method,
                 )
             return True
         except IntegrityError:

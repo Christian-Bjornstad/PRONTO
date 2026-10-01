@@ -406,6 +406,12 @@ PR #4 on the strength of Tasks 10–15 alone. Follow Tasks 16–29 below.
 
 **Description:** Replace PR #4's simplified shell with maintainable templates and CSS matching the reference top bar, tabs, spacing, palette, density, KPI cards, and patient strip.
 
+2026-09-26 approved density slice: compact typography/header/tab/table spacing,
+technical variant fields grouped under Details and a unique-selection preview
+link are implemented. Browser checks cover narrow/desktop layout and sticky
+header alignment. Full masked reference comparisons and clinical acceptance
+remain open; see `docs/report-review-workspace.md`.
+
 **Acceptance criteria:**
 - [x] Five familiar tabs and header controls appear in the original hierarchy.
 - [ ] Desktop/mobile masked comparisons show no unexplained layout drift.
@@ -568,6 +574,14 @@ HTTP 201; the previous draft remains visible and editable after an error.
 
 **Description:** Verify the full reference UI plus Django flow with approved fixtures and document only intentional deviations from the original.
 
+2026-09-26 recovery coverage: the review workspace now has browser regression
+tests for QC/selection preservation and local backup after conflict, server
+failure and network failure, including the initials dialog and dirty-print
+guard. A Django two-user stale-revision test verifies that saved QC, selection,
+initials, audit count and source facts are not overwritten. See
+`docs/report-review-workspace.md` for recovery steps. This does not close the
+visual/clinical review gate or establish production database load behavior.
+
 The saved-correction projection has been added as an early Task 29 slice:
 previously committed corrections are explicitly shown alongside immutable
 source values in DRAFT and FINAL, and a draft can intentionally remove one.
@@ -588,6 +602,22 @@ adds a merge migration; it is not a clinical release approval.
 **Dependencies:** Tasks 16–28. **Files likely touched:** `pronto/tests/reporting/browser/test_report.py`, `pronto/tests/reporting/test_renderer_parity.py`, `docs/report-parity.md`, `tasks/plan.md`, `tasks/todo.md`. **Estimated scope:** Medium: 5 files.
 
 ## Checkpoint: Database-backed review
+
+Approved Tuesday demo package (2026-09-26):
+
+- [x] Omit inactive import/reset controls.
+- [x] Group three notes and sign-off as a responsive reference-style four-card panel.
+- [x] Show saved self-reported initials and revision, not a technical reviewer label.
+- [x] Add `docs/demo-walkthrough-nb.md` with startup, review steps and remaining decisions.
+- [x] Verify this increment's full regression suite and fresh local demo before handoff.
+
+Verification: 294 pytest cases passed (17 existing skips), 50 Django reports
+tests passed. Layout checked at 320/768/1024/1440 px; desktop and mobile
+screenshots inspected. New Chrome/Django end-to-end test covers save/reload,
+same-person finalization, PDF contents and audit records. In-app browser
+confirmation stalled; the walkthrough explicitly directs finalization to
+Chrome/Edge. Fresh user demo on port 8772 remains an untouched draft; previous
+databases and reviews are preserved.
 
 - [ ] All Task 24–29 criteria and tests pass.
 - [ ] A biologist verifies **Lagre**, conflict warning, and same-user FINAL against the reference-style page.

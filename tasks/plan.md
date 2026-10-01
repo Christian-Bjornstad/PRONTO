@@ -160,4 +160,12 @@ key/variant UI        plots/QC/MDT UI
 
 ## Definition of Done
 
+Approved demo increment (2026-09-26, Tasks 19/22/29): remove inactive
+import/reset controls, align the three notes plus sign-off with the reference,
+display saved initials/revision consistently in live and snapshot views, and
+provide a Norwegian walkthrough. Verify responsive layout and the existing
+save/finalize/print flow. Preserve all existing demo databases. OncoKB and local
+biomarker matching stay explicitly unavailable; no synthetic clinical claims.
+This does not close the clinical-user or production-readiness gates.
+
 Each task must meet its acceptance criteria and verification steps in `tasks/todo.md`, preserve existing tests and outputs, contain no unapproved data or secrets, update relevant documentation, and receive human review before merge.

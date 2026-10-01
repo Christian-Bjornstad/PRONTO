@@ -84,6 +84,8 @@ class ReviewState(_ContractSnapshot):
     notes: FrozenJsonObject | None = None
     finalized_at: str | None = None
     finalized_by: str | None = None
+    last_saved_attribution: FrozenJsonObject | None = None
+    finalization_attribution: FrozenJsonObject | None = None
 
     @classmethod
     def from_validated(cls, document: Mapping[str, Any]) -> ReviewState:
@@ -103,4 +105,6 @@ class ReviewState(_ContractSnapshot):
             notes=_object(document["notes"]) if "notes" in document else None,
             finalized_at=cast(str | None, document.get("finalizedAt")),
             finalized_by=cast(str | None, document.get("finalizedBy")),
+            last_saved_attribution=_object(document['lastSavedAttribution']) if 'lastSavedAttribution' in document else None,
+            finalization_attribution=_object(document['finalizationAttribution']) if 'finalizationAttribution' in document else None,
         )

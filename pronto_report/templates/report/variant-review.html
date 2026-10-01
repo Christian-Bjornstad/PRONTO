@@ -1,33 +1,36 @@
 <section class="report-panel" role="tabpanel" id="panel-variant-review" aria-labelledby="tab-variant-review" hidden>
   <div class="section-heading">
     <div>
-      <p class="section-heading__eyebrow">Arbeidsflate</p>
-      <h2>Variantgjennomgang</h2>
+      <h2>Variant review</h2>
     </div>
-    <p class="section-heading__description">Søk, sorter og dokumenter rapporteringsbeslutninger.</p>
+  </div>
+  <div class="report-preview-action">
+    <a id="preview-report" href="#panel-tumour-board">Preview report · <span id="preview-selected-count" aria-live="polite">{{ selected_finding_count }}</span> selected</a>
   </div>
   <div class="table-toolbar">
-    <label for="variant-search">Søk i varianter</label>
-    <input id="variant-search" type="search" autocomplete="off" placeholder="Gen, lokasjon eller endring">
-    <p id="variant-count" role="status" aria-live="polite">{{ variant_count }} av {{ variant_count }} forekomster</p>
+    <label for="variant-search">Search variants</label>
+    <input id="variant-search" type="search" autocomplete="off" placeholder="Gene, location or change">
+    <p id="variant-count" role="status" aria-live="polite">{{ variant_count }} of {{ variant_count }} occurrences</p>
   </div>
   {{ review_filters }}
   {{ review_actions }}
   <div class="review-toolbar">{{ review_toolbar }}</div>
-  <div class="table-scroll" role="region" aria-label="Varianttabell" tabindex="0">
+  <div class="table-scroll" role="region" aria-label="Variant table" tabindex="0">
     <table id="variant-table">
+      {{ variant_colgroup }}
       <thead><tr>
-        <th scope="col"><button type="button" data-sort="gene" aria-label="Sorter etter gen">Gen</button></th>
-        <th scope="col">Genomisk lokasjon</th>
-        <th scope="col">DNA-endring</th>
+        <th scope="col"><button type="button" data-sort="gene" aria-label="Sort by gene">Gene</button></th>
         <th scope="col">Protein</th>
-        <th scope="col"><button type="button" data-sort="vaf" aria-label="Sorter etter variantallelfrekvens">VAF</button></th>
-        <th scope="col">Kildetier</th>
-        <th scope="col">Forekomst-ID</th>{{ igv_column }}{{ review_columns }}
+        <th scope="col">Coding</th>
+        <th scope="col"><button type="button" data-sort="vaf" aria-label="Sort by allele frequency">AF tumour (0–1)</button></th>
+        <th scope="col">Tumour DNA depth</th>
+        <th scope="col">OncoKB</th>
+        <th scope="col">Biomarker list</th>
+        {{ igv_column }}{{ review_columns }}<th scope="col">Details</th>
       </tr></thead>
       <tbody>{{ variant_rows }}</tbody>
     </table>
   </div>
-  <p id="variant-no-match" class="empty-state" hidden>Ingen varianter matcher søket.</p>
+  <p id="variant-no-match" class="empty-state" hidden>No variants match the search.</p>
   {{ igv_panel }}
 </section>

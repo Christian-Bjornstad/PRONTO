@@ -9,8 +9,10 @@ from pronto.tests.reporting.test_html_review_state import draft_review
 from pronto.tests.reporting.test_pronto_output_adapter import build_report
 from pronto_report.migration import migrate_review_state_v1
 from pronto_report.review.contracts import FinalizeRequest, ReviewCommandError, SaveDraftRequest
+from pronto_report.review import contracts
 from pronto_report.review.service import ReviewCommandService
 from pronto_report.serialization import serialize_review_state
+from pronto_report.validation import validate_review_state
 
 
 class FakeRepository:
@@ -246,3 +248,68 @@ def test_finalize_rejects_unsaved_edits_and_stale_or_repeated_request(setup):
         service.finalize(request, actor_id="biologist-001", report=report)
     assert caught.value.http_status == 409
     assert len(repo.audit) == 1
+
+
+def test_reset_creates_blank_revision_and_audit(setup):
+    report, saved, repo, service = setup
+    edited = document(saved)
+    edited['notes']['summary'] = 'Prior interpretation'
+    edited['runQcAssessment'] = {'status': 'PASS', 'comment': 'Coverage checked'}
+    edited['valueCorrections'] = [{
+        'path': '/sample/tumourType', 'originalValue': report.sample.get('tumourType'),
+        'correctedValue': 'Corrected type', 'reason': 'Source review',
+        'author': 'biologist-001', 'timestamp': '2026-09-23T09:00:00Z',
+    }]
+    service.save(SaveDraftRequest('1.0', report.report_id, saved.revision, edited),
+                 actor_id='biologist-001', report=report)
+    before = repo.saved
+    request = contracts.ResetDraftRequest.from_dict({
+        'schemaVersion': '1.0', 'reportId': report.report_id,
+        'baseRevision': before.revision, 'declaredInitials': 'AB',
+    })
+
+    response = service.reset(request, actor_id='biologist-001', report=report)
+
+    assert response.review.revision == before.revision + 1
+    assert response.review.variant_reviews == ()
+    assert response.review.run_qc_assessment['status'] == 'NOT_REVIEWED'
+    assert response.review.run_qc_assessment.get('comment', '') == ''
+    assert response.review.notes['summary'] == ''
+    assert response.review.notes['biomarkerContext'] == ''
+    assert response.review.notes['additional'] == ''
+    assert response.review.value_corrections == ()
+    assert response.review.last_saved_attribution['declaredInitials'] == 'AB'
+    assert response.audit.action == 'RESET_DRAFT'
+    assert repo.audit[-1] == response.audit
+
+
+def test_reset_preserves_imported_legacy_note_and_source(setup):
+    report, saved, repo, service = setup
+    edited = document(saved)
+    edited['notes']['importedLegacyNote'] = 'Original imported context'
+    repo.saved = validate_review_state(edited, report=report)
+    request = contracts.ResetDraftRequest('1.0', report.report_id, saved.revision, 'AB')
+
+    response = service.reset(request, actor_id='biologist-001', report=report)
+
+    assert response.review.notes['importedLegacyNote'] == 'Original imported context'
+    assert response.review.created_at == saved.created_at
+    assert report.sample.get('tumourType') is None
+
+
+def test_reset_stale_or_final_writes_nothing(setup):
+    report, saved, repo, service = setup
+    stale = contracts.ResetDraftRequest('1.0', report.report_id, saved.revision + 1, 'AB')
+    with pytest.raises(ReviewCommandError) as caught:
+        service.reset(stale, actor_id='biologist-001', report=report)
+    assert caught.value.code == 'REVISION_CONFLICT'
+    assert repo.saved == saved and repo.audit == []
+
+    finalized = service.finalize(FinalizeRequest('1.0', report.report_id, saved.revision, document(saved)),
+                                 actor_id='biologist-001', report=report)
+    before = (repo.saved, list(repo.audit))
+    with pytest.raises(ReviewCommandError) as caught:
+        service.reset(contracts.ResetDraftRequest('1.0', report.report_id, finalized.review.revision, 'AB'),
+                      actor_id='biologist-001', report=report)
+    assert caught.value.code == 'FINAL_LOCKED'
+    assert (repo.saved, repo.audit) == before

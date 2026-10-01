@@ -22,10 +22,10 @@ def test_self_contained_html_inlines_assets_and_is_deterministic():
     assert '<style>' in first
     assert '<script>' in first
     assert 'Content-Security-Policy' in first
-    assert '/pronto_report/static/report.css' not in first
-    assert '/pronto_report/static/report.js' not in first
+    assert '/static/report.css' not in first
+    assert '/static/report.js' not in first
     assert '<script src=' not in first
-    assert "Kilde og proveniens" in first
+    assert "Source and provenance" in first
     assert report.schema_version in first
     assert report.provenance["generator"]["version"] in first
     assert report.provenance["sourceFiles"][0]["sha256"] in first
@@ -67,7 +67,7 @@ def test_cli_exports_a_self_contained_html_from_validated_report_data(tmp_path):
     assert main(["render-html", str(input_path), "--output", str(output_path)]) == 0
     html = output_path.read_text(encoding="utf-8")
     assert "14,9 mut/Mb" in html
-    assert "report_c5cb34a7fdde3b9d3974c102" in html
+    assert "IPD2225-D01-P01-A08" in html
     assert '<style>' in html
     first_bytes = output_path.read_bytes()
     assert main(["render-html", str(input_path), "--output", str(output_path)]) == 0
@@ -87,7 +87,7 @@ def test_read_only_snapshot_keeps_revision_and_notes_without_edit_controls():
     review = draft_review(report)
     first = render_html(report, review, inline_assets=True, snapshot=True)
     assert first == render_html(report, review, inline_assets=True, snapshot=True)
-    assert f"Revisjon {review.revision}" in first
+    assert f"Revision {review.revision}" in first
     assert 'data-review-note=' not in first
     assert '<select aria-label=' not in first
     assert '<textarea' not in first
@@ -137,7 +137,7 @@ def test_web_igv_rejects_external_reference_url():
 def test_web_igv_exposes_registry_failure_without_private_detail():
     html = render_html(build_report(), inline_assets=True, snapshot=True,
                        web_igv=True, igv_registry_error=True)
-    assert "Registrerte IGV-kilder er utilgjengelige" in html
+    assert "Registered IGV sources are unavailable" in html
     assert 'id="igv-registry-error"' in html
 
 
@@ -162,6 +162,6 @@ def test_cli_exports_read_only_saved_revision(tmp_path):
     assert main(args) == 0
     first = output_path.read_bytes()
     assert b'id="save-btn"' not in first
-    assert f"Revisjon {review.revision}".encode() in first
+    assert f"Revision {review.revision}".encode() in first
     assert main(args) == 0
     assert output_path.read_bytes() == first

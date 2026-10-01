@@ -114,13 +114,13 @@ def test_saved_snapshot_is_read_only_but_navigation_and_search_still_work(browse
         context, page, diagnostics, requests = _page(browser, html)
         try:
             page.goto(url)
-            assert page.locator(".report-topbar__saved").inner_text() == "Skrivebeskyttet eksport"
+            assert page.locator(".report-topbar__saved").inner_text() == "Read-only export"
             assert page.locator("#save-btn, #edit-btn, #download-review, textarea, select").count() == 0
-            page.get_by_role("tab", name="Variantgjennomgang").click()
-            assert page.get_by_role("cell", name="Ekskluder").count() >= 1
-            page.get_by_label("Søk i varianter").fill("CHEK2")
+            page.get_by_role("tab", name="Variant review").click()
+            assert page.get_by_role("cell", name="Exclude").count() >= 1
+            page.get_by_label("Search variants").fill("CHEK2")
             assert page.locator("#variant-table tbody tr:not([hidden])").count() == 1
-            page.get_by_role("tab", name="Molekylært tumorboard").click()
+            page.get_by_role("tab", name="Tumour board report").click()
             assert page.locator(".board-note-readonly").count() == 3
             assert requests == [url]
             assert diagnostics == []
@@ -135,12 +135,14 @@ def test_tmb_gauge_edits_only_page_memory_and_blocks_stale_download(browser):
         context, page, diagnostics, requests = _page(browser, html)
         try:
             page.goto(url)
-            page.locator("#edit-btn").click()
+            page.get_by_role("tab", name="Key findings").click()
             gauge = page.locator("#tmb-gauge")
+            assert gauge.is_visible()
             gauge.focus()
             gauge.press("ArrowRight")
+            assert page.locator('#edit-btn').get_attribute('aria-pressed') == 'true'
             assert page.locator('[data-metric="tmb"] .metric-card__value').inner_text() == "15 mut/Mb"
-            assert page.locator("#dirty-lbl").inner_text() == "Ulagrede kildekorreksjoner"
+            assert page.locator("#dirty-lbl").inner_text() == "Unsaved source corrections"
             assert page.locator("#tmb-correction-reason").is_enabled()
             assert page.locator("#download-review").is_disabled()
             assert page.locator("#tmb-correction-reason").get_attribute("required") is not None
@@ -164,6 +166,7 @@ def test_empty_tmb_number_cannot_become_zero_correction(browser):
             page.goto(url)
             page.locator("#edit-btn").click()
             number = page.locator("#tmb-edit-value")
+            page.get_by_role("tab", name="Key findings").click()
             number.fill("")
             number.blur()
             assert page.locator('[data-metric="tmb"] .metric-card__value').inner_text() == "14,9 mut/Mb"
@@ -183,7 +186,8 @@ def test_patient_context_edit_keeps_source_visible_and_needs_reason(browser):
             page.goto(url)
             page.locator("#edit-btn").click()
             field = page.locator('[data-fact="tumourType"]')
-            assert field.locator('[data-source-value="Ikke oppgitt"]').count() == 1
+            page.get_by_role("tab", name="Key findings").click()
+            assert field.locator('[data-source-value="Not reported"]').count() == 1
             field.locator('[data-correction-path="/sample/tumourType"]').fill("Lunge")
             field.locator('[data-correction-path="/sample/tumourType"]').blur()
             assert field.locator("dd").inner_text() == "Lunge"
@@ -204,6 +208,7 @@ def test_msi_kpi_edit_is_local_and_does_not_change_source_label(browser):
         try:
             page.goto(url)
             page.locator("#edit-btn").click()
+            page.get_by_role("tab", name="Key findings").click()
             page.locator("#msi-edit-value").fill("5.2")
             page.locator("#msi-edit-value").blur()
             card = page.locator('[data-metric="msi"]')
@@ -231,20 +236,20 @@ def test_keyboard_table_plots_focus_and_print(browser):
         context, page, diagnostics, requests = _page(browser, html, 375)
         try:
             page.goto(url)
-            tab = page.get_by_role("tab", name="Nøkkelfunn")
+            tab = page.get_by_role("tab", name="Key findings")
             tab.focus()
             assert tab.evaluate("element => getComputedStyle(element).outlineStyle !== 'none'")
             tab.press("ArrowRight")
-            assert page.get_by_role("tab", name="Variantgjennomgang").get_attribute("aria-selected") == "true"
+            assert page.get_by_role("tab", name="Variant review").get_attribute("aria-selected") == "true"
             page.locator("#variant-search").fill("TERT")
             assert page.locator("#variant-table tbody tr:visible").count() == 2
-            page.get_by_role("tab", name="CNV-plott").click()
-            page.get_by_role("button", name="Side 2").click()
-            assert page.get_by_role("button", name="Side 2").get_attribute("aria-pressed") == "true"
+            page.get_by_role("tab", name="CNV plots").click()
+            page.get_by_role("button", name="Page 2").click()
+            assert page.get_by_role("button", name="Page 2").get_attribute("aria-pressed") == "true"
             enlarge = page.locator("#cnv-2 [data-enlarge]")
             enlarge.click()
             assert page.get_by_role("dialog").is_visible()
-            page.get_by_role("button", name="Lukk plott").click()
+            page.get_by_role("button", name="Close plot").click()
             assert enlarge.evaluate("element => document.activeElement === element")
             page.emulate_media(media="print")
             assert page.locator(".report-panel").evaluate_all(
@@ -256,9 +261,35 @@ def test_keyboard_table_plots_focus_and_print(browser):
             pdf = page.pdf()
             assert pdf.startswith(b"%PDF")
             printed = "\n".join(page.extract_text() or "" for page in pypdf.PdfReader(BytesIO(pdf)).pages)
-            for heading in ("Nøkkelfunn", "Variantgjennomgang", "CNV-plott", "Sekvenserings-QC", "Molekylært tumorboard"):
+            for heading in ("Key findings", "Variant review", "CNV plots", "Sequencing QC", "Tumour board report"):
                 assert heading in printed
             assert requests == [url]
+            assert diagnostics == []
+        finally:
+            context.close()
+
+
+def test_nine_cnv_panels_show_a1_above_a2_and_switch_by_pair(browser):
+    report = build_report()
+    cnv = next(asset for asset in report.attachments if "cnv" in asset["name"].lower())
+    report = replace(report, attachments=(cnv,))
+    html = render_html(report, draft_review(report),
+        plot_images={cnv["assetId"]: tuple(("image/png", ONE_PIXEL_PNG) for _ in range(9))},
+        inline_assets=True)
+    with _serve(html) as url:
+        context, page, diagnostics, _requests = _page(browser, html)
+        try:
+            page.goto(url)
+            page.get_by_role("tab", name="CNV plots").click()
+            assert page.locator('#cnv-1').is_visible()
+            assert page.locator('#cnv-2').is_visible()
+            assert page.locator('#cnv-1').bounding_box()['y'] < page.locator('#cnv-2').bounding_box()['y']
+            page.get_by_role('button', name='B2 / B3').click()
+            assert page.locator('#cnv-3').is_visible()
+            assert page.locator('#cnv-4').is_visible()
+            assert not page.locator('#cnv-1').is_visible()
+            page.locator('#cnv-4 [data-enlarge]').click()
+            assert page.get_by_role('dialog').is_visible()
             assert diagnostics == []
         finally:
             context.close()
@@ -272,14 +303,17 @@ def test_csp_allows_review_download_without_external_network(browser):
         context, page, diagnostics, requests = _page(browser, html)
         try:
             page.goto(url)
-            page.get_by_role("tab", name="Variantgjennomgang").click()
+            page.get_by_role("tab", name="Variant review").click()
             variant_id = review.variant_reviews[0]["variantId"]
+            row = page.locator(f'#variant-table tr:has(select[data-variant-id="{variant_id}"])').first
+            row.locator('[data-quick-field="reportingDecision"][data-quick-value="INCLUDE"]').click()
             selector = page.locator(
                 f'select[data-variant-id="{variant_id}"][data-review-field="reportingDecision"]'
             ).first
-            selector.select_option("INCLUDE")
+            assert selector.input_value() == "INCLUDE"
+            assert row.locator('[data-quick-value="INCLUDE"]').get_attribute("aria-pressed") == "true"
             with page.expect_download() as pending:
-                page.get_by_role("button", name="Last ned ReviewState").click()
+                page.get_by_role("button", name="Download ReviewState").click()
             download = pending.value
             saved = json.loads(Path(download.path()).read_text(encoding="utf-8"))
             assert saved["revision"] == 2
