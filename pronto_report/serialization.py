@@ -36,7 +36,7 @@ def _thaw(value: FrozenJsonValue) -> Any:
 
 
 def _report_document(report: ReportData) -> dict[str, Any]:
-    return {
+    document = {
         "schemaVersion": report.schema_version,
         "reportId": report.report_id,
         "sample": _thaw(report.sample),
@@ -48,6 +48,9 @@ def _report_document(report: ReportData) -> dict[str, Any]:
         "attachments": _thaw(report.attachments),
         "diagnostics": _thaw(report.diagnostics),
     }
+    if report.schema_version == '2.0':
+        document['sourceTables'] = _thaw(report.source_tables)
+    return document
 
 
 def _review_document(review: ReviewState) -> dict[str, Any]:
@@ -63,10 +66,15 @@ def _review_document(review: ReviewState) -> dict[str, Any]:
         "runQcAssessment": _thaw(review.run_qc_assessment),
         "valueCorrections": _thaw(review.value_corrections),
     }
-    if review.schema_version == "2.0":
+    if review.schema_version in {"2.0", "3.0"}:
         document["notes"] = _thaw(review.notes) if review.notes is not None else None
     else:
         document["reportNotes"] = review.report_notes
+    if review.schema_version == '3.0':
+        document.update(findingReviews=_thaw(review.finding_reviews),
+                        biomarkerReviews=_thaw(review.biomarker_reviews),
+                        sectionQc=_thaw(review.section_qc),
+                        presentationFigures=_thaw(review.presentation_figures))
     if review.finalized_at is not None:
         document["finalizedAt"] = review.finalized_at
     if review.finalized_by is not None:

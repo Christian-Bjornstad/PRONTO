@@ -118,7 +118,7 @@ def test_oversized_json_is_rejected_before_parsing(monkeypatch):
 
 def test_schema_invalid_json_never_returns_a_model():
     payload = json.dumps(
-        {**report_document(), "schemaVersion": "2.0"}
+        {**report_document(), "schemaVersion": "99.0"}
     ).encode("utf-8")
 
     with pytest.raises(ContractValidationError) as caught:

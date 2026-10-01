@@ -420,7 +420,7 @@ def adapt_pronto_output(
         _source_file(sample_list_path, root, "text/tab-separated-values"),
     ]
     document = {
-        "schemaVersion": "1.0",
+        "schemaVersion": "2.0",
         "reportId": make_report_id(sample_id, run_id),
         "sample": sample,
         "run": {"runId": run_id},
@@ -438,4 +438,15 @@ def adapt_pronto_output(
         "attachments": attachments,
         "diagnostics": diagnostics,
     }
+    from pronto_report.adapters.source_tables import read_source_table
+    table = read_source_table(variant_path, kind='VARIANTS')
+    if len(table['rows']) != len(variants):
+        raise AdapterError('Complete variant table does not match parsed occurrences')
+    for source_row, variant in zip(table['rows'], variants):
+        source_row['findingId'] = variant['variantId']
+        source_row['occurrenceId'] = variant['occurrenceId']
+    document['sourceTables'] = [table]
+    for item in document['biomarkers']:
+        if item['metricId'] in {'tmb','msi'}:
+            item['displayRange'] = '[0-100+]' if item['metricId'] == 'tmb' else '[0-100]'
     return validate_report_data(document)

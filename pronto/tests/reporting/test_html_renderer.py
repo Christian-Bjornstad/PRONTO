@@ -10,6 +10,7 @@ PANEL_NAMES = (
     "key-findings",
     "variant-review",
     "cnv-plots",
+    "rna-review",
     "sequencing-qc",
     "tumour-board",
 )

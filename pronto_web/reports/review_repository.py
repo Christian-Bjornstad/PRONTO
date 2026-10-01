@@ -8,7 +8,7 @@ from django.db import IntegrityError, transaction
 from pronto_report.review.contracts import AuditRecord, ReviewCommandError
 from pronto_report.serialization import serialize_review_state
 from pronto_report.validation import validate_review_state
-from pronto_web.reports.models import ReportGrant, ReportRecord, ReviewAudit, ReviewRevision
+from pronto_web.reports.models import ReportGrant, ReportRecord, ReviewAudit, ReviewRevision, PresentationFigure
 
 
 class DjangoReviewAuthorizer:
@@ -54,6 +54,10 @@ class DjangoReviewRepository:
                 latest = ReviewRevision.objects.filter(report_id=report_id).order_by("-revision").first()
                 if latest is None or latest.revision != base_revision:
                     return False
+                identifiers=[item['figureId'] for item in review.presentation_figures]
+                if len(identifiers)!=len(set(identifiers)) or PresentationFigure.objects.filter(
+                        report_id=report_id,pk__in=identifiers).count()!=len(identifiers):
+                    raise ReviewCommandError('INVALID_DRAFT','Unknown or duplicate presentation figure',422)
                 ReviewRevision.objects.create(
                     report_id=report_id, revision=review.revision,
                     review_data=json.loads(serialize_review_state(review)),

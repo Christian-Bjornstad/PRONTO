@@ -1,19 +1,7 @@
 <!doctype html>
-<html lang="nb">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Rapporter · PRONTO</title>
-</head>
-<body>
-  <main>
-    <h1>Rapporter</h1>
-    {% if reports %}
-      <ul>{% for report in reports %}<li><a href="{% url 'report-detail' report.report_id %}">{{ report.report_id }}</a></li>{% endfor %}</ul>
-    {% else %}
-      <p>Ingen rapporter er tilgjengelige for denne brukeren.</p>
-    {% endif %}
-    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Logg ut</button></form>
-  </main>
-</body>
-</html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Patient reports · InPreD</title>
+<style>body{margin:0;background:#f4f6fa;color:#233851;font:16px system-ui,sans-serif}main{max-width:1200px;margin:48px auto;padding:24px}h1{margin-bottom:8px}.intro{color:#627085}table{width:100%;border-collapse:collapse;background:white;border-radius:12px}th,td{padding:18px 14px;text-align:left;border-bottom:1px solid #e4e9f0}th{font-size:12px;text-transform:uppercase;color:#637084}a{color:#176995}.status{display:inline-block;padding:6px 10px;background:#edf1f7;border-radius:16px;font-size:13px}.reviewed{background:#dcefe1;color:#206334}.under-review{background:#fff0d4;color:#875807}select,button{font:inherit;padding:8px;border:1px solid #ced7e4;border-radius:5px}form{margin-top:12px}.table-wrap{overflow:auto}caption{text-align:left;padding:12px}small{color:#667384;display:block}</style></head><body><main><h1>Patient reports</h1><p class="intro">Open a review or inspect an earlier saved version.</p>
+<div class="table-wrap"><table><caption>{{ entries|length }} available report{{ entries|length|pluralize }}</caption><thead><tr><th>Patient / sample</th><th>Tumour type</th><th>Status</th><th>Latest save</th><th>Report</th><th>Saved versions</th></tr></thead><tbody>
+{% for item in entries %}<tr><td>{{ item.sample.patientPseudonym|default:'Not provided' }}<small>{{ item.sample.sampleId }}</small></td><td>{{ item.sample.tumourType|default:'Not provided' }}</td><td><span class="status {{ item.status }}">{{ item.status }}</span></td><td>{{ item.updatedAt|default:'Not saved' }}</td><td><a href="{% url 'report-detail' item.reportId %}">Open report</a></td><td><form method="get" action="{% url 'report-detail' item.reportId %}"><label>Saved version <select name="revision">{% for revision in item.revisions %}<option value="{{ revision.revision }}">Revision {{ revision.revision }} · {{ revision.review_data.status }} · {{ revision.review_data.updatedAt }}</option>{% endfor %}</select></label><button type="submit">View</button></form>{% for revision in item.revisions %}<a hidden href="{% url 'report-detail' item.reportId %}?revision={{ revision.revision }}">Revision {{ revision.revision }}</a>{% endfor %}</td></tr>
+{% empty %}<tr><td colspan="6">No reports are available for this user.</td></tr>{% endfor %}</tbody></table></div>
+<nav aria-label="Report pages">{% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">Previous</a>{% endif %} Page {{ page.number }} of {{ page.paginator.num_pages }} {% if page.has_next %}<a href="?page={{ page.next_page_number }}">Next</a>{% endif %}</nav><form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Log out</button></form></main></body></html>

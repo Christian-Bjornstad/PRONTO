@@ -4,6 +4,7 @@
       <h2>Variant review</h2>
     </div>
   </div>
+  {{ variant_section_qc }}
   <div class="report-preview-action">
     <a id="preview-report" href="#panel-tumour-board">Preview report · <span id="preview-selected-count" aria-live="polite">{{ selected_finding_count }}</span> selected</a>
   </div>
@@ -32,5 +33,6 @@
     </table>
   </div>
   <p id="variant-no-match" class="empty-state" hidden>No variants match the search.</p>
+  <details class="all-source-columns"><summary>All source columns</summary>{{ variant_source_tables }}</details>
   {{ igv_panel }}
 </section>

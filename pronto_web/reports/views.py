@@ -7,6 +7,7 @@ import stat
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.db.models import ObjectDoesNotExist
+from django.core.paginator import Paginator
 from django.http import Http404, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404, render
@@ -17,6 +18,7 @@ from django.views.decorators.http import require_GET, require_POST, require_http
 
 from pronto_report.renderers.assets import load_plot_images_from_bytes
 from pronto_report.renderers.html import render_html
+from pronto_report.migration import migrate_review_state_to_v3
 from pronto_report.review.contracts import FinalizeRequest, ResetDraftRequest, ReviewCommandError, SaveDraftRequest
 from pronto_report.review.service import ReviewCommandService
 from pronto_report.validation import validate_report_data, validate_review_state
@@ -43,8 +45,17 @@ MAX_REVIEW_COMMAND_BYTES = 1024 * 1024
 def report_index(request) -> HttpResponse:
     if not request.user.is_authenticated or not request.user.is_active:
         return HttpResponse(status=401)
-    reports = ReportRecord.objects.filter(grants__user=request.user).order_by("report_id")
-    response = render(request, "reports/index.html", {"reports": reports})
+    reports = ReportRecord.objects.filter(grants__user=request.user).prefetch_related('reviews','review_audits').order_by('report_id')
+    page=Paginator(reports,25).get_page(request.GET.get('page'))
+    entries=[]
+    for record in page:
+        revisions=sorted(record.reviews.all(),key=lambda r:r.revision,reverse=True)
+        latest=revisions[0] if revisions else None
+        status=('reviewed' if latest and latest.review_data['status']=='FINAL' else
+                'under-review' if any(a.action=='SAVE_DRAFT' for a in record.review_audits.all()) else 'un-reviewed')
+        entries.append({'reportId':record.pk,'sample':record.report_data['sample'],'status':status,'revisions':revisions,
+                        'updatedAt':latest.review_data.get('updatedAt') if latest else None})
+    response = render(request, 'reports/index.html', {'entries': entries,'page':page})
     response["Cache-Control"] = "no-store"
     return response
 
@@ -62,10 +73,19 @@ def report_detail(request, report_id: str) -> HttpResponse:
     report = validate_report_data(record.report_data)
     if report.report_id != record.report_id:
         raise ValueError("Stored report identifier does not match its record")
-    latest = ReviewRevision.objects.filter(report=record).order_by("-revision").first()
+    historical='revision' in request.GET
+    revisions=ReviewRevision.objects.filter(report=record)
+    if historical:
+        requested=request.GET.get('revision','')
+        if not requested.isdecimal() or int(requested)<1: raise Http404
+        latest=get_object_or_404(revisions,revision=int(requested))
+    else:
+        latest=revisions.order_by('-revision').first()
     review = validate_review_state(latest.review_data, report=report) if latest else None
     if latest is not None and review.revision != latest.revision:
         raise ValueError("Stored review revision does not match its record")
+    needs_upgrade=review is not None and review.status=='DRAFT' and review.schema_version!='3.0' and not historical
+    if review is not None and not historical: review=migrate_review_state_to_v3(review)
     blobs = {asset.asset_id: bytes(asset.content) for asset in record.assets.all()}
     plot_images = load_plot_images_from_bytes(report, blobs)
     try:
@@ -90,20 +110,27 @@ def report_detail(request, report_id: str) -> HttpResponse:
     references = {build: value for build, value in settings.PRONTO_IGV_REFERENCES.items()
                   if all(value.values())}
     csrf_token = get_token(request)
-    draft = review is not None and review.status == "DRAFT"
+    draft = review is not None and review.status == "DRAFT" and not historical
+    saved_view = review is not None and not historical
     html = render_html(
         report, review, plot_images=plot_images, inline_assets=True,
+        snapshot=historical,
         save_url=reverse("review-save", args=[record.report_id]) if draft else None,
         finalize_url=reverse("review-finalize", args=[record.report_id]) if draft else None,
         reset_url=reverse("review-reset", args=[record.report_id]) if draft else None,
         csrf_token=csrf_token,
         require_initials=getattr(settings, 'PRONTO_REQUIRE_INITIALS', False),
-        print_url=reverse('report-print', args=[record.report_id]),
-        html_export_url=reverse('report-html-export', args=[record.report_id]),
+        print_url=reverse('report-print', args=[record.report_id]) if saved_view else None,
+        html_export_url=reverse('report-html-export', args=[record.report_id]) if saved_view else None,
+        pdf_export_url=reverse('report-pdf-export',args=[record.pk]) if saved_view else None,
+        figure_upload_url=reverse('presentation-upload',args=[record.pk]) if draft else None,
+        figure_assets={str(f.pk):bytes(f.content) for f in record.presentation_figures.all()
+                       if review and any(item['figureId']==str(f.pk) for item in review.presentation_figures)},
+        needs_upgrade=needs_upgrade,
         actor_id=str(request.user.pk) if draft else None,
-        web_igv=True, igv_sources=sources, igv_references=references,
+        web_igv=not historical, igv_sources=sources if not historical else (), igv_references=references if not historical else {},
         igv_registry_error=registry_error,
-        igv_save_enabled=(alignment_saving_enabled(settings)
+        igv_save_enabled=(not historical and alignment_saving_enabled(settings)
                           and ReportWriteGrant.objects.filter(report=record, user=request.user).exists()),
     )
     response = HttpResponse(html, content_type="text/html; charset=utf-8")

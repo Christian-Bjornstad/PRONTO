@@ -243,7 +243,7 @@ def test_keyboard_table_plots_focus_and_print(browser):
             assert page.get_by_role("tab", name="Variant review").get_attribute("aria-selected") == "true"
             page.locator("#variant-search").fill("TERT")
             assert page.locator("#variant-table tbody tr:visible").count() == 2
-            page.get_by_role("tab", name="CNV plots").click()
+            page.get_by_role("tab", name="CNV review").click()
             page.get_by_role("button", name="Page 2").click()
             assert page.get_by_role("button", name="Page 2").get_attribute("aria-pressed") == "true"
             enlarge = page.locator("#cnv-2 [data-enlarge]")
@@ -261,7 +261,7 @@ def test_keyboard_table_plots_focus_and_print(browser):
             pdf = page.pdf()
             assert pdf.startswith(b"%PDF")
             printed = "\n".join(page.extract_text() or "" for page in pypdf.PdfReader(BytesIO(pdf)).pages)
-            for heading in ("Key findings", "Variant review", "CNV plots", "Sequencing QC", "Tumour board report"):
+            for heading in ("Key findings", "Variant review", "CNV review", "RNA review", "Sequencing QC", "Tumour board report"):
                 assert heading in printed
             assert requests == [url]
             assert diagnostics == []
@@ -280,7 +280,7 @@ def test_nine_cnv_panels_show_a1_above_a2_and_switch_by_pair(browser):
         context, page, diagnostics, _requests = _page(browser, html)
         try:
             page.goto(url)
-            page.get_by_role("tab", name="CNV plots").click()
+            page.get_by_role("tab", name="CNV review").click()
             assert page.locator('#cnv-1').is_visible()
             assert page.locator('#cnv-2').is_visible()
             assert page.locator('#cnv-1').bounding_box()['y'] < page.locator('#cnv-2').bounding_box()['y']

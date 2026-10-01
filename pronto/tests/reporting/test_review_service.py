@@ -54,6 +54,35 @@ def document(review):
     return json.loads(serialize_review_state(review))
 
 
+def test_v3_save_finalize_preserves_section_qc_and_reset_clears_it(setup):
+    from pronto_report.migration import migrate_review_state_to_v3
+    from pronto_report.review.contracts import ResetDraftRequest
+    report, old, repo, service = setup
+    draft = document(migrate_review_state_to_v3(old))
+    draft['sectionQc']['rna'] = {'status':'CONDITIONAL','comment':'Synthetic RNA QC'}
+    saved = service.save(SaveDraftRequest('1.0',report.report_id,old.revision,draft),
+                         actor_id='biologist-001',report=report).review
+    final = service.finalize(FinalizeRequest('1.0',report.report_id,saved.revision,document(saved)),
+                             actor_id='biologist-001',report=report).review
+    assert final.section_qc['rna']['status'] == 'CONDITIONAL'
+    repo.saved = saved
+    reset = service.reset(ResetDraftRequest('1.0',report.report_id,saved.revision,'AB'),
+                           actor_id='biologist-001',report=report).review
+    assert reset.section_qc['rna']['status'] == 'NOT_REVIEWED'
+    assert reset.schema_version == '3.0'
+
+
+def test_v3_unknown_finding_does_not_save(setup):
+    from pronto_report.migration import migrate_review_state_to_v3
+    report, old, repo, service = setup
+    draft = document(migrate_review_state_to_v3(old))
+    draft['findingReviews'] = [{'findingId':'unknown','reportingDecision':'INCLUDE','reportHighlight':True}]
+    with pytest.raises(ReviewCommandError, match='Unknown'):
+        service.save(SaveDraftRequest('1.0',report.report_id,old.revision,draft),
+                     actor_id='biologist-001',report=report)
+    assert repo.saved == old and repo.audit == []
+
+
 def test_save_validated_full_draft_advances_revision_and_writes_audit_atomically(setup):
     report, saved, repo, service = setup
     draft = document(saved)
