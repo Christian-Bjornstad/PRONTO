@@ -111,6 +111,7 @@ def report_detail(request, report_id: str) -> HttpResponse:
                   if all(value.values())}
     csrf_token = get_token(request)
     draft = review is not None and review.status == "DRAFT" and not historical
+    saved_view = review is not None and not historical
     html = render_html(
         report, review, plot_images=plot_images, inline_assets=True,
         snapshot=historical,
@@ -119,9 +120,9 @@ def report_detail(request, report_id: str) -> HttpResponse:
         reset_url=reverse("review-reset", args=[record.report_id]) if draft else None,
         csrf_token=csrf_token,
         require_initials=getattr(settings, 'PRONTO_REQUIRE_INITIALS', False),
-        print_url=reverse('report-print', args=[record.report_id]) if not historical else None,
-        html_export_url=reverse('report-html-export', args=[record.report_id]) if not historical else None,
-        pdf_export_url=reverse('report-pdf-export',args=[record.pk]) if not historical else None,
+        print_url=reverse('report-print', args=[record.report_id]) if saved_view else None,
+        html_export_url=reverse('report-html-export', args=[record.report_id]) if saved_view else None,
+        pdf_export_url=reverse('report-pdf-export',args=[record.pk]) if saved_view else None,
         figure_upload_url=reverse('presentation-upload',args=[record.pk]) if draft else None,
         figure_assets={str(f.pk):bytes(f.content) for f in record.presentation_figures.all()
                        if review and any(item['figureId']==str(f.pk) for item in review.presentation_figures)},

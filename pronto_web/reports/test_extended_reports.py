@@ -113,6 +113,15 @@ class ExtendedReportTests(TestCase):
         assert b'under-review' in self.client.get('/reports/').content
         assert self.report.report_id.encode() not in Client().get('/reports/').content
 
+    def test_report_without_saved_review_opens_without_export_actions(self):
+        ReviewRevision.objects.filter(report=self.record).delete()
+        with patch('pronto_web.reports.views.load_plot_images_from_bytes',return_value={}):
+            response=self.client.get(f'/reports/{self.report.report_id}/')
+        assert response.status_code==200
+        assert b'data-pdf-layout="' not in response.content
+        assert b'id="html-export-btn"' not in response.content
+        assert self.report.sample['sampleId'].encode() in response.content
+
     def test_legacy_classification_is_readonly_and_final_status_is_reviewed(self):
         activity=self.draft['variantReviews'][0]
         assert activity['legacyClinicalClassification']=='PATHOGENIC'
