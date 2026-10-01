@@ -79,6 +79,8 @@
   let resetting = false;
   let finalizing = false;
   let exportingHtml = false;
+  let lockExternalInputs=() => () => {};
+  let releaseExternalInputs=null;
   const attributionConfig = document.getElementById('attribution-config');
   const initialsRequired = attributionConfig?.dataset.required === 'true';
   let askingInitials = false;
@@ -291,7 +293,7 @@
     let visible = 0;
     rows.forEach((row) => {
       const matchesReview = reviewFilter === "all" ||
-        (reviewFilter === "PATHOGENIC" || reviewFilter === "UNCERTAIN"
+        (["PATHOGENIC","UNCERTAIN","BENIGN","VUS","ONCOGENIC"].includes(reviewFilter)
           ? classificationForRow(row) === reviewFilter
           : decisionForRow(row) === reviewFilter);
       row.hidden = !row.dataset.search.includes(query) || !matchesReview;
@@ -306,7 +308,7 @@
 
   function updateReviewSummary() {
     if (!reviewFilterButtons.length) return;
-    const counts = { all: rows.length, INCLUDE: 0, EXCLUDE: 0, UNREVIEWED: 0, PATHOGENIC: 0, UNCERTAIN: 0 };
+    const counts = { all: rows.length, INCLUDE: 0, EXCLUDE: 0, UNREVIEWED: 0, PATHOGENIC: 0, UNCERTAIN: 0, BENIGN:0, VUS:0, ONCOGENIC:0 };
     const uniqueDecisions = new Map();
     rows.forEach((row) => {
       const decision = decisionForRow(row);
@@ -346,6 +348,7 @@
       });
     });
     filterRows();
+    document.dispatchEvent(new Event("pronto-review-changed"));
   }
 
   reviewFilterButtons.forEach((button) => button.addEventListener("click", () => {
@@ -552,13 +555,15 @@
 
   if (saveButton?.dataset.saveUrl) {
     const editableInputs = Array.from(document.querySelectorAll(
-      '.report-edit-controls input, textarea[data-review-note], #variant-table select[data-review-field], #variant-table textarea[data-review-field], [data-bulk-decision], [data-quick-field], #qc-review-status, #qc-review-comment'
+      '.report-edit-controls input, textarea[data-review-note], #variant-table select[data-review-field], #variant-table textarea[data-review-field], [data-bulk-decision], [data-quick-field], #qc-review-status, #qc-review-comment, [data-section-qc], [data-source-decision], [data-source-highlight], [data-vus-variant], [data-highlight-variant], [data-exclude-variant], [data-metric-highlight], [data-figure-edit]'
     ));
     function lockInputs() {
-      const previouslyDisabled = editableInputs.map((input) => input.disabled);
-      editableInputs.forEach((input) => { input.disabled = true; });
-      return () => editableInputs.forEach((input, index) => { input.disabled = previouslyDisabled[index]; });
+      const inputs=Array.from(new Set([...editableInputs,...document.querySelectorAll('[data-figure-edit]')]));
+      const previouslyDisabled = inputs.map((input) => input.disabled);
+      inputs.forEach((input) => { input.disabled = true; });
+      return () => inputs.forEach((input, index) => { input.disabled = previouslyDisabled[index]; });
     }
+    lockExternalInputs=lockInputs;
     window.addEventListener("beforeunload", (event) => {
       if (!reviewDirty && !corrections.size && !removedCorrections.size && !saving && !resetting && !finalizing) return;
       event.preventDefault();
@@ -806,6 +811,7 @@
         reportingDecision: "UNREVIEWED",
         clinicalClassification: "UNCLASSIFIED",
         igvAssessment: "NOT_REVIEWED",
+        ...(reviewState.schemaVersion === '3.0' ? {reportHighlight:false} : {}),
       };
       activities.set(variantId, activity);
       reviewState.variantReviews.push(activity);
@@ -867,6 +873,20 @@
     feedback.textContent = "Changes are not saved. Download ReviewState to keep a local copy.";
   });
 
+  window.initReviewV3?.({state:reviewState, activityFor,
+    changed:() => {reviewDirty=true;refreshDirty();updateReviewSummary();updateBoardFindings();},
+    busy:() => saving || resetting || finalizing || exportingHtml || askingInitials,
+    isDirty:() => reviewDirty || corrections.size > 0 || removedCorrections.size > 0,
+    setExporting:(value) => {
+      exportingHtml=value;
+      if(value) releaseExternalInputs=lockExternalInputs();
+      else {releaseExternalInputs?.();releaseExternalInputs=null;}
+      refreshDirty();
+    }});
+  if (document.getElementById('review-needs-upgrade') && reviewState.status === 'DRAFT') {
+    reviewDirty=true;refreshDirty();
+    feedback.textContent='Save once to enable the new review fields for this saved version.';
+  }
   download.addEventListener("click", () => {
     const exported = JSON.parse(JSON.stringify(reviewState));
     if (exported.status !== "FINAL" && !saveButton?.dataset.saveUrl) {

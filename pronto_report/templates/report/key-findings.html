@@ -1,5 +1,7 @@
 <section class="report-panel" role="tabpanel" id="panel-key-findings" aria-labelledby="tab-key-findings">
   <h2 class="visually-hidden">Key findings</h2>
+  {{ signature_section_qc }}
+  {{ signature_highlights }}
   <div class="metrics-grid">{{ biomarker_cards }}</div>
   <dl class="patient-strip">{{ case_facts }}</dl>
   <div class="key-variants">
@@ -11,7 +13,7 @@
     </div>
     <div class="table-scroll" role="region" aria-label="Variants with a protein change" tabindex="0">
       <table id="key-variant-table">
-        <thead><tr><th scope="col">Gene</th><th scope="col">Protein</th><th scope="col">Coding</th><th scope="col">AF tumour (0–1)</th><th scope="col">Tumour DNA depth</th><th scope="col">IGV QC</th><th scope="col">Report</th></tr></thead>
+        <thead><tr><th scope="col">Gene</th><th scope="col">Protein</th><th scope="col">Coding</th><th scope="col">AF tumour (0–1)</th><th scope="col">Tumour DNA depth</th><th scope="col">IGV QC</th><th scope="col">Report</th>{{ key_extra_headers }}</tr></thead>
         <tbody>{{ key_variant_rows }}</tbody>
       </table>
     </div>

@@ -14,6 +14,7 @@ class Command(BaseCommand):
         parser.add_argument('--database')
         parser.add_argument('--report', action='append')
         parser.add_argument('--port', type=int, default=8768)
+        parser.add_argument('--supplementary-demo-dir',help='Explicit mixed-sample demo CNV/RNA inputs (never production data).')
 
     def handle(self, *args, **options):
         if not options['database'] or not options['report']:
@@ -33,6 +34,10 @@ class Command(BaseCommand):
         root = settings.BASE_DIR / 'test_data/ous/251114_A02134_0115_BHCJCKDRX7_TSO_500_LocalApp_postprocessing_results'
         report = replace(adapt_pronto_output(root, sample_id='IPD2225-D01-P01-A08',
             generated_at='2026-09-26T12:00:00Z', generator_version='1.0.0'), report_id=reports[0])
+        supplemental=Path(options['supplementary_demo_dir']).resolve() if options['supplementary_demo_dir'] else None
+        if supplemental:
+            from pronto_report.adapters.source_tables import enrich_demo_report
+            report=enrich_demo_report(report,supplemental)
         from django.utils import timezone
         now = timezone.now().isoformat()
         review = validate_review_state({'schemaVersion': '2.0', 'reportId': report.report_id,
@@ -40,6 +45,8 @@ class Command(BaseCommand):
             'createdAt': now, 'updatedAt': now, 'variantReviews': [],
             'runQcAssessment': {'status': 'NOT_REVIEWED'}, 'valueCorrections': [],
             'notes': {'summary': '', 'biomarkerContext': '', 'additional': '', 'importedLegacyNote': ''}}, report=report)
+        from pronto_report.migration import migrate_review_state_to_v3
+        review=migrate_review_state_to_v3(review)
         # Exclusive creation refuses races with any pre-existing database.
         database.touch(exist_ok=False)
         connections.close_all()
@@ -50,7 +57,8 @@ class Command(BaseCommand):
         record = ReportRecord.objects.create(report_id=report.report_id, report_data=json.loads(serialize_report_data(report)))
         ReviewRevision.objects.create(report=record, revision=1, review_data=json.loads(serialize_review_state(review)))
         for item in report.attachments:
-            ReportAsset.objects.create(report=record, asset_id=item['assetId'], content=(root / item['name']).read_bytes())
+            source=supplemental if str(item['assetId']).startswith('example-') else root
+            ReportAsset.objects.create(report=record, asset_id=item['assetId'], content=(source / item['name']).read_bytes())
         ReportGrant.objects.create(report=record, user=user)
         settings.PRONTO_DEMO_ENABLED = True
         settings.PRONTO_DEMO_REPORTS = reports

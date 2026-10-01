@@ -33,17 +33,20 @@
       <div class="report-tabs" role="tablist" aria-label="Report views">
         <button class="report-tab" type="button" role="tab" id="tab-key-findings" aria-controls="panel-key-findings" aria-selected="true" tabindex="0">Key findings</button>
         <button class="report-tab" type="button" role="tab" id="tab-variant-review" aria-controls="panel-variant-review" aria-selected="false" tabindex="-1">Variant review <span class="report-tab__count">{{ variant_count }}</span></button>
-        <button class="report-tab" type="button" role="tab" id="tab-cnv-plots" aria-controls="panel-cnv-plots" aria-selected="false" tabindex="-1">CNV plots</button>
+        <button class="report-tab" type="button" role="tab" id="tab-cnv-plots" aria-controls="panel-cnv-plots" aria-selected="false" tabindex="-1">CNV review</button>
+        <button class="report-tab" type="button" role="tab" id="tab-rna-review" aria-controls="panel-rna-review" aria-selected="false" tabindex="-1">RNA review</button>
         <button class="report-tab" type="button" role="tab" id="tab-sequencing-qc" aria-controls="panel-sequencing-qc" aria-selected="false" tabindex="-1">Sequencing QC</button>
         <button class="report-tab" type="button" role="tab" id="tab-tumour-board" aria-controls="panel-tumour-board" aria-selected="false" tabindex="-1">Tumour board report</button>
       </div>
     </div>
   </nav>
 
+  {{ demo_banner }}
   <main id="report-content" class="report-main" tabindex="-1">
     {% include "report/key-findings.html" %}
     {% include "report/variant-review.html" %}
     {% include "report/cnv-plots.html" %}
+    {% include "report/rna-review.html" %}
     {% include "report/sequencing-qc.html" %}
     {% include "report/tumour-board.html" %}
   </main>

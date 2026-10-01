@@ -89,6 +89,7 @@ def project_reference_ui(
         biomarker_cards[metric_id] = _measurement(item)
     biomarker_cards.setdefault("tmb", _fact(None, None))
     biomarker_cards.setdefault("msi", _fact(None, None))
+    biomarker_cards.setdefault('hrd', _fact(None, None))
     biomarker_cards.setdefault("localapp_tmb", _fact(None, None))
     known_variants = {variant["variantId"] for variant in report.variants}
     reviews = {}

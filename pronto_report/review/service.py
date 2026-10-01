@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from pronto_report.models import ReportData, ReviewState
+from pronto_report.migration import migrate_review_state_to_v3
 from pronto_report.review.attribution import normalize_initials
 from pronto_report.review.contracts import (
     COMMAND_VERSION, AuditRecord, FinalizeRequest, ReviewCommandError,
@@ -110,6 +111,12 @@ class ReviewCommandService:
         if current.schema_version == '3.0' and draft.schema_version != '3.0':
             raise ReviewCommandError('INVALID_DRAFT', 'Cannot discard v3 review fields', 422)
         if draft.schema_version == '3.0':
+            previous_legacy={item['variantId']:item['legacyClinicalClassification']
+                for item in migrate_review_state_to_v3(current).variant_reviews if 'legacyClinicalClassification' in item}
+            draft_legacy={item['variantId']:item['legacyClinicalClassification']
+                for item in draft.variant_reviews if 'legacyClinicalClassification' in item}
+            if previous_legacy!=draft_legacy:
+                raise ReviewCommandError('INVALID_DRAFT','Legacy classification is read-only',422)
             known_findings = {row['findingId'] for table in report.source_tables
                               if table['kind'] in {'CNV', 'RNA'} for row in table['rows']}
             for activities, key, known in ((draft.finding_reviews, 'findingId', known_findings),

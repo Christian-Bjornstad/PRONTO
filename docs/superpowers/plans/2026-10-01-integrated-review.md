@@ -21,28 +21,30 @@ long PDF text/tables; stale/unauthorized history and export requests.
 
 ## Tasks
 
-1. [ ] Contracts/migration: add ReportData v2 sourceTables and measurement
+1. [x] Contracts/migration: add ReportData v2 sourceTables and measurement
    metadata; ReviewState v3 classifications/highlights/findingReviews/sectionQc
    and notes. RED/GREEN migration/round-trip/invalid ID/save/reset tests.
-2. [ ] Source adapters: complete variant TSV columns; CNV semicolon/preamble
+2. [x] Source adapters: complete variant TSV columns; CNV semicolon/preamble
    and RNA XLSX/header/empty/formula/highlight preservation. Test synthetic
    columns, duplicate headers, limits and source values. Add explicit local
    supplementary demo loading with no data files in Git.
-3. [ ] UI: variant Review/VUS/Exclude/highlight, CNV Table/Plots B3+C1 and RNA
+3. [x] UI: variant Review/VUS/Exclude/highlight, CNV Table/Plots B3+C1 and RNA
    full table/gallery. Link all section QC and notes in working copy; verify
    Save/reload, duplicate IDs, FINAL and responsive/browser behavior.
-4. [ ] PDF: shared saved-revision projection and ReportLab landscape/portrait
+4. [x] PDF: shared saved-revision projection and ReportLab landscape/portrait
    renderers, pagination, source ranges/corrections, Key relevant findings and
    all report free text. Verify actual PDF content/sizes/long rows and images.
-5. [ ] Export adapter: versioned request, PDF audit migration, revision/CSRF/
+5. [x] Export adapter: versioned request, PDF audit migration, revision/CSRF/
    access checks, idempotent retry and two download buttons. RED/GREEN HTTP
    and browser save-first/error/download tests; keep historical HTML route.
-6. [ ] Index/history: authorized paginated report list, status from saved
+6. [x] Index/history: authorized paginated report list, status from saved
    audits/FINAL, summary and revision dropdown; historical read-only view and
    export tied to requested saved revision. Test grants/status/stale IDs.
 7. [ ] Integration: run full suites on project Python 3.14, address existing
    obsolete translation assertions explicitly, inspect demo/PDF in real browser,
    independent review, fix findings, commit/push/PR/merge into maintained base.
+
+Upload follow-up is part of tasks 1/3/4/5: immutable private raster assets, revisioned captions/order, presentation-only appendix and bounded upload authorization.
 
 ## Files and interfaces
 

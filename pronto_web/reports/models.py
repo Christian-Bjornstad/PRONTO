@@ -107,6 +107,30 @@ class ReportAsset(models.Model):
         constraints = [models.UniqueConstraint(fields=["report", "asset_id"], name="unique_report_asset")]
 
 
+class PresentationFigure(models.Model):
+    """Immutable private raster; revision references govern order and captions."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    report = models.ForeignKey(ReportRecord, on_delete=models.CASCADE, related_name='presentation_figures')
+    content = models.BinaryField()
+    sha256 = models.CharField(max_length=64)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+
+class ReportPdfExportAudit(models.Model):
+    report = models.ForeignKey(ReportRecord, on_delete=models.PROTECT)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    revision = models.PositiveIntegerField()
+    request_id = models.UUIDField()
+    layout = models.CharField(max_length=16, choices=[('ESMO','ESMO'),('PRESENTATION','PRESENTATION')])
+    template_version = models.CharField(max_length=16)
+    declared_initials = models.CharField(max_length=8)
+    requested_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['report','request_id'],name='unique_report_pdf_request')]
+
+
 class SavedAlignment(models.Model):
     """READY-visible metadata or hidden deletion tombstone; bytes stay private."""
 

@@ -78,7 +78,7 @@ def test_validate_report_data_returns_stable_required_field_issue():
 
 def test_validate_report_data_identifies_unsupported_version():
     document = report_document()
-    document["schemaVersion"] = "2.0"
+    document["schemaVersion"] = "99.0"
 
     with pytest.raises(ContractValidationError) as caught:
         validate_report_data(document)

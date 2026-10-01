@@ -18,7 +18,7 @@ class Tags(HTMLParser):
         self.items.append((tag, dict(attrs)))
 
 
-def test_reference_shell_has_sticky_topbar_actions_and_five_tabs():
+def test_reference_shell_has_sticky_topbar_actions_and_six_tabs():
     html = render_html(build_report())
     parser = Tags()
     parser.feed(html)
@@ -30,7 +30,7 @@ def test_reference_shell_has_sticky_topbar_actions_and_five_tabs():
     assert not any(item.get("id") in {"load-btn", "reset-btn"} for item in attrs)
     assert 'class="report-tab__count"' in html
     assert ">30</span>" in html
-    assert len([item for item in attrs if item.get("role") == "tab"]) == 5
+    assert len([item for item in attrs if item.get("role") == "tab"]) == 6
     assert 'Rapporten er et beslutningsstøtteverktøy' not in html
     assert 'må følge gjeldende kvalitetssikringsprosess' not in html
 

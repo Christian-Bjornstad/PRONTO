@@ -1352,3 +1352,24 @@ button {
 #initials-dialog::backdrop { background: rgb(0 0 0 / 35%); }
 #declared-initials { display: block; margin-block: 0.5rem; text-transform: uppercase; }
 #initials-error { color: #9f1239; }
+
+/* Extended source review: source data is muted without disabling recovery controls. */
+.excluded-row .source-data,.excluded-row>td:not(:has(input,select,button,details)){color:#6b7280;text-decoration:line-through}
+.excluded-row{background:#f1f3f5}.review-check{display:inline-flex;align-items:center;gap:.35rem;font-size:.75rem}
+.review-check input{width:1rem;height:1rem}.source-table-block{margin:1rem 0}.full-source-table{table-layout:auto!important;min-width:900px}
+.full-source-table td,.full-source-table th{min-width:95px;max-width:300px;white-space:normal}.full-source-table .source-review-cell{min-width:125px}
+.source-legend{white-space:pre-wrap;font-size:.75rem}.section-qc{display:inline-flex;align-items:center;gap:.5rem;margin:.4rem .7rem .7rem 0;padding:.4rem .6rem;border-left:5px solid #87919b;background:#f3f5f7}
+.section-qc[data-qc-status="PASS"]{border-color:#278044;background:#eaf6ed}.section-qc[data-qc-status="CONDITIONAL"]{border-color:#d77a13;background:#fff2df}.section-qc[data-qc-status="FAIL"]{border-color:#bf3434;background:#fff0f0}
+.section-qc select{max-width:180px}.signature-highlights{display:flex;flex-wrap:wrap;align-items:center;gap:.7rem;margin:.6rem 0}.signature-range{font-size:.75rem;color:#52606d}
+.demo-notice{padding:.7rem 1rem;border-left:4px solid #bc741c;background:#fff4df;font-size:.85rem}.subview-switcher{display:flex;gap:.5rem;margin:.5rem 0}
+.subview-switcher [aria-pressed="true"],.plot-switcher [aria-pressed="true"]{background:#005b85;color:white}.all-source-columns{margin-top:1rem}
+.cnv-slide .plot-figure img{max-height:700px;object-fit:contain}.review-panel-actions{display:flex;flex-wrap:wrap;gap:.6rem;margin:1rem 0}
+@media(max-width:768px){.section-qc{display:flex;width:100%;box-sizing:border-box}.review-check{font-size:.75rem}.report-tabs{min-width:max-content}}
+/* Presentation appendices remain ordered, private review attachments. */
+#presentation-figures{margin-top:24px;padding:20px;border:1px solid #d8e1ed;border-radius:10px;background:#f8fafc}
+#figure-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+#figure-list img{display:block;max-width:100%;height:170px;object-fit:contain;background:white}
+.presentation-figure-card{padding:14px;border:1px solid #d8e1ed;border-radius:8px}
+.presentation-figure-card label{display:block;margin-top:10px}
+.presentation-figure-card textarea{display:block;width:100%;box-sizing:border-box;min-height:64px;margin:6px 0}
+.presentation-figure-card button{margin:3px}

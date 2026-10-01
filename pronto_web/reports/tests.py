@@ -99,8 +99,8 @@ class ReportReadTests(TestCase):
         response = self.client.get(self.url)
 
         assert response.status_code == 200
-        assert b"Rapportstatus: Endelig" in response.content
-        assert f"Ferdigstilt av {self.biologist.pk}".encode() in response.content
+        assert b"Report status: Final" in response.content
+        assert f"Finalized by {self.biologist.pk}".encode() in response.content
         assert b'id="finalize-btn"' not in response.content
         assert b'id="save-btn" type="button" disabled' in response.content
         assert b'id="igv-panel"' in response.content
@@ -183,7 +183,7 @@ class AlignmentRangeTests(ReportReadTests):
         with override_settings(PRONTO_ALIGNMENT_REGISTRY_JSON=str(self.source_root / "missing.json")):
             response = self.client.get(self.url)
         assert response.status_code == 200
-        assert b"Registrerte IGV-kilder er utilgjengelige" in response.content
+        assert b"Registered IGV sources are unavailable" in response.content
         assert str(self.source_root).encode() not in response.content
 
     def test_authorized_ranges_and_headers(self):

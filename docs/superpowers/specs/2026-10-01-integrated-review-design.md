@@ -57,6 +57,13 @@ plots to a labelled source gallery unless an explicit link is available.
 
 ## Boundaries
 
+Presentation figures (owner follow-up): private raster upload, preview, manual
+caption/order/selection saved in the review revision. Append selected figures
+only to the end of the landscape PDF; never ESMO. Retain immutable assets for
+historical revisions. Decode/re-encode and bound size/pixels/quota; no SVG/HTML
+or arbitrary file paths. The shared local folder currently contains only the
+listed CNV/RNA plots, no additional pathway raster images.
+
 Versioned ReportData v2 adds complete source tables and display-range/demo
 metadata. ReviewState v3 adds report highlights, CNV/RNA decisions, signature
 highlights, section QC and free texts. Validate IDs against sources. v1/v2
