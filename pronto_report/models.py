@@ -50,6 +50,7 @@ class ReportData(_ContractSnapshot):
     variants: tuple[FrozenJsonValue, ...]
     attachments: tuple[FrozenJsonValue, ...]
     diagnostics: tuple[FrozenJsonValue, ...]
+    source_tables: tuple[FrozenJsonValue, ...] = ()
 
     @classmethod
     def from_validated(cls, document: Mapping[str, Any]) -> ReportData:
@@ -65,6 +66,7 @@ class ReportData(_ContractSnapshot):
             variants=_array(document["variants"]),
             attachments=_array(document["attachments"]),
             diagnostics=_array(document["diagnostics"]),
+            source_tables=_array(document.get('sourceTables', [])),
         )
 
 
@@ -86,6 +88,10 @@ class ReviewState(_ContractSnapshot):
     finalized_by: str | None = None
     last_saved_attribution: FrozenJsonObject | None = None
     finalization_attribution: FrozenJsonObject | None = None
+    finding_reviews: tuple[FrozenJsonValue, ...] = ()
+    biomarker_reviews: tuple[FrozenJsonValue, ...] = ()
+    section_qc: FrozenJsonObject | None = None
+    presentation_figures: tuple[FrozenJsonValue, ...] = ()
 
     @classmethod
     def from_validated(cls, document: Mapping[str, Any]) -> ReviewState:
@@ -107,4 +113,8 @@ class ReviewState(_ContractSnapshot):
             finalized_by=cast(str | None, document.get("finalizedBy")),
             last_saved_attribution=_object(document['lastSavedAttribution']) if 'lastSavedAttribution' in document else None,
             finalization_attribution=_object(document['finalizationAttribution']) if 'finalizationAttribution' in document else None,
+            finding_reviews=_array(document.get('findingReviews', [])),
+            biomarker_reviews=_array(document.get('biomarkerReviews', [])),
+            section_qc=_object(document['sectionQc']) if 'sectionQc' in document else None,
+            presentation_figures=_array(document.get('presentationFigures', [])),
         )

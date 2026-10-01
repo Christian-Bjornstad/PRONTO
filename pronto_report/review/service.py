@@ -69,7 +69,7 @@ class ReviewCommandService:
             raise ReviewCommandError(
                 "INVALID_DRAFT", "Draft did not pass validation", 422, issues=error.issues
             ) from error
-        if draft.schema_version != "2.0" or draft.status != "DRAFT" or draft.revision != base_revision:
+        if draft.schema_version not in {"2.0", "3.0"} or draft.status != "DRAFT" or draft.revision != base_revision:
             raise ReviewCommandError("INVALID_DRAFT", "Expected a v2 draft at the base revision", 422)
         return draft
 
@@ -107,6 +107,16 @@ class ReviewCommandService:
         reviewed_variants = [item["variantId"] for item in draft.variant_reviews]
         if len(reviewed_variants) != len(set(reviewed_variants)) or set(reviewed_variants) - known_variants:
             raise ReviewCommandError("INVALID_DRAFT", "Unknown or duplicate reviewed variant", 422)
+        if current.schema_version == '3.0' and draft.schema_version != '3.0':
+            raise ReviewCommandError('INVALID_DRAFT', 'Cannot discard v3 review fields', 422)
+        if draft.schema_version == '3.0':
+            known_findings = {row['findingId'] for table in report.source_tables
+                              if table['kind'] in {'CNV', 'RNA'} for row in table['rows']}
+            for activities, key, known in ((draft.finding_reviews, 'findingId', known_findings),
+                                          (draft.biomarker_reviews, 'metricId', {m['metricId'] for m in report.biomarkers})):
+                identifiers = [item[key] for item in activities]
+                if len(identifiers) != len(set(identifiers)) or set(identifiers) - known:
+                    raise ReviewCommandError('INVALID_DRAFT', 'Unknown or duplicate finding', 422)
         previous_corrections = {item["path"]: item for item in current.value_corrections}
         allowed_originals = {
             f"/sample/{key}": report.sample.get(key)
@@ -115,7 +125,7 @@ class ReviewCommandService:
         allowed_originals.update({
             f"/biomarkers/{index}/value": item["value"]
             for index, item in enumerate(report.biomarkers)
-            if item["metricId"] in {"tmb", "msi"}
+            if item["metricId"] in {"tmb", "msi", "hrd"}
         })
         correction_paths = [item["path"] for item in draft.value_corrections]
         if len(correction_paths) != len(set(correction_paths)):
@@ -172,6 +182,11 @@ class ReviewCommandService:
         attribution = {'declaredInitials': normalize_initials(request.declared_initials), 'method': 'SELF_REPORTED'}
         timestamp = self._timestamp()
         document = json.loads(serialize_review_state(current))
+        if current.schema_version == '3.0':
+            document['findingReviews'] = []
+            document['biomarkerReviews'] = []
+            document['presentationFigures'] = []
+            document['sectionQc'] = {key: {'status':'NOT_REVIEWED'} for key in current.section_qc}
         document.update({
             'revision': current.revision + 1,
             'updatedAt': timestamp,
@@ -179,7 +194,7 @@ class ReviewCommandService:
             'variantReviews': [],
             'runQcAssessment': {'status': 'NOT_REVIEWED'},
             'notes': {
-                'summary': '', 'biomarkerContext': '', 'additional': '',
+                **{key:'' for key in current.notes},
                 'importedLegacyNote': current.notes['importedLegacyNote'],
             },
             'valueCorrections': [],

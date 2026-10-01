@@ -137,7 +137,8 @@ def _schema_issues(document: Any, schema_name: str) -> tuple[ValidationIssue, ..
 
 def validate_report_data(document: Any) -> ReportData:
     """Validate untrusted ReportData input and return an immutable snapshot."""
-    issues = _schema_issues(document, "report-data-v1.schema.json")
+    version = document.get('schemaVersion') if isinstance(document, Mapping) else None
+    issues = _schema_issues(document, 'report-data-v2.schema.json' if version == '2.0' else 'report-data-v1.schema.json')
     if issues:
         raise ContractValidationError(
             "INVALID_REPORT_DATA", "Report data did not pass validation", issues
@@ -150,7 +151,7 @@ def validate_review_state(
 ) -> ReviewState:
     """Validate untrusted ReviewState input and optionally bind it to a report."""
     version = document.get("schemaVersion") if isinstance(document, Mapping) else None
-    schema_name = (
+    schema_name = 'review-state-v3.schema.json' if version == '3.0' else (
         "review-state-v2.schema.json"
         if version == "2.0"
         else "review-state-v1.schema.json"
