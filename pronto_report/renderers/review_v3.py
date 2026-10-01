@@ -61,7 +61,9 @@ def source_table(table, review, *, readonly=False):
     table_id=escape(str(table['tableId']),quote=True)
     return (f'<section class="source-table-block"><p>{shown(table["fileName"])} · {shown(table["sheet"])} · '
             f'{len(rows)} source rows. Source QC highlighting is separate from report selection.</p>'
-            + ('<p class="demo-notice">Mixed-sample demonstration data; not patient-matched.</p>' if table['demo'] else '')
+            + (('<p class="demo-notice">Synthetic demonstration data; invented for this demo patient.</p>'
+                if any(line.startswith('Synthetic demonstration') for line in table['preamble']) else
+                '<p class="demo-notice">Mixed-sample demonstration data; not patient-matched.</p>') if table['demo'] else '')
             + f'<label>Search all source columns <input type="search" data-source-search-for="{table_id}"></label>'
             f'<div class="table-scroll" role="region" aria-label="Full {table["kind"]} source table" tabindex="0">'
             f'<table class="full-source-table" id="{table_id}"><thead><tr><th>Include / Exclude</th>'
@@ -144,7 +146,10 @@ def enhance_context(context, report, review, images, readonly):
         +f'</ul><p id="v3-key-empty"{" hidden" if highlights else ""}>No included highlights selected.</p></section>'
         +'<section><h3>Included CNV and RNA findings</h3><ul id="v3-source-findings">'+source_list
         +f'</ul><p id="v3-source-empty"{" hidden" if source_items else ""}>No CNV or RNA findings selected.</p></section>')
-    context['demo_banner']='<p class="demo-notice">Mixed-sample demonstration: supplementary tables and plots are not patient-matched. HRD example values are marked as demo.</p>' if any(t['demo'] for t in report.source_tables) else ''
+    if any(d['code'] == 'SYNTHETIC_DEMO' for d in report.diagnostics):
+        context['demo_banner'] = '<p class="demo-notice">Synthetic demonstration: patients, findings, scores, plots and review decisions are invented.</p>'
+    else:
+        context['demo_banner']='<p class="demo-notice">Mixed-sample demonstration: supplementary tables and plots are not patient-matched. HRD example values are marked as demo.</p>' if any(t['demo'] for t in report.source_tables) else ''
 
 
 def presentation_figures(review,assets,upload_url,csrf,readonly):
