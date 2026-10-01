@@ -20,6 +20,12 @@ jobs:
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
+      - name: Install PDF plot tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils
+          pdfinfo -v
+          pdftoppm -v
       - name: Set up Python 3.14.0
         uses: actions/setup-python@v7
         with:
