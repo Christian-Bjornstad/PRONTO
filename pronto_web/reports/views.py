@@ -55,7 +55,8 @@ def report_index(request) -> HttpResponse:
                 'under-review' if any(a.action=='SAVE_DRAFT' for a in record.review_audits.all()) else 'un-reviewed')
         entries.append({'reportId':record.pk,'sample':record.report_data['sample'],'status':status,'revisions':revisions,
                         'updatedAt':latest.review_data.get('updatedAt') if latest else None})
-    response = render(request, 'reports/index.html', {'entries': entries,'page':page})
+    response = render(request, 'reports/index.html', {'entries': entries,'page':page,
+                       'demo': getattr(settings, 'PRONTO_DEMO_ENABLED', False)})
     response["Cache-Control"] = "no-store"
     return response
 

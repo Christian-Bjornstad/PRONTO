@@ -198,7 +198,8 @@ def render_report_pdf(report, review, *, layout, export_initials, figure_assets:
     doc=SimpleDocTemplate(buffer,pagesize=page_size,leftMargin=22,rightMargin=22,topMargin=58,bottomMargin=28,
         title=f'InPreD {layout} {model["reportId"]}',author=export_initials)
     width=page_size[0]-44
-    warning=[_paragraph(d['message'],size=8,color='#9a6010') for d in model['diagnostics'] if d['code']=='MIXED_SAMPLE_DEMO']
+    warning=[_paragraph(d['message'],size=8,color='#9a6010') for d in model['diagnostics']
+             if d['code'] in {'MIXED_SAMPLE_DEMO', 'SYNTHETIC_DEMO'}]
     if layout=='ESMO':
         story=[_heading('Summary',BLUE),*warning,
             _heading('Patient and sample details'),

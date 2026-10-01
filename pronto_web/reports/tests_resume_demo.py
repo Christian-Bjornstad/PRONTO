@@ -3,7 +3,8 @@ import tempfile
 from contextlib import closing
 from pathlib import Path
 
-from django.core.management import CommandError
+from django.conf import settings
+from django.core.management import CommandError, call_command
 from django.test import SimpleTestCase
 
 from pronto_web.reports.management.commands.resume_demo import inspect_demo_database
@@ -60,3 +61,41 @@ class ResumeDemoDatabaseTests(SimpleTestCase):
         self.assertFalse(missing.exists())
         with self.assertRaises(CommandError):
             inspect_demo_database(self.database, 'ordinary-report')
+
+    def test_cohort_requires_every_report_to_have_a_grant_and_saved_revision(self):
+        from pronto_web.reports.management.commands.resume_demo import inspect_demo_cohort
+        with closing(sqlite3.connect(self.database)) as connection:
+            connection.execute("INSERT INTO reports_reportrecord VALUES ('demo-synthetic')")
+            connection.commit()
+        with self.assertRaises(CommandError):
+            inspect_demo_cohort(self.database)
+
+        with closing(sqlite3.connect(self.database)) as connection:
+            connection.execute("INSERT INTO reports_reportgrant VALUES ('demo-synthetic', 1)")
+            connection.execute("INSERT INTO reports_reviewrevision VALUES ('demo-synthetic', 1)")
+            connection.commit()
+        assert inspect_demo_cohort(self.database) == (1, ('demo-review', 'demo-synthetic'))
+        with closing(sqlite3.connect(self.database)) as connection:
+            connection.execute("INSERT INTO reports_reportrecord VALUES ('real-patient')")
+            connection.execute("INSERT INTO reports_reportgrant VALUES ('real-patient', 1)")
+            connection.execute("INSERT INTO reports_reviewrevision VALUES ('real-patient', 1)")
+            connection.commit()
+        with self.assertRaises(CommandError):
+            inspect_demo_cohort(self.database)
+
+    def test_seed_command_refuses_non_demo_database_without_modification(self):
+        database = self.database.with_name('ordinary.sqlite3')
+        database.write_bytes(self.database.read_bytes())
+        original = database.read_bytes()
+        configured = settings.DATABASES['default']['NAME']
+        with self.assertRaises(CommandError):
+            call_command('seed_demo_patients', database=str(database))
+        assert database.read_bytes() == original
+        assert settings.DATABASES['default']['NAME'] == configured
+
+    def test_seed_command_rejects_count_and_seed_bounds_without_modification(self):
+        original = self.database.read_bytes()
+        for count, seed in ((0, 1), (201, 1), (2, -1)):
+            with self.assertRaises(CommandError):
+                call_command('seed_demo_patients', database=str(self.database), count=count, seed=seed)
+        assert self.database.read_bytes() == original
