@@ -6,6 +6,7 @@ from pronto_web.reports.print_audit import print_request
 from pronto_web.reports.html_export_audit import html_export_request
 from pronto_web.reports.pdf_export import pdf_export_request
 from pronto_web.reports.figures import upload_figure, figure_content
+from pronto_web.reports.igv_references import reference_component
 
 from pronto_web.reports.views import (
     alignment_component, cancel_alignment_save, complete_alignment_save,
@@ -16,6 +17,7 @@ from pronto_web.reports.views import (
 
 
 urlpatterns = [
+    path('igv/references/<str:build>/<str:component>/', reference_component, name='igv-reference'),
     path('', report_index, name='home'),
     path('reports/<str:report_id>/pdf-exports/', pdf_export_request, name='report-pdf-export'),
     path('reports/<str:report_id>/figures/', upload_figure, name='presentation-upload'),

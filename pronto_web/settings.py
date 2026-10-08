@@ -10,6 +10,8 @@ if not SECRET_KEY:
     raise RuntimeError("Set PRONTO_DJANGO_SECRET_KEY before starting the web app")
 
 DEBUG = False
+TIME_ZONE = 'Europe/Oslo'
+USE_TZ = True
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
 INSTALLED_APPS = [
     "django.contrib.auth",
@@ -71,6 +73,12 @@ PRONTO_IGV_REFERENCES = {
     build: {"fastaURL": os.environ.get(f"PRONTO_IGV_{build}_FASTA_URL", ""),
             "indexURL": os.environ.get(f"PRONTO_IGV_{build}_FAI_URL", "")}
     for build in ("GRCh37", "GRCh38")
+}
+PRONTO_IGV_REFERENCE_FILES = {
+    build: {"fasta": fasta, "index": index}
+    for build in ("GRCh37", "GRCh38")
+    if (fasta := os.environ.get(f"PRONTO_IGV_{build}_FASTA_PATH", ""))
+    and (index := os.environ.get(f"PRONTO_IGV_{build}_FAI_PATH", ""))
 }
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SESSION_COOKIE_HTTPONLY = True
