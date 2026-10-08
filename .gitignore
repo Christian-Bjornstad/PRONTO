@@ -15,6 +15,7 @@ htmlcov/
 !.env.example
 *.key
 *.pem
+.local-web/
 
 # Generated PRONTO output and local review state
 Out/**

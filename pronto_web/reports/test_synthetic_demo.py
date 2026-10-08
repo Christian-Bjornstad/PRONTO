@@ -100,7 +100,8 @@ class SyntheticDemoTests(TestCase):
             for identifier in identifiers:
                 response = client.get(f'/reports/{identifier}/')
                 assert response.status_code == 200
-                assert b'Synthetic demonstration' in response.content
+                assert b'class="demo-notice"' not in response.content
+                assert b'Local demonstration' not in response.content
                 assert b'Mixed-sample demonstration' not in response.content
             final = ReviewRevision.objects.filter(review_data__status='FINAL').first()
             historical = client.get(f'/reports/{final.report_id}/?revision=1')
@@ -113,5 +114,11 @@ class SyntheticDemoTests(TestCase):
                 }), content_type='application/json')
                 assert pdf.status_code == 200
                 text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(pdf.content)).pages)
-                assert 'Synthetic demonstration' in text
-                assert ' '.join(final.review_data['notes']['summary'].split()) in ' '.join(text.split())
+                assert 'Synthetic demonstration' not in text
+                from pronto_report.renderers.report_pdf import project_report_export
+                from pronto_report.validation import validate_report_data, validate_review_state
+                report = validate_report_data(final.report.report_data)
+                review = validate_review_state(final.review_data, report=report)
+                summary = project_report_export(report, review)['notes']['summary']
+                assert ' '.join(summary.split()) in ' '.join(text.split())
+                assert final.review_data['notes']['summary'].startswith('Synthetic demonstration')

@@ -37,6 +37,12 @@ TEMPLATES = [{
     ]},
 }]
 LOGIN_REDIRECT_URL = "/reports/"
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator', 'OPTIONS': {'min_length': 12}},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
 DATABASES = {"default": {
     "ENGINE": "django.db.backends.sqlite3",
     "NAME": os.environ.get("PRONTO_DJANGO_DB", str(BASE_DIR / "pronto_web.sqlite3")),

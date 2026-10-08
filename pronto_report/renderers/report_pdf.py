@@ -12,7 +12,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, 
 from pronto_report.migration import migrate_review_state_to_v3
 from pronto_report.serialization import serialize_report_data, serialize_review_state
 
-TEMPLATE_VERSION = '1.0'
+TEMPLATE_VERSION = '1.1'
 BLUE = '#203b63'; GREEN = '#14592c'; OLIVE = '#708322'
 QC_COLORS = {'PASS':'#399a44', 'CONDITIONAL':'#e88917', 'FAIL':'#cf2525', 'NOT_REVIEWED':'#777777'}
 
@@ -20,6 +20,8 @@ QC_COLORS = {'PASS':'#399a44', 'CONDITIONAL':'#e88917', 'FAIL':'#cf2525', 'NOT_R
 def project_report_export(report, review):
     if review.report_id != report.report_id:
         raise ValueError('Saved report/review mismatch')
+    from .display_copy import presentation_copy
+    report, review = presentation_copy(report, review)
     r=json.loads(serialize_report_data(report))
     v=json.loads(serialize_review_state(migrate_review_state_to_v3(review)))
     for correction in v['valueCorrections']:
@@ -115,7 +117,7 @@ def _signatures(model,width):
     return _table(['Signature','Score','Range','Source'],[
         [f'{identifier.upper()} — {values.get(identifier,{}).get("label",identifier.upper())}',values.get(identifier,{}).get('value'),
          values.get(identifier,{}).get('displayRange','[0-100+]' if identifier=='tmb' else '[0-100]'),
-         'DEMO' if values.get(identifier,{}).get('demo') else 'Source / saved correction' if identifier in values else 'Not provided']
+         'Source / saved correction' if identifier in values else 'Not provided']
         for identifier in ('tmb','msi','hrd')],width)
 
 
@@ -153,7 +155,7 @@ def _highlight_table(model,width,color=OLIVE):
             if item['review']['reportHighlight']:
                 f=item['fields'];rows.append([f.get('Gene_Symbol') or f.get('Gene_A'),
                     f.get('Event_ID') or f.get('Gene_B') or f.get('Adjusted_Tumor_CN'),label])
-    rows.extend([item['label'],item['value'],'DEMO' if item.get('demo') else 'Signature']
+    rows.extend([item['label'],item['value'],'Signature']
                 for item in model['measurements'] if item['metricId'] in model['metricHighlights'])
     return _table(['Gene / molecular marker','Variant / result','Review / type'],rows,width,color)
 
@@ -198,10 +200,10 @@ def render_report_pdf(report, review, *, layout, export_initials, figure_assets:
     doc=SimpleDocTemplate(buffer,pagesize=page_size,leftMargin=22,rightMargin=22,topMargin=58,bottomMargin=28,
         title=f'InPreD {layout} {model["reportId"]}',author=export_initials)
     width=page_size[0]-44
-    warning=[_paragraph(d['message'],size=8,color='#9a6010') for d in model['diagnostics']
-             if d['code'] in {'MIXED_SAMPLE_DEMO', 'SYNTHETIC_DEMO'}]
+    source_notice = ([_paragraph('Supplementary source tables contain records from multiple samples.',size=8,color='#9a6010')]
+                     if any(d['code']=='MIXED_SAMPLE_DEMO' for d in model['diagnostics']) else [])
     if layout=='ESMO':
-        story=[_heading('Summary',BLUE),*warning,
+        story=[_heading('Summary',BLUE),*source_notice,
             _heading('Patient and sample details'),
             _table(['Field','Value'],[[key,value] for key,value in model['sample'].items()],width,BLUE,size=9),
             *_note(model,'patientDetails','Additional patient and sample details'),
@@ -230,7 +232,7 @@ def render_report_pdf(report, review, *, layout, export_initials, figure_assets:
         sidebar.extend([_paragraph('Assay / Run',size=7,bold=True),_paragraph(model['run'].get('runId'),size=7),_paragraph(f'Overall QC: {model["overallQc"]["status"]}',size=7,color=QC_COLORS[model['overallQc']['status']])])
         qc_summary=Table([[_qc('CNV',model['qc']['cnv']),_qc('RNA',model['qc']['rna'])]],colWidths=[210,210],hAlign='LEFT')
         qc_summary.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('VALIGN',(0,0),(-1,-1),'TOP')]))
-        main=[*warning,_heading('Mutational signatures',BLUE),_qc('Signatures',model['qc']['signatures']),_signatures(model,420),qc_summary,
+        main=[*source_notice,_heading('Mutational signatures',BLUE),_qc('Signatures',model['qc']['signatures']),_signatures(model,420),qc_summary,
               _heading('Key relevant findings',BLUE),_highlight_table(model,420,BLUE),
               *_note(model,'summary','Summary of most relevant findings'),
               *_note(model,'biomarkerContext','Therapeutic context'),
