@@ -107,6 +107,8 @@ def _case_facts(ui: Mapping[str, Any], review: ReviewState | None, editable: boo
         controls = ""
         correction = corrections.get(f"/sample/{name}")
         current = _display(correction["correctedValue"] if correction else fact["value"])
+        if not correction and name == 'tumourType' and str(ui['facts']['patientPseudonym']['value']).startswith('SYN-'):
+            current = current.removesuffix(' (synthetic demo)')
         if editable and name in {"tumourType", "specimenType"}:
             path = f"/sample/{name}"
             field_value = "" if correction is None and fact["value"] is None else str(
@@ -115,7 +117,7 @@ def _case_facts(ui: Mapping[str, Any], review: ReviewState | None, editable: boo
             source_value = "" if fact["value"] is None else str(fact["value"])
             controls = (
                 f'<small class="patient-strip__source" data-source-value="{escape(original, quote=True)}">'
-                f'Source: {escape(original)}</small>'
+                f'Source: {escape(current if not correction else original)}</small>'
                 '<div class="patient-strip__edit report-edit-controls" hidden>'
                 f'<label for="{name}-edit">Proposed value</label>'
                 f'<input id="{name}-edit" type="text" maxlength="512" '
@@ -732,6 +734,9 @@ def render_html(
         raise ValueError("Review state does not belong to this report")
     if review is not None and review.schema_version == "1.0":
         review = migrate_review_state_v1(review)
+    from .display_copy import presentation_copy
+    # Editable source values must remain exact for correction validation.
+    _, review = presentation_copy(report, review)
     ui = project_reference_ui(report, review)
 
     status = review.status if review is not None else "DRAFT"
@@ -984,7 +989,7 @@ def render_html(
         "script_tag": script_tag,
         "igv_scripts": igv_scripts,
     }
-    for key in ('variant_source_tables','variant_section_qc','signature_section_qc','rna_content','report_section_qc','signature_highlights','new_review_summary','demo_banner'):
+    for key in ('variant_source_tables','variant_section_qc','signature_section_qc','rna_content','report_section_qc','signature_highlights','new_review_summary'):
         html_context.setdefault(key, '')
     if review and review.schema_version == '3.0':
         review_v3.enhance_context(html_context, report, review, plot_images, not editable)

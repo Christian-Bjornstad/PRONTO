@@ -1,6 +1,6 @@
 """Only the authenticated read route is exposed in this slice."""
 
-from django.contrib.auth.views import LoginView, LogoutView
+from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeView, PasswordChangeDoneView
 from django.urls import path
 from pronto_web.reports.print_audit import print_request
 from pronto_web.reports.html_export_audit import html_export_request
@@ -24,6 +24,8 @@ urlpatterns = [
     path('reports/<str:report_id>/html-exports/', html_export_request, name='report-html-export'),
     path("accounts/login/", LoginView.as_view(), name="login"),
     path("accounts/logout/", LogoutView.as_view(next_page="/accounts/login/"), name="logout"),
+    path('accounts/password/', PasswordChangeView.as_view(), name='password_change'),
+    path('accounts/password/done/', PasswordChangeDoneView.as_view(), name='password_change_done'),
     path("reports/", report_index, name="report-index"),
     path("reports/<str:report_id>/revisions/", save_review_revision, name="review-save"),
     path("reports/<str:report_id>/resets/", reset_review_revision, name="review-reset"),

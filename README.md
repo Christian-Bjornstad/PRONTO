@@ -1,4 +1,6 @@
 # PRONTO 
+For the patient report web app, see [the startup guide](docs/oppstart-nb.md).
+
 **(rePort geneRator fOr iNpred Tumor bOards)**
 
 <br />

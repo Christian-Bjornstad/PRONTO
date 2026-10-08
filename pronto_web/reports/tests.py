@@ -118,7 +118,10 @@ class ReportReadTests(TestCase):
         assert self.client.get(self.url).status_code == 200
 
     def test_report_index_lists_only_granted_reports(self):
-        assert self.client.get("/reports/").status_code == 401
+        anonymous = self.client.get('/reports/')
+        assert anonymous.status_code == 302
+        assert anonymous.url == '/accounts/login/?next=/reports/'
+        assert b'review-state-data' not in anonymous.content
         self.client.force_login(self.other)
         hidden = self.client.get("/reports/")
         assert hidden.status_code == 200

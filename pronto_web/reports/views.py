@@ -5,6 +5,7 @@ import os
 import stat
 
 from django.conf import settings
+from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 from django.db.models import ObjectDoesNotExist
 from django.core.paginator import Paginator
@@ -22,6 +23,7 @@ from pronto_report.migration import migrate_review_state_to_v3
 from pronto_report.review.contracts import FinalizeRequest, ResetDraftRequest, ReviewCommandError, SaveDraftRequest
 from pronto_report.review.service import ReviewCommandService
 from pronto_report.validation import validate_report_data, validate_review_state
+from pronto_report.renderers.display_copy import patient_display
 from pronto_web.reports.models import ReportGrant, ReportRecord, ReportWriteGrant, ReviewRevision
 from pronto_web.reports.review_repository import DjangoReviewAuthorizer, DjangoReviewRepository
 from pronto_web.reports.alignment_config import alignment_saving_enabled
@@ -44,7 +46,9 @@ MAX_REVIEW_COMMAND_BYTES = 1024 * 1024
 @require_GET
 def report_index(request) -> HttpResponse:
     if not request.user.is_authenticated or not request.user.is_active:
-        return HttpResponse(status=401)
+        response = redirect_to_login(request.get_full_path())
+        response['Cache-Control'] = 'no-store'
+        return response
     reports = ReportRecord.objects.filter(grants__user=request.user).prefetch_related('reviews','review_audits').order_by('report_id')
     page=Paginator(reports,25).get_page(request.GET.get('page'))
     entries=[]
@@ -53,10 +57,9 @@ def report_index(request) -> HttpResponse:
         latest=revisions[0] if revisions else None
         status=('reviewed' if latest and latest.review_data['status']=='FINAL' else
                 'under-review' if any(a.action=='SAVE_DRAFT' for a in record.review_audits.all()) else 'un-reviewed')
-        entries.append({'reportId':record.pk,'sample':record.report_data['sample'],'status':status,'revisions':revisions,
+        entries.append({'reportId':record.pk,'sample':patient_display(record.report_data['sample']),'status':status,'revisions':revisions,
                         'updatedAt':latest.review_data.get('updatedAt') if latest else None})
-    response = render(request, 'reports/index.html', {'entries': entries,'page':page,
-                       'demo': getattr(settings, 'PRONTO_DEMO_ENABLED', False)})
+    response = render(request, 'reports/index.html', {'entries': entries,'page':page})
     response["Cache-Control"] = "no-store"
     return response
 

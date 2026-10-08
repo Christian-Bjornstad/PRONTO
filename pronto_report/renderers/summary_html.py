@@ -139,7 +139,7 @@ def _render_v3(report,review,initials):
         if not rows: return '<p>No findings selected.</p>'
         return '<table><thead><tr>'+''.join(f'<th>{escape(h)}</th>' for h in headers)+'</tr></thead><tbody>'+''.join('<tr>'+''.join(f'<td>{escape(_shown(c))}</td>' for c in row)+'</tr>' for row in rows)+'</tbody></table>'
     body='<section><h2>Key findings</h2><dl class="facts">'+''.join(_fact(key,value) for key,value in model['sample'].items())+'</dl></section>'
-    body+='<h2>Mutational signatures</h2><dl class="facts">'+''.join(_fact(item['metricId'].upper(),f'{_shown(item["value"])} {item.get("unit", "")} · {item.get("displayRange", "[0-100+]" if item["metricId"]=="tmb" else "[0-100]")}' + (' · DEMO' if item.get('demo') else '')) for item in model['measurements'] if item['metricId'] in {'tmb','msi','hrd'})+'</dl>'
+    body+='<h2>Mutational signatures</h2><dl class="facts">'+''.join(_fact(item['metricId'].upper(),f'{_shown(item["value"])} {item.get("unit", "")} · {item.get("displayRange", "[0-100+]" if item["metricId"]=="tmb" else "[0-100]")}') for item in model['measurements'] if item['metricId'] in {'tmb','msi','hrd'})+'</dl>'
     body+='<h2>Selected variants</h2>'+table(['Gene','Protein','Clinical class','Highlight'],[[i['gene'],i['protein'],i['review']['clinicalClassification'].title() if i['review']['clinicalClassification']!='VUS' else 'VUS',i['review']['reportHighlight']] for i in model['variants']])
     for key,title in [('cnv','Selected CNV'),('rna','Selected RNA')]:
         headers=list(dict.fromkeys(h for row in model[key] for h in row['fields']))
@@ -147,5 +147,6 @@ def _render_v3(report,review,initials):
     body+='<h2>Key relevant findings</h2><ul>'+''.join(f'<li>{escape(i["gene"])} {escape(i["protein"])} </li>' for i in model['variants'] if i['review']['reportHighlight'])+'</ul>'
     body+='<h2>Quality assessment</h2>'+''.join(_fact(key,value['status']) for key,value in {**model['qc'],'overall':model['overallQc']}.items())
     body+='<h2>Conclusion notes</h2>'+''.join(f'<h3>{escape(label)}</h3><p class="note">{escape(_shown(model["notes"].get(key)))}</p>' for key,label in [('summary','Interpretation summary'),('biomarkerContext','Therapeutic context'),('additional','Additional comments'),*NOTE_FIELDS])
-    body+=''.join(f'<p>{escape(d["message"])}</p>' for d in model['diagnostics'] if d['code']=='MIXED_SAMPLE_DEMO')
+    if any(d['code']=='MIXED_SAMPLE_DEMO' for d in model['diagnostics']):
+        body+='<p>Supplementary source tables contain records from multiple samples.</p>'
     return '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>PRONTO report</title><style>'+_CSS+'</style></head><body><header><h1>PRONTO report</h1><p>Revision '+str(review.revision)+' · '+review.status.title()+' · Prepared by '+escape(initials)+'</p></header><main>'+body+'</main></body></html>'
