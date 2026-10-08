@@ -64,6 +64,29 @@ må få eksplisitte tilgangstildelinger. For å bruke en eksisterende database:
 Ikke bruk `--setup-user` når kontoen allerede finnes. Ta en sikkerhetskopi før du
 oppgraderer en eksisterende database. Oppstarten kjører nødvendige database-migreringer.
 
+## IGV og referansegenomer
+
+IGV trenger en lokal referansesekvens i tillegg til BAM-filen og indeksen.
+På denne PC-en er referansene satt opp i `.local-web/references/`:
+`GRCh37.fa` med `GRCh37.fa.fai`, og `GRCh38.fa` med `GRCh38.fa.fai`.
+Vanlig oppstart oppdager komplette filpar automatisk. Etter at nye referansefiler
+er lagt til, start serveren igjen og oppdater rapportfanen.
+
+Åpne **Variant review → View in IGV**, velg BAM-filen og tilhørende `.bai` eller
+`.csi`, og trykk **Open local files**. Rapportens referansegenom må være det samme
+som BAM-filens. Eksempelfilene i `C:\Users\molpa\Documents\Inpred\IGV_BAM_examples`
+har egne koordinater i `LES_MEG.md`. Prøv `HG02450.bam` med `HG02450.bam.csi`
+og søk på `1:119900-124100` i en GRCh37-rapport; klikk på lupen ved søkefeltet.
+Et regionutdrag kan vise tomt
+spor ved pasientvariantens koordinat; søk på koordinaten til utdraget.
+
+Referansene er offentlige UCSC-sekvenser, lagret lokalt og tilgjengelige gjennom
+appen etter innlogging. Åpning av lokal BAM sender ikke filen til serveren.
+Referanseoppsettet aktiverer ikke lagring av BAM-filer.
+
+På en annen PC må passende FASTA- og FAI-filer legges i samme mappe først.
+Detaljer for egen drift finnes i `docs/igv-alignment-operations.md`.
+
 ## Drift og data
 
 Dette er lokal oppstart med innlogging, bundet til `127.0.0.1`. Den bruker Djangos
@@ -74,4 +97,4 @@ en produksjonsserver; standardinnstillingene krever fortsatt sikre cookies.
 De simulerte pasientene er fortsatt testdata. Gjentatte demo-bannere og automatisk
 fylltekst er fjernet fra visningene. Kildeinformasjon, SYN-pasientkoder, kildeplotter
 og opprinnelige revisjoner er bevart. Fritekst skrevet av brukere endres ikke.
-Tabeller fra flere prøver er fortsatt merket med en kort beskjed om dette.
+Kildenes Sample_ID-kolonner gjør det mulig å skille radene fra hver prøve.

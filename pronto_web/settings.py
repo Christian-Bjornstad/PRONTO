@@ -72,6 +72,12 @@ PRONTO_IGV_REFERENCES = {
             "indexURL": os.environ.get(f"PRONTO_IGV_{build}_FAI_URL", "")}
     for build in ("GRCh37", "GRCh38")
 }
+PRONTO_IGV_REFERENCE_FILES = {
+    build: {"fasta": fasta, "index": index}
+    for build in ("GRCh37", "GRCh38")
+    if (fasta := os.environ.get(f"PRONTO_IGV_{build}_FASTA_PATH", ""))
+    and (index := os.environ.get(f"PRONTO_IGV_{build}_FAI_PATH", ""))
+}
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = True

@@ -48,6 +48,22 @@ to a deployment build directory and run `collectstatic`; serve the collected
 `report-igv.js` and vendored `igv/igv.esm.min.js` at `/static/` on the same
 origin. The viewer never requests a CDN or IGV default genome list.
 
+The app can also serve explicitly provisioned public references through
+`/igv/references/<build>/fasta/` and `/igv/references/<build>/index/`. Configure
+`PRONTO_IGV_GRCh37_FASTA_PATH` and `PRONTO_IGV_GRCh37_FAI_PATH` (or GRCh38)
+and point the corresponding URL settings above to these same-origin routes.
+Only the two supported builds and the two named components are accepted;
+an active login is required. FASTA GET requests require a single byte range,
+FAI may be read in full up to 8 MiB, and HEAD supports file-size discovery.
+These settings do not enable the alignment-preservation service.
+
+For the loopback launcher, `pronto_web.local_settings` discovers complete
+`GRCh37.fa`/`GRCh37.fa.fai` and `GRCh38.fa`/`GRCh38.fa.fai` pairs in
+`.local-web/references/` and configures these routes automatically. Explicit
+environment paths/URLs take precedence. Files are not downloaded during
+startup; provision and verify the appropriate reference assembly first.
+The FASTA/FAI files must be outside Git and outside static/media storage.
+
 ## Private preservation gate
 
 Alignment preservation remains disabled until a Linux deployment sets all of:
