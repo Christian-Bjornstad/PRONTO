@@ -95,51 +95,26 @@ def test_reset_conflict_retains_local_working_copy(browser):
             context.close()
 
 
-def test_html_download_blocks_dirty_and_uses_current_saved_revision(browser):
+def test_current_workspace_has_no_html_download_even_when_legacy_endpoint_exists():
     report = build_report()
     review = migrate_review_state_v1(draft_review(report))
     html = render_html(report, review, inline_assets=True,
         save_url='/save/', html_export_url='/html-exports/',
-        csrf_token='test', actor_id='7', require_initials=True)
-    with _serve(html) as url:
-        context, page, diagnostics, _requests = _page(browser, html)
-        commands = []
-        try:
-            def export(route):
-                commands.append(json.loads(route.request.post_data))
-                route.fulfill(status=200, content_type='text/html; charset=utf-8',
-                    headers={'Content-Disposition': 'attachment; filename="saved-report.html"'},
-                    body='<!doctype html><html><body>Saved report</body></html>')
-            page.route('**/html-exports/', export)
-            page.goto(url)
-            page.locator('[data-include-variant]').first.click()
-            page.get_by_role('button', name='Download report HTML').click()
-            expect(page.locator('#html-export-status')).to_contain_text('Save changes')
-            assert commands == []
-            page.reload()
-            with page.expect_download() as pending:
-                page.get_by_role('button', name='Download report HTML').click()
-                page.get_by_label('Your initials').fill('AB')
-                page.get_by_role('button', name='Confirm', exact=True).click()
-            assert pending.value.suggested_filename == 'saved-report.html'
-            assert commands[0]['revision'] == 1
-            assert commands[0]['declaredInitials'] == 'AB'
-            assert commands[0]['reportId'] == report.report_id
-            assert page.locator('#dirty-lbl').inner_text() == 'All changes saved'
-            assert diagnostics == []
-        finally:
-            context.close()
+        csrf_token='test', actor_id='7', actor_label='reviewer')
+    assert 'id="html-export-btn"' not in html
+    assert 'Download report HTML' not in html
+    assert 'id="initials-dialog"' not in html
 
 
-def test_final_report_offers_html_download_without_edit_controls():
+def test_final_report_has_no_html_download_or_edit_controls():
     report = build_report()
     document = json.loads(serialize_review_state(migrate_review_state_v1(draft_review(report))))
     document.update(status='FINAL', finalizedAt='2026-09-29T12:00:00Z',
                     finalizedBy='biologist-1', updatedAt='2026-09-29T12:00:00Z')
     final = validate_review_state(document, report=report)
     html = render_html(report, final, inline_assets=True,
-        html_export_url='/html-exports/', csrf_token='test', require_initials=True)
-    assert '>Download report HTML</button>' in html
+        html_export_url='/html-exports/', csrf_token='test', actor_label='reviewer')
+    assert '>Download report HTML</button>' not in html
     assert 'id="reset-btn"' not in html
     assert 'id="finalize-btn"' not in html
 

@@ -6,6 +6,7 @@ from hashlib import sha256
 from uuid import UUID
 
 from django.db import DatabaseError, transaction
+from django.conf import settings
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -23,13 +24,15 @@ logger=logging.getLogger(__name__)
 
 
 def record_and_render(record,actor,data,request_id,initials):
+    actor_label = initials if initials is not None else actor.get_username()
+    method = 'SELF_REPORTED' if initials is not None else 'AUTHENTICATED'
     with transaction.atomic():
         locked=ReportRecord.objects.select_for_update().get(pk=record.pk)
         if not actor.is_active or not ReportGrant.objects.filter(report=locked,user=actor).exists():
             raise ReviewCommandError('FORBIDDEN','Report access denied',403)
         existing=ReportPdfExportAudit.objects.filter(report=locked,request_id=request_id).first()
-        identity=(actor.pk,data['revision'],initials,data['layout'],TEMPLATE_VERSION)
-        if existing and (existing.actor_id,existing.revision,existing.declared_initials,existing.layout,existing.template_version)!=identity:
+        identity=(actor.pk,data['revision'],initials,actor_label if method=='AUTHENTICATED' else None,method,data['layout'],TEMPLATE_VERSION)
+        if existing and (existing.actor_id,existing.revision,existing.declared_initials,existing.actor_label,existing.attribution_method,existing.layout,existing.template_version)!=identity:
             raise ReviewCommandError('EXPORT_CONFLICT','Request ID already used',409)
         latest=ReviewRevision.objects.filter(report=locked).order_by('-revision').first()
         if not existing and (latest is None or latest.revision!=data['revision']):
@@ -46,10 +49,11 @@ def record_and_render(record,actor,data,request_id,initials):
                 payload=bytes(figure.content)
                 if sha256(payload).hexdigest()!=figure.sha256: raise ValueError('Figure hash mismatch')
                 assets[str(figure.pk)]=payload
-        pdf=render_report_pdf(report,review,layout=data['layout'],export_initials=initials,figure_assets=assets)
+        pdf=render_report_pdf(report,review,layout=data['layout'],export_initials=actor_label,figure_assets=assets)
         if not existing:
             ReportPdfExportAudit.objects.create(report=locked,actor=actor,revision=row.revision,
                 request_id=request_id,declared_initials=initials,layout=data['layout'],
+                actor_label=actor_label if method=='AUTHENTICATED' else None,attribution_method=method,
                 template_version=TEMPLATE_VERSION,requested_at=timezone.now())
         return pdf
 
@@ -64,12 +68,14 @@ def pdf_export_request(request,report_id):
         raw=request.read(4097)
         if len(raw)>4096: raise ValueError('Command too large')
         data=json.loads(raw)
-        if (not isinstance(data,dict) or set(data)!={'schemaVersion','reportId','revision','requestId','declaredInitials','layout'}
+        required={'schemaVersion','reportId','revision','requestId','layout'}
+        if (not isinstance(data,dict) or not required <= set(data) or set(data)-required-{'declaredInitials'}
                 or data['schemaVersion']!='1.0' or data['reportId']!=report_id
                 or type(data['revision']) is not int or data['revision']<1
                 or not isinstance(data['requestId'],str) or data['layout'] not in ('ESMO','PRESENTATION')):
             raise ValueError('Invalid command')
-        identifier=UUID(data['requestId']);initials=normalize_initials(data['declaredInitials'])
+        identifier=UUID(data['requestId'])
+        initials=normalize_initials(data.get('declaredInitials')) if getattr(settings,'PRONTO_REQUIRE_INITIALS',False) else None
     except (ValueError,TypeError,UnicodeError,ReviewCommandError): return _error('INVALID_COMMAND',422)
     try:
         pdf=record_and_render(grant.report,request.user,data,identifier,initials)

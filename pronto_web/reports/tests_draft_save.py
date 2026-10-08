@@ -125,7 +125,8 @@ class DraftSaveTests(TestCase):
         assert ReviewRevision.objects.get(report=self.record, revision=2).review_data == latest
         assert latest['runQcAssessment'] == self.draft['runQcAssessment']
         assert latest['variantReviews'][0]['reportingDecision'] == 'INCLUDE'
-        assert latest['lastSavedAttribution']['declaredInitials'] == 'AB'
+        assert latest['lastSavedAttribution'] == {
+            'actorId': str(self.writer.pk), 'actorLabel': self.writer.username, 'method': 'AUTHENTICATED'}
         assert ReviewRevision.objects.filter(report=self.record).count() == 2
         assert ReviewAudit.objects.filter(report=self.record).count() == 1
         self.record.refresh_from_db()

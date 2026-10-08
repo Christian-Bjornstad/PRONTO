@@ -19,6 +19,10 @@ Brukeren på denne PC-en heter **molpa**. Det første passordet ligger i den pri
 filen `.local-web/innlogging.txt`. Etter innlogging kan du velge **Change password**
 i pasientoversikten. Denne filen oppdateres ikke automatisk etter passordbytte.
 
+Lagring, nullstilling, signering og PDF-eksport knyttes til kontoen som er logget inn.
+Du trenger ikke oppgi initialer. Tidligere lagrede versjoner beholder sin opprinnelige
+registrering; nye handlinger registrerer brukernavn og bruker-ID fra innloggingen.
+
 Hvis port 8770 er opptatt, velg en annen port:
 
 ```powershell

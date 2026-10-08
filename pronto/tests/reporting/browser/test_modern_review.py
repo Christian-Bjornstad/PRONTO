@@ -56,7 +56,7 @@ def test_vus_highlight_exclude_and_qc_are_linked_and_in_explicit_save(browser):
 def test_uploaded_figures_keep_caption_focus_and_order_and_pdf_requires_save(browser):
     report=build_report();review=migrate_review_state_to_v3(draft_review(report))
     html=render_html(report,review,inline_assets=True,save_url='/save/',csrf_token='test',actor_id='7',
-        pdf_export_url='/pdf/',figure_upload_url='/upload/')
+        pdf_export_url='/pdf/',figure_upload_url='/upload/',actor_label='reviewer')
     context,page,errors,_=_page(browser,html);saves=[];exports=[]
     output=BytesIO();Image.new('RGB',(120,60),'green').save(output,'PNG');payload=output.getvalue()
     try:
@@ -88,11 +88,11 @@ def test_uploaded_figures_keep_caption_focus_and_order_and_pdf_requires_save(bro
             expect(revised).to_have_value('Caption edited after saving')
             page.get_by_role('button',name='Save',exact=True).click();expect(page.locator('#dirty-lbl')).to_have_text('All changes saved')
             assert saves[1]['draft']['presentationFigures'][1]['caption']=='Caption edited after saving'
-            page.evaluate("window.requestDeclaredInitials=async()=> 'AB'")
             with page.expect_download() as download:
                 page.get_by_role('button',name='Presentation PDF',exact=True).click()
             assert download.value.suggested_filename.endswith('-presentation.pdf')
-            assert exports[0]['revision']==review.revision+2 and exports[0]['declaredInitials']=='AB'
+            assert exports[0]['revision']==review.revision+2 and 'declaredInitials' not in exports[0]
+            assert page.get_by_label('Your initials',exact=True).count()==0
             assert errors==[]
     finally: context.close()
 

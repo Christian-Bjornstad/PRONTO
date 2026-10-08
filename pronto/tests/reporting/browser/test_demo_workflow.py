@@ -1,8 +1,6 @@
 """Real browser + isolated Django database; no mocked review/export APIs."""
 import json
 import shutil
-from io import BytesIO
-from pathlib import Path
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -10,9 +8,9 @@ from django.contrib.auth import get_user_model
 from pronto.tests.reporting.browser.test_report import _page, _browser_executable, playwright, pypdf
 from pronto.tests.reporting.test_html_review_state import draft_review
 from pronto.tests.reporting.test_pronto_output_adapter import build_report
-from pronto_report.migration import migrate_review_state_v1
+from pronto_report.migration import migrate_review_state_to_v3
 from pronto_report.serialization import serialize_report_data, serialize_review_state
-from pronto_web.reports.models import ReportRecord, ReportGrant, ReviewRevision, ReviewAudit, ReportHtmlExportAudit
+from pronto_web.reports.models import ReportRecord, ReportGrant, ReviewRevision, ReviewAudit, ReportPdfExportAudit
 
 
 @pytest.fixture
@@ -23,7 +21,7 @@ def configured_demo(settings, transactional_db):
     source['attachments'] = []
     record = ReportRecord.objects.create(report_id=report.report_id, report_data=source)
     ReviewRevision.objects.create(report=record, revision=1,
-        review_data=json.loads(serialize_review_state(migrate_review_state_v1(draft_review(report)))))
+        review_data=json.loads(serialize_review_state(migrate_review_state_to_v3(draft_review(report)))))
     user = get_user_model().objects.create_user(username='workflow-demo-service')
     ReportGrant.objects.create(report=record, user=user)
     settings.PRONTO_DEMO_ENABLED = True
@@ -47,7 +45,7 @@ def demo_server(configured_demo):
         server.stop()
 
 
-def test_demo_review_save_reload_same_person_finalize_and_download_html(demo_server):
+def test_demo_review_save_reload_same_person_finalize_and_download_pdf(demo_server):
     url, record, source = demo_server
     executable = _browser_executable()
     if executable is None:
@@ -86,18 +84,17 @@ def test_demo_review_save_reload_same_person_finalize_and_download_html(demo_ser
         playwright.expect(page.locator('.status-badge')).to_have_text('Report status: Final')
         playwright.expect(page.get_by_label('Interpretation summary', exact=True)).to_be_disabled()
         playwright.expect(page.locator('.board-signoff')).to_contain_text('Finalized by AB')
-        page.get_by_role('button', name='Download report HTML').click()
+        page.get_by_role('button', name='ESMO PDF', exact=True).click()
         page.get_by_label('Your initials', exact=True).fill('CD')
         with page.expect_download() as download_info:
             page.get_by_role('button', name='Confirm', exact=True).click()
         downloaded = download_info.value
-        assert downloaded.suggested_filename.endswith('.html')
-        html = Path(downloaded.path()).read_text(encoding='utf-8')
-        for text in ('Key findings', 'Selected variants', 'CHEK2', 'DEMO rapportnotat', 'Prepared by CD'):
-            assert text in html
-        assert 'TERT' not in html
-        assert '<script' not in html
-        playwright.expect(page.locator('#html-export-status')).to_contain_text('HTML download requested for revision 3')
+        assert downloaded.suggested_filename.endswith('-esmo.pdf')
+        text = '\n'.join(sheet.extract_text() or '' for sheet in pypdf.PdfReader(downloaded.path()).pages)
+        for value in ('CHEK2', 'DEMO rapportnotat', 'CD'):
+            assert value in text
+        assert 'TERT' not in text
+        playwright.expect(page.locator('#pdf-export-status')).to_contain_text('saved revision 3')
         assert diagnostics == []
     finally:
         context.close()
@@ -106,7 +103,7 @@ def test_demo_review_save_reload_same_person_finalize_and_download_html(demo_ser
     # Stop Playwright's event loop before synchronous Django ORM assertions.
     assert list(ReviewAudit.objects.filter(report=record).order_by('revision').values_list(
         'action', 'declared_initials')) == [('SAVE_DRAFT', 'AB'), ('FINALIZE', 'AB')]
-    export_audit = ReportHtmlExportAudit.objects.get(report=record)
+    export_audit = ReportPdfExportAudit.objects.get(report=record)
     assert (export_audit.revision, export_audit.declared_initials) == (3, 'CD')
     record.refresh_from_db()
     assert record.report_data == source
@@ -154,27 +151,18 @@ def test_demo_reset_then_export_new_saved_review_offline(demo_server, tmp_path):
         page.get_by_label('Your initials', exact=True).fill('CD')
         page.get_by_role('button', name='Confirm', exact=True).click()
         playwright.expect(page.locator('#board-saved-revision')).to_have_text('Saved revision: 4')
-        page.get_by_role('button', name='Download report HTML').click()
+        page.get_by_role('button', name='ESMO PDF', exact=True).click()
         page.get_by_label('Your initials', exact=True).fill('EF')
         with page.expect_download() as download_info:
             page.get_by_role('button', name='Confirm', exact=True).click()
         downloaded = download_info.value
-        html_path = tmp_path / downloaded.suggested_filename
-        shutil.copyfile(downloaded.path(), html_path)
-        html = html_path.read_text(encoding='utf-8')
-        for value in ('CHEK2', 'New saved conclusion', '17,8 mut/Mb', 'Revision 4', 'Prepared by EF'):
-            assert value in html
-        assert 'Reset this conclusion' not in html
-        assert '<script' not in html
-        offline = context.new_page()
-        offline_requests = []
-        offline.on('request', lambda request: offline_requests.append(request.url))
-        context.set_offline(True)
-        offline.goto(html_path.as_uri())
-        assert offline.get_by_role('heading', name='Key findings').is_visible()
-        assert offline_requests == [html_path.as_uri()]
-        printed = '\n'.join(sheet.extract_text() or '' for sheet in pypdf.PdfReader(BytesIO(offline.pdf())).pages)
-        assert 'New saved conclusion' in printed
+        pdf_path = tmp_path / downloaded.suggested_filename
+        shutil.copyfile(downloaded.path(), pdf_path)
+        text = '\n'.join(sheet.extract_text() or '' for sheet in pypdf.PdfReader(pdf_path).pages)
+        for value in ('CHEK2', 'New saved conclusion', '17.8', 'revision 4', 'EF'):
+            assert value in text
+        assert 'Reset this conclusion' not in text
+        assert downloaded.suggested_filename.endswith('-esmo.pdf')
         assert diagnostics == []
     finally:
         context.close()
@@ -183,6 +171,6 @@ def test_demo_reset_then_export_new_saved_review_offline(demo_server, tmp_path):
     assert list(ReviewRevision.objects.filter(report=record).order_by('revision').values_list('revision', flat=True)) == [1, 2, 3, 4]
     assert list(ReviewAudit.objects.filter(report=record).order_by('revision').values_list('action', 'declared_initials')) == [
         ('SAVE_DRAFT', 'AB'), ('RESET_DRAFT', 'AB'), ('SAVE_DRAFT', 'CD')]
-    assert ReportHtmlExportAudit.objects.get(report=record).declared_initials == 'EF'
+    assert ReportPdfExportAudit.objects.get(report=record).declared_initials == 'EF'
     record.refresh_from_db()
     assert record.report_data == source

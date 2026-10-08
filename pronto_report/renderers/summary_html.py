@@ -147,6 +147,4 @@ def _render_v3(report,review,initials):
     body+='<h2>Key relevant findings</h2><ul>'+''.join(f'<li>{escape(i["gene"])} {escape(i["protein"])} </li>' for i in model['variants'] if i['review']['reportHighlight'])+'</ul>'
     body+='<h2>Quality assessment</h2>'+''.join(_fact(key,value['status']) for key,value in {**model['qc'],'overall':model['overallQc']}.items())
     body+='<h2>Conclusion notes</h2>'+''.join(f'<h3>{escape(label)}</h3><p class="note">{escape(_shown(model["notes"].get(key)))}</p>' for key,label in [('summary','Interpretation summary'),('biomarkerContext','Therapeutic context'),('additional','Additional comments'),*NOTE_FIELDS])
-    if any(d['code']=='MIXED_SAMPLE_DEMO' for d in model['diagnostics']):
-        body+='<p>Supplementary source tables contain records from multiple samples.</p>'
     return '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>PRONTO report</title><style>'+_CSS+'</style></head><body><header><h1>PRONTO report</h1><p>Revision '+str(review.revision)+' · '+review.status.title()+' · Prepared by '+escape(initials)+'</p></header><main>'+body+'</main></body></html>'

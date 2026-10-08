@@ -61,16 +61,13 @@ def source_table(table, review, *, readonly=False):
     table_id=escape(str(table['tableId']),quote=True)
     return (f'<section class="source-table-block"><p>{shown(table["fileName"])} · {shown(table["sheet"])} · '
             f'{len(rows)} source rows. Source QC highlighting is separate from report selection.</p>'
-            + ('<p class="source-notice">Source table contains records from multiple samples.</p>'
-               if len({row['sourceSampleId'] for row in table['rows'] if row.get('sourceSampleId')}) > 1 else '')
             + f'<label>Search all source columns <input type="search" data-source-search-for="{table_id}"></label>'
             f'<div class="table-scroll" role="region" aria-label="Full {table["kind"]} source table" tabindex="0">'
             f'<table class="full-source-table" id="{table_id}"><thead><tr><th>Include / Exclude</th>'
             '<th>Key relevant findings</th><th>Source QC highlight</th>'
             + ''.join(f'<th>{shown(header)}</th>' for header in table['headers'])
             + '</tr></thead><tbody>'+''.join(rows)+'</tbody></table></div>'
-            '<details><summary>Source field legend</summary><pre class="source-legend">'
-            + '\n'.join(shown(line) for line in table['preamble'])+'</pre></details></section>')
+            '</section>')
 
 
 def source_tables(report, review, kind, readonly=False):
@@ -117,7 +114,7 @@ def rna_plots(report, images):
 
 
 def enhance_context(context, report, review, images, readonly):
-    context['variant_source_tables']=source_tables(report,review,'VARIANTS',readonly)
+    context['variant_source_tables']=''
     context['variant_section_qc']=qc_control(review,'variants',readonly=readonly)
     context['signature_section_qc']=qc_control(review,'signatures',readonly=readonly)
     context['cnv_content']=(qc_control(review,'cnv',readonly=readonly)
@@ -126,11 +123,7 @@ def enhance_context(context, report, review, images, readonly):
         + '<div id="cnv-plots-view" hidden>'+cnv_plots(report,images)+'</div>')
     context['rna_content'] = qc_control(review,'rna',readonly=readonly) + source_tables(report,review,'RNA',readonly) + rna_plots(report,images)
     context['report_section_qc']=''.join(qc_control(review,key,readonly=readonly,suffix='report') for key in QC_LABELS)
-    marker={i['metricId']:i for i in review.biomarker_reviews}
-    context['signature_highlights']='<div class="signature-highlights">'+''.join(
-        checkbox('data-metric-highlight',str(item['metricId']),f'{item["label"]}: Key relevant findings',marker.get(item['metricId'],{}).get('reportHighlight',False),readonly)
-        + f'<span class="signature-range">Range {shown(item.get("displayRange", "[0-100+]" if item["metricId"]=="tmb" else "[0-100]"))}</span>'
-        for item in report.biomarkers if item['metricId'] in {'tmb','msi','hrd'})+'</div>'
+    context['signature_highlights']=''
     from .report_pdf import project_report_export
     selected=project_report_export(report,review)
     source_items=[(kind,row) for kind in ('cnv','rna') for row in selected[kind]]

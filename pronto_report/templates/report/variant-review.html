@@ -27,12 +27,11 @@
         <th scope="col">Tumour DNA depth</th>
         <th scope="col">OncoKB</th>
         <th scope="col">Biomarker list</th>
-        {{ igv_column }}{{ review_columns }}<th scope="col">Details</th>
+        {{ igv_column }}{{ review_columns }}{{ variant_extra_headers }}
       </tr></thead>
       <tbody>{{ variant_rows }}</tbody>
     </table>
   </div>
   <p id="variant-no-match" class="empty-state" hidden>No variants match the search.</p>
-  <details class="all-source-columns"><summary>All source columns</summary>{{ variant_source_tables }}</details>
   {{ igv_panel }}
 </section>

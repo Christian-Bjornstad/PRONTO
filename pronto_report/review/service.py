@@ -28,14 +28,18 @@ class ReviewCommandService:
         *,
         clock: Callable[[], datetime],
         require_initials: bool = False,
+        actor_label: str | None = None,
     ) -> None:
         self.repository = repository
         self.authorizer = authorizer
         self.clock = clock
         self.require_initials = require_initials
+        self.actor_label = actor_label
 
-    def _attribution(self, request):
-        if request.declared_initials is None and not self.require_initials:
+    def _attribution(self, request, actor_id, force=False):
+        if self.actor_label is not None:
+            return {'actorId': actor_id, 'actorLabel': self.actor_label, 'method': 'AUTHENTICATED'}
+        if request.declared_initials is None and not self.require_initials and not force:
             return None
         return {'declaredInitials': normalize_initials(request.declared_initials), 'method': 'SELF_REPORTED'}
 
@@ -86,8 +90,9 @@ class ReviewCommandService:
         attribution=None,
     ) -> ReviewCommandResponse:
         audit = AuditRecord(report_id, actor_id, action, review.revision, timestamp,
-                            attribution['declaredInitials'] if attribution else None,
-                            attribution['method'] if attribution else None)
+                            attribution.get('declaredInitials') if attribution else None,
+                            attribution['method'] if attribution else None,
+                            attribution.get('actorLabel') if attribution else None)
         if not self.repository.commit(report_id, base_revision, review, audit):
             latest = self.repository.latest(report_id)
             raise ReviewCommandError(
@@ -100,7 +105,7 @@ class ReviewCommandService:
         self, request: SaveDraftRequest, *, actor_id: str, report: ReportData
     ) -> ReviewCommandResponse:
         current = self._current(request, actor_id, report)
-        attribution = self._attribution(request)
+        attribution = self._attribution(request, actor_id)
         draft = self._draft(request.draft, report, request.base_revision)
         if draft.created_at != current.created_at:
             raise ReviewCommandError("INVALID_DRAFT", "Draft creation time changed", 422)
@@ -164,7 +169,7 @@ class ReviewCommandService:
         self, request: FinalizeRequest, *, actor_id: str, report: ReportData
     ) -> ReviewCommandResponse:
         current = self._current(request, actor_id, report)
-        attribution = self._attribution(request)
+        attribution = self._attribution(request, actor_id)
         draft = self._draft(request.draft, report, request.base_revision)
         if serialize_review_state(draft) != serialize_review_state(current):
             raise ReviewCommandError("UNSAVED_CHANGES", "Save changes before finalizing", 409)
@@ -186,7 +191,7 @@ class ReviewCommandService:
         self, request: ResetDraftRequest, *, actor_id: str, report: ReportData
     ) -> ReviewCommandResponse:
         current = self._current(request, actor_id, report)
-        attribution = {'declaredInitials': normalize_initials(request.declared_initials), 'method': 'SELF_REPORTED'}
+        attribution = self._attribution(request, actor_id, force=True)
         timestamp = self._timestamp()
         document = json.loads(serialize_review_state(current))
         if current.schema_version == '3.0':
