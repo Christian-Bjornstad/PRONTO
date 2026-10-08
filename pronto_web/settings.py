@@ -10,6 +10,8 @@ if not SECRET_KEY:
     raise RuntimeError("Set PRONTO_DJANGO_SECRET_KEY before starting the web app")
 
 DEBUG = False
+TIME_ZONE = 'Europe/Oslo'
+USE_TZ = True
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
 INSTALLED_APPS = [
     "django.contrib.auth",

@@ -19,6 +19,7 @@ from pronto_report.renderers.projection import project_reference_ui
 from pronto_report.renderers.attribution import render_attribution, initials_dialog, attribution_label
 from pronto_report.renderers import variant_columns
 from pronto_report.serialization import serialize_review_state
+from pronto_report.renderers.display_time import oslo_time
 
 
 _PACKAGE_ROOT = Path(__file__).parents[1]
@@ -86,7 +87,7 @@ def _correction_notice(correction: Mapping[str, Any] | None, unit: str = "") -> 
         f'<br>Reason: {escape(str(correction["reason"]))}'
         f'<br>Recorded by {escape(str(correction["author"]))}'
         f' · <time datetime="{escape(str(correction["timestamp"]), quote=True)}">'
-        f'{escape(str(correction["timestamp"]))}</time></p></details>'
+        f'{escape(oslo_time(str(correction["timestamp"])))}</time></p></details>'
     )
 
 
@@ -627,7 +628,7 @@ def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bo
     signer = attribution_label(review.finalization_attribution, authenticated)
     if not signer and not authenticated:
         signer = review.finalized_by or ''
-    signoff = (f'Finalized{" by " + escape(signer) if signer else ""} {escape(review.finalized_at or "")}'
+    signoff = (f'Finalized{" by " + escape(signer) if signer else ""} {escape(oslo_time(review.finalized_at))}'
                if review.status == "FINAL" else "Not signed")
     notes = review.notes or {}
     note_fields = (
@@ -843,7 +844,7 @@ def render_html(
         review_script = ""
         finalization = (
             f'Finalized{" by " + escape(finalizer_label) if finalizer_label else ""} '
-            f'<time datetime="{escape(review.finalized_at or "")}">{escape(review.finalized_at or "")}</time>'
+            f'<time datetime="{escape(review.finalized_at or "")}">{escape(oslo_time(review.finalized_at))}</time>'
             if status == "FINAL" else ""
         )
     else:
@@ -882,7 +883,7 @@ def render_html(
         review_script = f'<script type="application/json" id="review-state-data">{payload}</script>'
         finalization = (
             f'Finalized by {escape(finalizer_label)} '
-            f'<time datetime="{escape(review.finalized_at or "")}">{escape(review.finalized_at or "")}</time>'
+            f'<time datetime="{escape(review.finalized_at or "")}">{escape(oslo_time(review.finalized_at))}</time>'
             if status == "FINAL" else ""
         )
     editable = review is not None and status == "DRAFT" and not snapshot

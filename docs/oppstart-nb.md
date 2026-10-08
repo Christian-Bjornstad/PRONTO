@@ -98,3 +98,7 @@ De simulerte pasientene er fortsatt testdata. Gjentatte demo-bannere og automati
 fylltekst er fjernet fra visningene. Kildeinformasjon, SYN-pasientkoder, kildeplotter
 og opprinnelige revisjoner er bevart. Fritekst skrevet av brukere endres ikke.
 Kildenes Sample_ID-kolonner gjør det mulig å skille radene fra hver prøve.
+
+## Tidssone
+
+Appen viser lagring, versjonshistorikk og signering i `Europe/Oslo`, med automatisk sommer- og vintertid (CEST/CET). Tidsstemplene i databasen og API-et beholder UTC for entydig historikk.

@@ -7,6 +7,7 @@ from html import escape
 from typing import Any, Mapping
 
 from pronto_report.models import ReportData, ReviewState
+from pronto_report.renderers.display_time import oslo_time
 
 
 _CSS = """
@@ -104,7 +105,7 @@ def render_summary_html(report: ReportData, review: ReviewState, *, export_initi
         correction_rows.append(
             f'<li>{escape(str(item["path"]))}: {escape(_shown(item["originalValue"]))}{unit} → '
             f'{escape(_shown(item["correctedValue"]))}{unit}. Reason: {escape(str(item["reason"]))}. '
-            f'Recorded by {escape(str(item["author"]))} · {escape(str(item["timestamp"]))}</li>'
+            f'Recorded by {escape(str(item["author"]))} · {escape(oslo_time(str(item["timestamp"])))}</li>'
         )
     correction_notes = ''.join(correction_rows)
     correction_section = f'<section class="provenance"><h2>Saved corrections</h2><ul>{correction_notes}</ul></section>' if correction_notes else ''
