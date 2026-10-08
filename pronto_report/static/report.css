@@ -1363,6 +1363,18 @@ button {
 .section-qc select{max-width:180px}.signature-highlights{display:flex;flex-wrap:wrap;align-items:center;gap:.7rem;margin:.6rem 0}.signature-range{font-size:.75rem;color:#52606d}
 .source-notice{padding:.7rem 1rem;border-left:4px solid #bc741c;background:#fff4df;font-size:.85rem}.subview-switcher{display:flex;gap:.5rem;margin:.5rem 0}
 .subview-switcher [aria-pressed="true"],.plot-switcher [aria-pressed="true"]{background:#005b85;color:white}.all-source-columns{margin-top:1rem}
+.subview-switcher{display:inline-flex;gap:3px;padding:4px;margin:.8rem 0 1.2rem;border:1px solid var(--color-border);border-radius:9px;background:#eef2f6}
+.subview-switcher button{border:0;border-radius:6px;background:transparent;color:#34465a;padding:.55rem 1.2rem;font:inherit;font-weight:600;cursor:pointer}
+.subview-switcher button[aria-pressed="true"]{background:#203b63;color:#fff;box-shadow:0 1px 3px #203b6326}
+.subview-switcher button:focus-visible{outline:3px solid #008ac3;outline-offset:2px}
+.metric-card__range{font-size:.75rem;color:#58677b;margin:.3rem 0 .6rem}
+.metric-card__selection{border-top:1px solid var(--color-border);margin-top:.8rem;padding-top:.65rem;font-size:.8rem}
+.metric-card__selection .review-check{display:flex;align-items:center;gap:.45rem}
+.session-user{font-size:.8rem;padding:.3rem .6rem;border:1px solid #ffffff50;border-radius:5px}
+#variant-table:not(:has(colgroup)){table-layout:auto;width:max-content;min-width:100%}
+#variant-table:not(:has(colgroup)) th,#variant-table:not(:has(colgroup)) td{min-width:6rem;max-width:24rem;white-space:nowrap;overflow-wrap:normal}
+#variant-table:not(:has(colgroup)) textarea{width:18rem;white-space:pre-wrap}
+#variant-table:not(:has(colgroup)) select{min-width:8rem}
 .cnv-slide .plot-figure img{max-height:700px;object-fit:contain}.review-panel-actions{display:flex;flex-wrap:wrap;gap:.6rem;margin:1rem 0}
 @media(max-width:768px){.section-qc{display:flex;width:100%;box-sizing:border-box}.review-check{font-size:.75rem}.report-tabs{min-width:max-content}}
 /* Presentation appendices remain ordered, private review attachments. */

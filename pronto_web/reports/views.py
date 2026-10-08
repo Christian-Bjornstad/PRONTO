@@ -132,6 +132,7 @@ def report_detail(request, report_id: str) -> HttpResponse:
                        if review and any(item['figureId']==str(f.pk) for item in review.presentation_figures)},
         needs_upgrade=needs_upgrade,
         actor_id=str(request.user.pk) if draft else None,
+        actor_label=request.user.get_username() if not getattr(settings, 'PRONTO_REQUIRE_INITIALS', False) else None,
         web_igv=not historical, igv_sources=sources if not historical else (), igv_references=references if not historical else {},
         igv_registry_error=registry_error,
         igv_save_enabled=(not historical and alignment_saving_enabled(settings)
@@ -181,6 +182,7 @@ def _review_command(request, report_id: str, command_type, action: str) -> HttpR
             DjangoReviewRepository(grant.report, report), DjangoReviewAuthorizer(request.user),
             clock=timezone.now,
             require_initials=getattr(settings, 'PRONTO_REQUIRE_INITIALS', False),
+            actor_label=request.user.get_username() if not getattr(settings, 'PRONTO_REQUIRE_INITIALS', False) else None,
         )
         result = getattr(service, action)(command, actor_id=str(request.user.pk), report=report)
     except ReviewCommandError as exc:

@@ -83,9 +83,10 @@
   let releaseExternalInputs=null;
   const attributionConfig = document.getElementById('attribution-config');
   const initialsRequired = attributionConfig?.dataset.required === 'true';
+  const authenticatedAttribution = attributionConfig?.dataset.authenticated === 'true';
   let askingInitials = false;
   async function actionInitials(action, force = false) {
-    if (!initialsRequired && !force) return undefined;
+    if (authenticatedAttribution || (!initialsRequired && !force)) return undefined;
     if (askingInitials) return null;
     askingInitials = true;
     try { return await window.requestDeclaredInitials(action); }
@@ -95,14 +96,18 @@
     const element = document.getElementById('review-attribution');
     if (!element) return;
     const entries = [];
-    if (reviewState.lastSavedAttribution) entries.push(`Saved by: ${reviewState.lastSavedAttribution.declaredInitials}`);
-    if (reviewState.finalizationAttribution) entries.push(`Finalized by: ${reviewState.finalizationAttribution.declaredInitials}`);
-    element.textContent = entries.join(' · ') || 'No initials recorded';
+    const label = value => value?.method === 'AUTHENTICATED' ? value.actorLabel : authenticatedAttribution ? '' : value?.declaredInitials;
+    const savedLabel = label(reviewState.lastSavedAttribution);
+    const finalLabel = label(reviewState.finalizationAttribution);
+    if (savedLabel) entries.push(`Saved by: ${savedLabel}`);
+    if (finalLabel) entries.push(`Finalized by: ${finalLabel}`);
+    element.textContent = entries.join(' · ');
     element.hidden = entries.length === 0;
     const savedBy = document.getElementById('board-saved-attribution');
-    if (savedBy) savedBy.textContent = reviewState.lastSavedAttribution
-      ? `Last saved by: ${reviewState.lastSavedAttribution.declaredInitials}`
-      : 'Last saved by: no initials recorded';
+    if (savedBy) {
+      savedBy.textContent = savedLabel ? `Last saved by: ${savedLabel}` : '';
+      savedBy.hidden = !savedLabel;
+    }
     const savedRevision = document.getElementById('board-saved-revision');
     if (savedRevision) savedRevision.textContent = `Saved revision: ${reviewState.revision}`;
   }

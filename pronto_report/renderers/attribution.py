@@ -2,12 +2,21 @@
 from html import escape
 
 
-def render_attribution(review, snapshot: bool) -> str:
+def attribution_label(value, authenticated=False):
+    if not value:
+        return ''
+    if value['method']=='AUTHENTICATED':
+        return value['actorLabel']
+    return '' if authenticated else value.get('declaredInitials', '')
+
+
+def render_attribution(review, snapshot: bool, authenticated=False) -> str:
     entries = []
     if review:
         for label, value in (('Saved by', review.last_saved_attribution), ('Finalized by', review.finalization_attribution)):
-            if value:
-                entries.append(f'{label}: {escape(value["declaredInitials"])}')
+            identity=attribution_label(value, authenticated)
+            if identity:
+                entries.append(f'{label}: {escape(identity)}')
     return '<p id="review-attribution"' + ('>' if entries else ' hidden>') + ' · '.join(entries) + '</p>'
 
 

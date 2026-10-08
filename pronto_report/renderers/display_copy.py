@@ -11,7 +11,6 @@ GENERATED_NOTES = {
     'clinicalEvidence': 'Editable demonstration text. No clinical evidence or treatment recommendations are encoded.',
     'followUp': 'Demonstration follow-up text for checking both PDF formats.',
     'additional': NOTICE,
-    'importedLegacyNote': NOTICE,
 }
 
 

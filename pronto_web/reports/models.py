@@ -124,7 +124,9 @@ class ReportPdfExportAudit(models.Model):
     request_id = models.UUIDField()
     layout = models.CharField(max_length=16, choices=[('ESMO','ESMO'),('PRESENTATION','PRESENTATION')])
     template_version = models.CharField(max_length=16)
-    declared_initials = models.CharField(max_length=8)
+    declared_initials = models.CharField(max_length=8, null=True, blank=True)
+    actor_label = models.CharField(max_length=301, null=True, blank=True)
+    attribution_method = models.CharField(max_length=16, default='SELF_REPORTED')
     requested_at = models.DateTimeField()
 
     class Meta:

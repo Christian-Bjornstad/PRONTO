@@ -181,7 +181,8 @@ window.initReviewV3 = function (api) {
     if(isDirty()) {status.textContent='Save changes before exporting a PDF.';return;}
     setExporting(true);
     try {
-      const initials=await window.requestDeclaredInitials('Initials for PDF export');
+      const initials=document.getElementById('attribution-config')?.dataset.authenticated === 'true'
+        ? undefined : await window.requestDeclaredInitials('Initials for PDF export');
       if(initials===null) return;
       const layout=button.dataset.pdfLayout;
       if(!pendingPdf || pendingPdf.revision!==state.revision || pendingPdf.layout!==layout || pendingPdf.declaredInitials!==initials) {

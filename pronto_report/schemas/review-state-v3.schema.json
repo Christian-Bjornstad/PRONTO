@@ -165,25 +165,51 @@
   ],
   "$defs": {
     "attribution": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "declaredInitials",
-        "method"
-      ],
-      "properties": {
-        "declaredInitials": {
-          "type": "string",
-          "pattern": "^[A-Z\u00c3\u2020\u00c3\u02dc\u00c3\u2026]{2,8}$",
-          "maxLength": 8,
-          "not": {
-            "pattern": "[^A-Z\u00c3\u2020\u00c3\u02dc\u00c3\u2026]"
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "declaredInitials",
+            "method"
+          ],
+          "properties": {
+            "declaredInitials": {
+              "type": "string",
+              "pattern": "^[A-Z\u00c6\u00d8\u00c5]{2,8}$",
+              "maxLength": 8,
+              "not": {
+                "pattern": "[^A-Z\u00c6\u00d8\u00c5]"
+              }
+            },
+            "method": {
+              "const": "SELF_REPORTED"
+            }
           }
         },
-        "method": {
-          "const": "SELF_REPORTED"
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "actorId",
+            "actorLabel",
+            "method"
+          ],
+          "properties": {
+            "actorId": {
+              "$ref": "#/$defs/identifier"
+            },
+            "actorLabel": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 301
+            },
+            "method": {
+              "const": "AUTHENTICATED"
+            }
+          }
         }
-      }
+      ]
     },
     "identifier": {
       "type": "string",

@@ -16,7 +16,8 @@ from pronto_report.renderers import review_v3
 from pronto_report.igv.locus import locus_for_variant
 from pronto_report.migration import migrate_review_state_v1
 from pronto_report.renderers.projection import project_reference_ui
-from pronto_report.renderers.attribution import render_attribution, initials_dialog
+from pronto_report.renderers.attribution import render_attribution, initials_dialog, attribution_label
+from pronto_report.renderers import variant_columns
 from pronto_report.serialization import serialize_review_state
 
 
@@ -210,6 +211,16 @@ def _biomarker_cards(
                 f'placeholder="Required before saving" {"required" if correction else "disabled"} value="{escape(str(correction["reason"]), quote=True) if correction else ""}">'
                 '</div>'
             )
+        selection = ""
+        display_range = ""
+        if metric_id in {'tmb', 'msi', 'hrd'}:
+            metric = next((item for item in report.biomarkers if item['metricId'] == metric_id), {})
+            if metric:
+                display_range = f'<p class="metric-card__range">Range {escape(str(metric.get("displayRange", "[0-100+]" if metric_id == "tmb" else "[0-100]")))}</p>'
+            if metric and review and review.schema_version == '3.0':
+                activity = next((item for item in review.biomarker_reviews if item['metricId'] == metric_id), {})
+                selection = '<div class="metric-card__selection">' + review_v3.checkbox(
+                    'data-metric-highlight', metric_id, 'Key relevant findings', activity.get('reportHighlight', False), not editable) + '</div>'
         cards.append(
             f'<article class="metric-card" data-metric="{metric_id}" '
             f'data-availability="{biomarker["availability"]}">'
@@ -218,7 +229,7 @@ def _biomarker_cards(
             f'<p class="metric-card__detail">{detail}</p>'
             f'{correction_notice}'
             f'{localapp}'
-            f'{gauge}'
+            f'{display_range}{gauge}{selection}'
             '</article>'
         )
     included = sum(item["reportingDecision"] == "INCLUDE" for item in review.variant_reviews) if review else 0
@@ -341,7 +352,9 @@ def _variant_rows(
     report: ReportData, review: ReviewState | None, snapshot: bool = False, web_igv: bool = False,
 ) -> str:
     if not report.variants:
-        span = 8 + (2 if review is not None else 0) + int(web_igv)
+        modern = review is not None and review.schema_version == '3.0'
+        span = 7 + int(web_igv) + (4 if modern else 2 if review else 0)
+        span += 3 + len(variant_columns.columns(report)) if modern else 1
         return f'<tr><td colspan="{span}">No variants in source data.</td></tr>'
     rows = []
     reviews = {item["variantId"]: item for item in review.variant_reviews} if review else {}
@@ -429,7 +442,9 @@ def _variant_rows(
                 )
                 if review.schema_version == '3.0':
                     class_buttons = _review_select(variant_id, occurrence_id, 'clinicalClassification', classification, review.status == 'FINAL', True)
-                    review_cells = '<td><div class="review-quick-group">' + report_buttons + '</div></td><td>' + class_buttons + '</td>'
+                    review_cells = ('<td><div class="review-quick-group">' + report_buttons + '</div><span hidden>'
+                                    + _review_select(variant_id, occurrence_id, 'reportingDecision', decision, review.status == 'FINAL')
+                                    + '</span></td><td>' + class_buttons + '</td>')
                     review_cells += '<td>' + review_v3.checkbox('data-exclude-variant', variant_id, 'Exclude', decision == 'EXCLUDE', review.status == 'FINAL') + '</td>'
                     review_cells += '<td>' + review_v3.checkbox('data-highlight-variant', variant_id, 'Key relevant findings', activity.get('reportHighlight', False), review.status == 'FINAL') + '</td>'
                 review_details = (
@@ -458,6 +473,17 @@ def _variant_rows(
             + ''.join('<dt>' + escape(str(item['key'])) + '</dt><dd>' + escape(_display(item.get('value'))) + '</dd>' for item in variant.get('annotations', ()))
             + source_details + review_details + '</dl></details></td>'
         )
+        if review and review.schema_version == '3.0':
+            if snapshot:
+                qc_cell = escape(labels['igvAssessment'][igv])
+                comment_cell = escape(comment) or '—'
+            else:
+                qc_cell = _review_select(variant_id, occurrence_id, 'igvAssessment', igv, review.status == 'FINAL')
+                comment_cell = ('<textarea aria-label="Review comment for {}" data-variant-id="{}" '
+                                'data-review-field="comment" maxlength="10000" rows="2"{}>{}</textarea>').format(
+                    escape(occurrence_id, quote=True), escape(variant_id, quote=True), disabled, escape(comment))
+            details = '<td>' + qc_cell + '</td><td>' + comment_cell + '</td><td>' + escape(str(activity.get('legacyClinicalClassification', ''))) + '</td>'
+            details += ''.join('<td class="source-data">' + escape(value) + '</td>' for value in variant_columns.values(report, variant))
         rows.append(
             '<tr data-occurrence-id="{}" data-search="{}" data-vaf="{}">{}{}{}</tr>'.format(
                 escape(str(variant["occurrenceId"]), quote=True),
@@ -563,7 +589,7 @@ def _qc_metrics(report: ReportData) -> str:
 
 
 def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bool = False,
-                    html_export: bool = False) -> str:
+                    html_export: bool = False, authenticated: bool = False) -> str:
     if review is None:
         return '<p class="empty-state">No review loaded.</p>'
     included = {
@@ -598,11 +624,11 @@ def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bo
         '<p class="empty-state" id="board-empty"'
         f'{" hidden" if findings else ""}>No findings selected for the report.</p>'
     )
-    signoff = (
-        (f'Finalized by {escape(review.finalization_attribution["declaredInitials"])} {escape(review.finalized_at or "")}'
-         if review.finalization_attribution else f'Signed by {escape(review.finalized_by or "")} {escape(review.finalized_at or "")}')
-        if review.status == "FINAL" else "Not signed"
-    )
+    signer = attribution_label(review.finalization_attribution, authenticated)
+    if not signer and not authenticated:
+        signer = review.finalized_by or ''
+    signoff = (f'Finalized{" by " + escape(signer) if signer else ""} {escape(review.finalized_at or "")}'
+               if review.status == "FINAL" else "Not signed")
     notes = review.notes or {}
     note_fields = (
         ("summary", "Interpretation summary", "note-summary"),
@@ -625,19 +651,19 @@ def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bo
         for key, label, field_id in note_fields
     )
     legacy = str(notes.get("importedLegacyNote", ""))
+    from .display_copy import NOTICE
+    if legacy == NOTICE:
+        legacy = ""
     legacy_note = (
         '<div class="board-legacy-note"><h3>Imported legacy note</h3>'
         f'<p>{escape(legacy)}</p></div>' if legacy else ""
     )
-    saved_by = (
-        f'{escape(review.last_saved_attribution["declaredInitials"])}'
-        if review.last_saved_attribution else 'initials not recorded'
-    )
+    saved_by = escape(attribution_label(review.last_saved_attribution, authenticated))
     return (
         f'<h3>Findings for discussion</h3>{finding_html}'
         f'<div class="board-note-grid">{note_cards}'
         f'<div class="board-signoff"><h3>Sign-off</h3>'
-        f'<p id="board-saved-attribution">Last saved by: {saved_by}</p>'
+        f'<p id="board-saved-attribution"{" hidden" if not saved_by else ""}>Last saved by: {saved_by}</p>'
         f'<p id="board-saved-revision">Saved revision: {review.revision}</p>'
         f'<p>Sign-off status: {signoff}</p>'
         + ('' if html_export else '<button id="print-mdt-btn" type="button">Print MDT report</button>')
@@ -713,6 +739,7 @@ def render_html(
     figure_assets: Mapping[str, bytes] | None = None,
     needs_upgrade: bool = False,
     actor_id: str | None = None,
+    actor_label: str | None = None,
     web_igv: bool = False,
     igv_save_enabled: bool = False,
     igv_sources: tuple[Mapping[str, str], ...] = (),
@@ -734,6 +761,7 @@ def render_html(
         raise ValueError("Review state does not belong to this report")
     if review is not None and review.schema_version == "1.0":
         review = migrate_review_state_v1(review)
+    saved_review = review
     from .display_copy import presentation_copy
     # Editable source values must remain exact for correction validation.
     _, review = presentation_copy(report, review)
@@ -746,7 +774,7 @@ def render_html(
         raise ValueError("Plot image does not match a declared attachment")
     status_label = "Final" if status == "FINAL" else "Draft"
     finalizer_label = (
-        str(review.finalization_attribution['declaredInitials'])
+        attribution_label(review.finalization_attribution, actor_label is not None)
         if review and review.finalization_attribution else str(review.finalized_by or '') if review else ''
     )
     csp_meta, stylesheet_tag, script_tag = (
@@ -814,7 +842,7 @@ def render_html(
         review_toolbar = f'<p class="review-notice">Read-only export · revision {review.revision}</p>'
         review_script = ""
         finalization = (
-            f'Finalized by {escape(finalizer_label)} '
+            f'Finalized{" by " + escape(finalizer_label) if finalizer_label else ""} '
             f'<time datetime="{escape(review.finalized_at or "")}">{escape(review.finalized_at or "")}</time>'
             if status == "FINAL" else ""
         )
@@ -848,7 +876,8 @@ def render_html(
                "Download ReviewState to keep changes.")
             + "</p>"
         )
-        payload = serialize_review_state(review).decode("utf-8").strip()
+        # Display cleanup must not rewrite the immutable revision sent to commands.
+        payload = serialize_review_state(saved_review).decode("utf-8").strip()
         payload = payload.replace("<", r"\u003c").replace(">", r"\u003e").replace("&", r"\u0026")
         review_script = f'<script type="application/json" id="review-state-data">{payload}</script>'
         finalization = (
@@ -882,11 +911,6 @@ def render_html(
         f'<button id="reset-btn" type="button" data-reset-url="{escape(reset_url, quote=True)}">Reset</button>'
         if live_save and reset_url else ""
     )
-    html_export_button = (
-        f'<button id="html-export-btn" type="button" data-export-url="{escape(html_export_url, quote=True)}">Download report HTML</button>'
-        '<span id="html-export-status" role="status" aria-live="polite"></span>'
-        if html_export_url and review is not None else ''
-    )
     topbar_actions = (
         '<span class="report-topbar__saved">Read-only export</span>' if snapshot else
         '<span class="report-topbar__saved" id="dirty-lbl" role="status" aria-live="polite">Local view only</span>'
@@ -895,7 +919,6 @@ def render_html(
         + save_button
         + reset_button
         + finalize_button
-        + html_export_button
     )
     if pdf_export_url:
         if not safe_path(pdf_export_url) or snapshot or not csrf_token or review is None:
@@ -937,15 +960,16 @@ def render_html(
     ) if igv_save_enabled else ""
     html_context = {
         'attribution_controls': (
-            render_attribution(review, snapshot)
-            + (('<div id="attribution-config" data-required="{}" data-print-url="{}" data-csrf-token="{}"></div>'.format(
-                str(require_initials).lower(), escape(print_url or '', quote=True), escape(csrf_token or '', quote=True))
-                + initials_dialog()) if not snapshot else '')
+            render_attribution(review, snapshot, actor_label is not None)
+            + (('<div id="attribution-config" data-required="{}" data-authenticated="{}" data-print-url="{}" data-csrf-token="{}"></div>'.format(
+                str(require_initials).lower(), str(actor_label is not None).lower(), escape(print_url or '', quote=True), escape(csrf_token or '', quote=True))
+                + (initials_dialog() if actor_label is None else '')) if not snapshot else '')
         ),
         "case_facts": _case_facts(ui, review, editable),
         "biomarker_cards": _biomarker_cards(ui, report, review, editable),
         "key_variant_rows": _key_variant_rows(report, review),
         "variant_rows": _variant_rows(report, review, snapshot, web_igv),
+        "variant_extra_headers": variant_columns.headers(report) if review and review.schema_version == '3.0' else '<th scope="col">Details</th>',
         "igv_column": '<th scope="col">IGV</th>' if web_igv else "",
         "igv_panel": (
             '<section id="igv-panel" aria-label="IGV viewer" hidden '
@@ -973,7 +997,7 @@ def render_html(
         "review_toolbar": review_toolbar,
         "review_filters": review_filters,
         "review_actions": review_actions,
-        "topbar_actions": topbar_actions,
+        "topbar_actions": topbar_actions + (f'<span class="session-user">{escape(actor_label)}</span>' if actor_label is not None else ''),
         "save_feedback": save_feedback,
         "revision_label": f"Revision {review.revision}" if snapshot and review else "",
         "review_script": review_script,
@@ -982,7 +1006,7 @@ def render_html(
         "qc_content": _plot_content(report, plot_images, "qc"),
         "qc_metrics": _qc_metrics(report),
         "qc_review": _qc_review(review, snapshot),
-        "tumour_content": _tumour_content(report, review, snapshot, bool(html_export_url)),
+        "tumour_content": _tumour_content(report, review, snapshot, bool(html_export_url or pdf_export_url), actor_label is not None),
         "provenance": _provenance(report),
         "csp_meta": csp_meta,
         "stylesheet_tag": stylesheet_tag,

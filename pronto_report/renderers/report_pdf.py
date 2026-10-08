@@ -12,7 +12,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, 
 from pronto_report.migration import migrate_review_state_to_v3
 from pronto_report.serialization import serialize_report_data, serialize_review_state
 
-TEMPLATE_VERSION = '1.1'
+TEMPLATE_VERSION = '1.2'
 BLUE = '#203b63'; GREEN = '#14592c'; OLIVE = '#708322'
 QC_COLORS = {'PASS':'#399a44', 'CONDITIONAL':'#e88917', 'FAIL':'#cf2525', 'NOT_REVIEWED':'#777777'}
 
@@ -24,6 +24,9 @@ def project_report_export(report, review):
     report, review = presentation_copy(report, review)
     r=json.loads(serialize_report_data(report))
     v=json.loads(serialize_review_state(migrate_review_state_to_v3(review)))
+    from .display_copy import NOTICE
+    if v['notes'].get('importedLegacyNote') == NOTICE:
+        v['notes']['importedLegacyNote'] = ''
     for correction in v['valueCorrections']:
         parts=correction['path'].strip('/').split('/')
         if len(parts)==2 and parts[0]=='sample':
@@ -200,10 +203,8 @@ def render_report_pdf(report, review, *, layout, export_initials, figure_assets:
     doc=SimpleDocTemplate(buffer,pagesize=page_size,leftMargin=22,rightMargin=22,topMargin=58,bottomMargin=28,
         title=f'InPreD {layout} {model["reportId"]}',author=export_initials)
     width=page_size[0]-44
-    source_notice = ([_paragraph('Supplementary source tables contain records from multiple samples.',size=8,color='#9a6010')]
-                     if any(d['code']=='MIXED_SAMPLE_DEMO' for d in model['diagnostics']) else [])
     if layout=='ESMO':
-        story=[_heading('Summary',BLUE),*source_notice,
+        story=[_heading('Summary',BLUE),
             _heading('Patient and sample details'),
             _table(['Field','Value'],[[key,value] for key,value in model['sample'].items()],width,BLUE,size=9),
             *_note(model,'patientDetails','Additional patient and sample details'),
@@ -232,7 +233,7 @@ def render_report_pdf(report, review, *, layout, export_initials, figure_assets:
         sidebar.extend([_paragraph('Assay / Run',size=7,bold=True),_paragraph(model['run'].get('runId'),size=7),_paragraph(f'Overall QC: {model["overallQc"]["status"]}',size=7,color=QC_COLORS[model['overallQc']['status']])])
         qc_summary=Table([[_qc('CNV',model['qc']['cnv']),_qc('RNA',model['qc']['rna'])]],colWidths=[210,210],hAlign='LEFT')
         qc_summary.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('VALIGN',(0,0),(-1,-1),'TOP')]))
-        main=[*source_notice,_heading('Mutational signatures',BLUE),_qc('Signatures',model['qc']['signatures']),_signatures(model,420),qc_summary,
+        main=[_heading('Mutational signatures',BLUE),_qc('Signatures',model['qc']['signatures']),_signatures(model,420),qc_summary,
               _heading('Key relevant findings',BLUE),_highlight_table(model,420,BLUE),
               *_note(model,'summary','Summary of most relevant findings'),
               *_note(model,'biomarkerContext','Therapeutic context'),
