@@ -92,6 +92,7 @@ class ReviewState(_ContractSnapshot):
     biomarker_reviews: tuple[FrozenJsonValue, ...] = ()
     section_qc: FrozenJsonObject | None = None
     presentation_figures: tuple[FrozenJsonValue, ...] = ()
+    manual_cnv_rows: tuple[FrozenJsonValue, ...] = ()
 
     @classmethod
     def from_validated(cls, document: Mapping[str, Any]) -> ReviewState:
@@ -117,4 +118,5 @@ class ReviewState(_ContractSnapshot):
             biomarker_reviews=_array(document.get('biomarkerReviews', [])),
             section_qc=_object(document['sectionQc']) if 'sectionQc' in document else None,
             presentation_figures=_array(document.get('presentationFigures', [])),
+            manual_cnv_rows=_array(document.get('manualCnvRows', [])),
         )

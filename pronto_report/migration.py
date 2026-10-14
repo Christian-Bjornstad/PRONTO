@@ -16,7 +16,7 @@ SECTION_QC = ('variants', 'cnv', 'rna', 'signatures')
 
 def migrate_review_state_to_v3(review: ReviewState) -> ReviewState:
     """Return a detached current working copy; never write a stored revision."""
-    if review.schema_version == '3.0':
+    if review.schema_version in {'3.0', '4.0'}:
         return review
     if review.schema_version == '1.0':
         review = migrate_review_state_v1(review)

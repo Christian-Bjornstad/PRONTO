@@ -50,6 +50,24 @@ class ReviewRevision(models.Model):
         constraints = [models.UniqueConstraint(fields=["report", "revision"], name="unique_review_revision")]
 
 
+class WorkingDraft(models.Model):
+    report = models.OneToOneField(ReportRecord, on_delete=models.CASCADE, related_name='working_draft')
+    revision = models.PositiveIntegerField()
+    version = models.PositiveBigIntegerField(default=1)
+    review_data = models.JSONField()
+    source_revision = models.PositiveIntegerField(null=True)
+
+
+class WorkingDraftEvent(models.Model):
+    report = models.ForeignKey(ReportRecord, on_delete=models.PROTECT)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    action = models.CharField(max_length=16)
+    revision = models.PositiveIntegerField()
+    version = models.PositiveBigIntegerField()
+    source_revision = models.PositiveIntegerField(null=True)
+    occurred_at = models.DateTimeField()
+
+
 class ReviewAudit(models.Model):
     """Minimal, immutable-by-convention provenance for saved review revisions."""
 

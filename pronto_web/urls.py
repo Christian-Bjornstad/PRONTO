@@ -16,7 +16,10 @@ from pronto_web.reports.views import (
 )
 
 
+from pronto_web.reports.working_drafts import working_command
+
 urlpatterns = [
+    path('reports/<str:report_id>/working/', working_command, name='working-command'),
     path('igv/references/<str:build>/<str:component>/', reference_component, name='igv-reference'),
     path('', report_index, name='home'),
     path('reports/<str:report_id>/pdf-exports/', pdf_export_request, name='report-pdf-export'),

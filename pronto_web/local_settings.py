@@ -20,3 +20,5 @@ for build in ('GRCh37', 'GRCh38'):
             'fastaURL': f'/igv/references/{build}/fasta/',
             'indexURL': f'/igv/references/{build}/index/',
         }
+
+PRONTO_WORKING_DRAFTS = True

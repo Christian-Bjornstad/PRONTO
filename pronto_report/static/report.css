@@ -1385,3 +1385,19 @@ button {
 .presentation-figure-card label{display:block;margin-top:10px}
 .presentation-figure-card textarea{display:block;width:100%;box-sizing:border-box;min-height:64px;margin:6px 0}
 .presentation-figure-card button{margin:3px}
+
+/* Expanded tables retain their original controls and identity. */
+.working-actions{padding:10px 24px;display:flex;gap:12px;align-items:center;background:#edf4fa}
+.source-table-block input[data-v4-edit]{background:#fff;border:1px solid #a8b8c7;border-radius:4px;padding:6px;min-width:110px;color:#20364a}
+.section-qc textarea{display:block;min-width:280px;width:100%;max-width:500px;min-height:62px;background:white;border:1px solid #a8b8c7;padding:8px}
+.table-focus{width:92vw;height:85vh;max-width:98vw;max-height:96vh;min-width:300px;min-height:300px;resize:both;overflow:hidden;border:1px solid #a8b8c7;border-radius:10px;padding:16px;background:white}
+.table-focus::backdrop{background:#17364a80}.table-focus.maximized{width:98vw;height:96vh}
+.table-focus-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-bottom:12px}.table-focus-content{height:calc(100% - 60px);overflow:auto}
+.table-focus-content .table-scroll{max-height:none;overflow:visible}.table-focus-content table{font-size:var(--table-font,14px)}
+.table-focus-content th{position:sticky;top:0;z-index:3;background:#e9f1f7}.table-focus-content .frozen-identity{position:sticky;left:0;z-index:2;background:#f4f8fb}
+.table-focus-content th.frozen-identity{z-index:4}.table-focus-content input,.table-focus-content select,.table-focus-content button{font-size:inherit}
+
+.source-table-block .review-quick-group{display:flex;gap:4px;flex-wrap:nowrap;min-width:90px}
+.source-table-block button[aria-pressed="true"]{background:#176ea0;color:white;border-color:#176ea0}
+.table-focus-toolbar button,.source-table-block .table-toolbar button{font:inherit;padding:7px 12px;border:1px solid #a8b8c7;border-radius:5px;background:#f3f7fb;color:#20364a}
+.table-focus-toolbar button:hover,.source-table-block .table-toolbar button:hover{background:#e2edf6}

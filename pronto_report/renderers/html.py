@@ -12,6 +12,7 @@ from decimal import Decimal
 from typing import Any, Mapping
 
 from pronto_report.models import ReportData, ReviewState
+from pronto_report.review.gene_registry import gene_in_list
 from pronto_report.renderers import review_v3
 from pronto_report.igv.locus import locus_for_variant
 from pronto_report.migration import migrate_review_state_v1
@@ -218,7 +219,7 @@ def _biomarker_cards(
             metric = next((item for item in report.biomarkers if item['metricId'] == metric_id), {})
             if metric:
                 display_range = f'<p class="metric-card__range">Range {escape(str(metric.get("displayRange", "[0-100+]" if metric_id == "tmb" else "[0-100]")))}</p>'
-            if metric and review and review.schema_version == '3.0':
+            if metric and review and review.schema_version in {'3.0','4.0'}:
                 activity = next((item for item in review.biomarker_reviews if item['metricId'] == metric_id), {})
                 selection = '<div class="metric-card__selection">' + review_v3.checkbox(
                     'data-metric-highlight', metric_id, 'Key relevant findings', activity.get('reportHighlight', False), not editable) + '</div>'
@@ -308,7 +309,7 @@ def _key_variant_rows(report: ReportData, review: ReviewState | None) -> str:
                 escape(str(variant["occurrenceId"]), quote=True),
                 escape(str(variant["variantId"]), quote=True),
                 "".join(f"<td>{escape(value)}</td>" for value in cells),
-                escape(igv_labels[igv]), escape(decision, quote=True), escape(decisions[decision]),
+                escape(igv_labels.get(igv, igv.replace('_',' ').title())), escape(decision, quote=True), escape(decisions[decision]),
             )
         )
     return "".join(rows) if rows else '<tr><td colspan="7">No variants with a reported protein change.</td></tr>'
@@ -337,6 +338,13 @@ def _review_select(
     label, choices = labels[field]
     if modern and field == "clinicalClassification":
         label, choices = "Review", (("UNCLASSIFIED", "Not reviewed"), ("BENIGN", "Benign"), ("VUS", "VUS"), ("ONCOGENIC", "Oncogenic"))
+    if modern == '4.0':
+        if field == 'clinicalClassification':
+            from pronto_report.review.source_defaults import CLASSES
+            choices = (('UNCLASSIFIED','Not reviewed'),) + tuple((k,k.replace('_',' ').capitalize()) for k in CLASSES)
+        elif field == 'igvAssessment':
+            choices = (('NOT_REVIEWED','Not reviewed'),('OK','OK'),('ARTIFACT','Artifact'),('NOT_RELIABLE','Not reliable'))
+            if selected == 'NOT_APPLICABLE': choices += (('NOT_APPLICABLE','Not applicable (legacy)'),)
     options = "".join(
         f'<option value="{value}"{" selected" if value == selected else ""}>{text}</option>'
         for value, text in choices
@@ -353,7 +361,7 @@ def _variant_rows(
     report: ReportData, review: ReviewState | None, snapshot: bool = False, web_igv: bool = False,
 ) -> str:
     if not report.variants:
-        modern = review is not None and review.schema_version == '3.0'
+        modern = review is not None and review.schema_version in {'3.0','4.0'}
         span = 7 + int(web_igv) + (4 if modern else 2 if review else 0)
         span += 3 + len(variant_columns.columns(report)) if modern else 1
         return f'<tr><td colspan="{span}">No variants in source data.</td></tr>'
@@ -401,13 +409,13 @@ def _variant_rows(
                     "igvAssessment": {"NOT_REVIEWED": "Not reviewed", "SUPPORTS": "Supports", "DOES_NOT_SUPPORT": "Does not support", "INCONCLUSIVE": "Inconclusive", "NOT_APPLICABLE": "Not applicable"},
                 }
                 review_cells = "".join(
-                    f"<td>{escape(labels[field][value])}</td>"
+                    f"<td>{escape(labels[field].get(value,value.replace("_", " ").capitalize()))}</td>"
                     for field, value in (("reportingDecision", decision), ("clinicalClassification", classification))
                 )
-                if review.schema_version == '3.0':
+                if review.schema_version in {'3.0','4.0'}:
                     review_cells += '<td>' + ('Excluded' if decision=='EXCLUDE' else '—') + '</td><td>' + ('Yes' if activity.get('reportHighlight') else 'No') + '</td>'
                 review_details = (
-                    '<dt>IGV QC</dt><dd>' + escape(labels['igvAssessment'][igv]) + '</dd>'
+                    '<dt>IGV QC</dt><dd>' + escape(labels['igvAssessment'].get(igv,igv.replace('_',' ').title())) + '</dd>'
                     '<dt>Review comment</dt><dd class="review-comment-readonly">'
                     + (escape(comment) if comment else '—') + '</dd>'
                 )
@@ -441,16 +449,16 @@ def _variant_rows(
                     '<td><div class="review-quick-group" role="group" aria-label="Report choice">' + report_buttons + '</div></td>'
                     + '<td><div class="review-quick-group" role="group" aria-label="Classification choice">' + class_buttons + '</div></td>'
                 )
-                if review.schema_version == '3.0':
-                    class_buttons = _review_select(variant_id, occurrence_id, 'clinicalClassification', classification, review.status == 'FINAL', True)
+                if review.schema_version in {'3.0','4.0'}:
+                    class_buttons = _review_select(variant_id, occurrence_id, 'clinicalClassification', classification, review.status == 'FINAL', review.schema_version)
                     review_cells = ('<td><div class="review-quick-group">' + report_buttons + '</div><span hidden>'
                                     + _review_select(variant_id, occurrence_id, 'reportingDecision', decision, review.status == 'FINAL')
                                     + '</span></td><td>' + class_buttons + '</td>')
-                    review_cells += '<td>' + review_v3.checkbox('data-exclude-variant', variant_id, 'Exclude', decision == 'EXCLUDE', review.status == 'FINAL') + '</td>'
+                    if review.schema_version != '4.0': review_cells += '<td>' + review_v3.checkbox('data-exclude-variant', variant_id, 'Exclude', decision == 'EXCLUDE', review.status == 'FINAL') + '</td>'
                     review_cells += '<td>' + review_v3.checkbox('data-highlight-variant', variant_id, 'Key relevant findings', activity.get('reportHighlight', False), review.status == 'FINAL') + '</td>'
                 review_details = (
                     '<dt>Report choice</dt><dd>' + _review_select(variant_id, occurrence_id, "reportingDecision", decision, review.status == "FINAL") + '</dd>'
-                    + '<dt>Clinical class</dt><dd>' + _review_select(variant_id, occurrence_id, "clinicalClassification", classification, review.status == "FINAL", review.schema_version == "3.0") + '</dd>'
+                    + '<dt>Clinical class</dt><dd>' + _review_select(variant_id, occurrence_id, "clinicalClassification", classification, review.status == "FINAL", review.schema_version in {'3.0','4.0'}) + '</dd>'
                     + '<dt>IGV QC</dt><dd>' + _review_select(variant_id, occurrence_id, "igvAssessment", igv, review.status == "FINAL") + '</dd>'
                     + '<dt>Review comment</dt><dd><textarea aria-label="Review comment for {}" data-variant-id="{}" '
                       'data-review-field="comment" maxlength="10000" rows="2"{}>{}</textarea></dd>'.format(
@@ -458,7 +466,7 @@ def _variant_rows(
                           disabled, escape(comment),
                       )
                 )
-        if review and review.schema_version=='3.0' and activity.get('legacyClinicalClassification'):
+        if review and review.schema_version in {'3.0','4.0'} and activity.get('legacyClinicalClassification'):
             review_details += '<dt>Legacy classification (read-only)</dt><dd>'+escape(str(activity['legacyClinicalClassification']))+'</dd>'
         source_rows = [row for table in report.source_tables if table['kind'] == 'VARIANTS' for row in table['rows'] if row.get('occurrenceId') == variant['occurrenceId']]
         source_details = ''.join('<dt>' + escape(str(header)) + '</dt><dd>' + escape(_display(value)) + '</dd>' for table in report.source_tables if table['kind'] == 'VARIANTS' for row in source_rows for header,value in zip(table['headers'], row['values']))
@@ -474,16 +482,16 @@ def _variant_rows(
             + ''.join('<dt>' + escape(str(item['key'])) + '</dt><dd>' + escape(_display(item.get('value'))) + '</dd>' for item in variant.get('annotations', ()))
             + source_details + review_details + '</dl></details></td>'
         )
-        if review and review.schema_version == '3.0':
+        if review and review.schema_version in {'3.0','4.0'}:
             if snapshot:
-                qc_cell = escape(labels['igvAssessment'][igv])
+                qc_cell = escape(labels['igvAssessment'].get(igv,igv.replace('_',' ').title()))
                 comment_cell = escape(comment) or '—'
             else:
-                qc_cell = _review_select(variant_id, occurrence_id, 'igvAssessment', igv, review.status == 'FINAL')
+                qc_cell = _review_select(variant_id, occurrence_id, 'igvAssessment', igv, review.status == 'FINAL', review.schema_version)
                 comment_cell = ('<textarea aria-label="Review comment for {}" data-variant-id="{}" '
                                 'data-review-field="comment" maxlength="10000" rows="2"{}>{}</textarea>').format(
                     escape(occurrence_id, quote=True), escape(variant_id, quote=True), disabled, escape(comment))
-            details = '<td>' + qc_cell + '</td><td>' + comment_cell + '</td><td>' + escape(str(activity.get('legacyClinicalClassification', ''))) + '</td>'
+            details = (igv_cell if review.schema_version=='4.0' else '') + '<td>' + qc_cell + '</td><td>' + comment_cell + '</td><td>' + escape(str(activity.get('legacyClinicalClassification', ''))) + '</td>'
             details += ''.join('<td class="source-data">' + escape(value) + '</td>' for value in variant_columns.values(report, variant))
         rows.append(
             '<tr data-occurrence-id="{}" data-search="{}" data-vaf="{}">{}{}{}</tr>'.format(
@@ -492,8 +500,8 @@ def _variant_rows(
                 escape(str(frequency) if frequency is not None else "", quote=True),
                 "".join(f"<td>{escape(value)}</td>" for value in (gene, protein, coding, vaf))
                 + '<td>' + escape(_display(_annotation(variant, 'depthTumourDna'))) + '</td>'
-                + '<td>Not received</td><td>Not cross-checked</td>'
-                + igv_cell,
+                + '<td>Not received</td><td>' + (('<span title="InPreD molecular marker list, September 2026">'+('In list' if gene_in_list(variant.get('gene')) else 'Not in list')+'</span>') if review and review.schema_version=='4.0' else 'Not cross-checked') + '</td>'
+                + ('' if review and review.schema_version=='4.0' else igv_cell),
                 review_cells,
                 details,
             )
@@ -608,7 +616,7 @@ def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bo
         classification = {
             'UNCLASSIFIED': 'Unclassified', 'PATHOGENIC': 'Pathogenic',
             'UNCERTAIN': 'Uncertain', 'OTHER': 'Other', 'BENIGN':'Benign', 'VUS':'VUS', 'ONCOGENIC':'Oncogenic',
-        }[activity['clinicalClassification']]
+        }.get(activity['clinicalClassification'], activity['clinicalClassification'].replace('_',' ').capitalize())
         comment = str(activity.get('comment', '')).strip()
         findings.append(
             '<li><strong>{}</strong> · {} · {} · Classification: {}{}</li>'.format(
@@ -636,7 +644,7 @@ def _tumour_content(report: ReportData, review: ReviewState | None, snapshot: bo
         ("biomarkerContext", "Biomarkers and therapeutic context", "note-biomarker-context"),
         ("additional", "Additional comments", "note-additional"),
     )
-    if review.schema_version == "3.0":
+    if review.schema_version in {'3.0','4.0'}:
         note_fields += tuple((key,label,"note-"+key) for key,label in review_v3.NOTE_FIELDS)
         note_fields = tuple((key, "Key relevant findings / therapeutic context" if key == "biomarkerContext" else label, identifier) for key,label,identifier in note_fields)
     disabled = " disabled" if review.status == "FINAL" else ""
@@ -678,7 +686,7 @@ def _inline_assets(
     web_igv: bool = False, *, allow_same_origin_requests: bool = False
 ) -> tuple[str, str, str]:
     stylesheet = (_STATIC_ROOT / "report.css").read_text(encoding="utf-8")
-    script = (_STATIC_ROOT / "review-v3.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "report-attribution.js").read_text(encoding="utf-8") + '\n' + (_STATIC_ROOT / "report.js").read_text(encoding="utf-8")
+    script = (_STATIC_ROOT / "working-draft.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "review-v4.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "review-v3.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "report-attribution.js").read_text(encoding="utf-8") + '\n' + (_STATIC_ROOT / "report.js").read_text(encoding="utf-8")
     if "</style" in stylesheet.casefold() or "</script" in script.casefold():
         raise ValueError("Unsafe static report asset")
     style_hash = base64.b64encode(sha256(stylesheet.encode("utf-8")).digest()).decode("ascii")
@@ -782,7 +790,7 @@ def render_html(
         _inline_assets(web_igv, allow_same_origin_requests=save_url is not None or print_url is not None or html_export_url is not None or pdf_export_url is not None)
         if inline_assets else
         ("", '<link rel="stylesheet" href="/static/report.css">',
-         '<script src="/static/review-v3.js" defer></script><script src="/static/report-attribution.js" defer></script><script src="/static/report.js" defer></script>')
+         '<script src="/static/review-v4.js" defer></script><script src="/static/review-v3.js" defer></script><script src="/static/report-attribution.js" defer></script><script src="/static/report.js" defer></script>')
     )
     if web_igv:
         igv_scripts = '<script type="module" src="/static/report-igv.js"></script>'
@@ -970,7 +978,7 @@ def render_html(
         "biomarker_cards": _biomarker_cards(ui, report, review, editable),
         "key_variant_rows": _key_variant_rows(report, review),
         "variant_rows": _variant_rows(report, review, snapshot, web_igv),
-        "variant_extra_headers": variant_columns.headers(report) if review and review.schema_version == '3.0' else '<th scope="col">Details</th>',
+        "variant_extra_headers": variant_columns.headers(report) if review and review.schema_version in {'3.0','4.0'} else '<th scope="col">Details</th>',
         "igv_column": '<th scope="col">IGV</th>' if web_igv else "",
         "igv_panel": (
             '<section id="igv-panel" aria-label="IGV viewer" hidden '
@@ -1016,10 +1024,17 @@ def render_html(
     }
     for key in ('variant_source_tables','variant_section_qc','signature_section_qc','rna_content','report_section_qc','signature_highlights','new_review_summary'):
         html_context.setdefault(key, '')
-    if review and review.schema_version == '3.0':
+    if review and review.schema_version in {'3.0','4.0'}:
         review_v3.enhance_context(html_context, report, review, plot_images, not editable)
         html_context['tumour_content'] += review_v3.presentation_figures(review,figure_assets or {},figure_upload_url,csrf_token,not editable)
         html_context['review_columns'] = '<th scope="col">Report</th><th scope="col">Review</th><th scope="col">Exclude</th><th scope="col">Report highlight</th>'
+        if review.schema_version=='4.0':
+            from pronto_report.review.source_defaults import source_defaults
+            defaults=json.dumps(source_defaults(report)).replace('<',r'\u003c')
+            html_context['review_toolbar'] += '<button type="button" id="use-source-defaults" data-v4-edit>Use source defaults</button><button type="button" data-expand-table="variant-table">Expand table</button><script type="application/json" id="source-defaults">'+defaults+'</script>'
+            html_context['review_columns'] = '<th>Report review</th><th>Review</th><th>Report highlight</th>'
+            html_context['igv_column'] = ''
+            if web_igv: html_context['variant_extra_headers'] = '<th>IGV</th>'+html_context['variant_extra_headers']
         html_context['variant_colgroup'] = ''
         html_context['review_filters'] = html_context['review_filters'].replace('PATHOGENIC','ONCOGENIC').replace('Pathogenic','Oncogenic').replace('UNCERTAIN','VUS').replace('Uncertain','VUS')
         key_rows = html_context['key_variant_rows']

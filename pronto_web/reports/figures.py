@@ -4,6 +4,7 @@ from io import BytesIO
 import warnings
 
 from django.db import transaction
+from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
@@ -11,7 +12,7 @@ from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET, require_POST
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from .models import PresentationFigure, ReportGrant, ReportRecord, ReviewRevision
+from .models import PresentationFigure, ReportGrant, ReportRecord, ReviewRevision, WorkingDraft
 
 MAX_IMAGE_BYTES=8*1024*1024
 MAX_REPORT_BYTES=64*1024*1024
@@ -60,7 +61,8 @@ def upload_figure(request,report_id):
         record=ReportRecord.objects.select_for_update().get(pk=report_id)
         if not ReportGrant.objects.filter(report=record,user=request.user).exists(): return HttpResponse(status=403)
         latest=ReviewRevision.objects.filter(report=record).order_by('-revision').first()
-        if latest is None or latest.review_data['status']!='DRAFT': return HttpResponse(status=409)
+        active=WorkingDraft.objects.filter(report=record).first() if settings.PRONTO_WORKING_DRAFTS else None
+        if (active is None and (latest is None or latest.review_data['status']!='DRAFT')): return HttpResponse(status=409)
         assets=list(PresentationFigure.objects.filter(report=record).values_list('content',flat=True))
         if len(assets)>=100 or sum(len(item) for item in assets)+len(payload)>MAX_REPORT_BYTES:
             return HttpResponse(status=413)
