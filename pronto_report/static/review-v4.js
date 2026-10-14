@@ -99,6 +99,7 @@ document.addEventListener('DOMContentLoaded',()=> {
   const content=dialog.querySelector('.table-focus-content');let moved=[],opener;
   function close() {dialog.close();}
   dialog.addEventListener('close',()=> {
+    content.querySelectorAll('table').forEach(table=>table.style.removeProperty('zoom'));
     moved.forEach(([node,marker])=>marker.replaceWith(node));moved=[];
     document.querySelectorAll('[data-expand-table]').forEach(b=>b.hidden=false);opener?.focus();
   });
@@ -109,7 +110,7 @@ document.addEventListener('DOMContentLoaded',()=> {
     const nodes=[workspace];
     if(table.id==='variant-table') nodes.unshift(document.querySelector('#panel-variant-review .table-toolbar'));
     moved=nodes.filter(Boolean).map(node=> {const marker=document.createComment('table position');node.before(marker);content.append(node);return [node,marker];});
-    opener=button;button.hidden=true;dialog.showModal();freezeIdentity();
+    opener=button;button.hidden=true;dialog.showModal();setZoom(Number(zoom.value));
   });
   dialog.querySelector('[data-table-close]').addEventListener('click',close);
   const zoom=dialog.querySelector('input');
@@ -119,11 +120,15 @@ document.addEventListener('DOMContentLoaded',()=> {
       Array.from(table.querySelectorAll('thead th')).forEach((header,index)=> {
         if(!['Gene','Gene_Symbol','Gene_A','Gene_B','Chromosome'].includes(header.textContent.trim())) return;
         table.querySelectorAll('tr').forEach(row=> {const cell=row.children[index];if(cell) {cell.classList.add('frozen-identity');cell.style.left=`${left}px`;}});
-        left+=header.getBoundingClientRect().width;
+        left+=header.getBoundingClientRect().width/(Number(zoom.value)/100);
       });
     });
   }
-  function setZoom(value) {zoom.value=value;content.style.fontSize=`${value}%`;content.style.setProperty('--table-font',`${14*value/100}px`);dialog.querySelector('output').textContent=`${value}%`;freezeIdentity();}
+  function setZoom(value) {
+    zoom.value=value;
+    content.querySelectorAll('table').forEach(table=>table.style.zoom=String(value/100));
+    dialog.querySelector('output').textContent=`${value}%`;freezeIdentity();
+  }
   zoom.addEventListener('input',()=>setZoom(Number(zoom.value)));
   dialog.querySelector('[data-zoom-reset]').addEventListener('click',()=>setZoom(100));
   dialog.querySelector('[data-table-max]').addEventListener('click',()=>dialog.classList.toggle('maximized'));

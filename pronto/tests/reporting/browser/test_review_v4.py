@@ -30,9 +30,15 @@ def test_manual_cnv_zoom_qc_and_download_share_one_working_copy(browser):
         page.locator('[data-expand-table="test-cnv"]').click()
         dialog=page.get_by_role('dialog',name='Expanded review table')
         assert dialog.is_visible()
+        baseline=row.locator('[data-manual-field="Gene_Symbol"]').bounding_box()['width']
+        dialog.get_by_role('slider',name='Table zoom').fill('75')
+        reduced=row.locator('[data-manual-field="Gene_Symbol"]').bounding_box()['width']
+        assert reduced == pytest.approx(baseline * .75, rel=.03)
         dialog.get_by_role('slider',name='Table zoom').fill('125')
+        assert row.locator('[data-manual-field="Gene_Symbol"]').bounding_box()['width'] == pytest.approx(baseline * 1.25, rel=.03)
         assert dialog.locator('output').inner_text()=='125%'
         dialog.get_by_role('button',name='Close table',exact=True).click()
+        assert page.locator('#test-cnv').evaluate('(table)=>table.style.zoom')==''
         assert page.locator('#test-cnv tbody tr').first.locator('[data-manual-field="Gene_Symbol"]').input_value()=='MYC'
         page.get_by_role('tab',name='Variant review').click()
         with page.expect_download() as pending:

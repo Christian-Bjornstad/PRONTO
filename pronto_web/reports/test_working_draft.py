@@ -62,6 +62,24 @@ class WorkingDraftTests(TestCase):
                                  {'image':SimpleUploadedFile('pathway.png',buffer.getvalue(),content_type='image/png')})
         assert response.status_code == 201
 
+    def test_index_distinguishes_working_copy_and_preserved_final(self):
+        self.command(); self.command('FINALIZE',version=1)
+        old=ReviewRevision.objects.get(revision=2).review_data
+        self.command('REOPEN',revision=2,sourceRevision=2)
+        response=self.client.get('/reports/')
+        self.assertContains(response,'Working draft · revision 3')
+        self.assertContains(response,'Latest finalized · revision 2')
+        from unittest.mock import patch
+        with patch('pronto_web.reports.views.load_plot_images_from_bytes',return_value={}):
+            historical=self.client.get(f'/reports/{self.report.report_id}/?revision=2')
+        self.assertContains(historical,'Finalized · revision 2')
+        self.draft=self.command('RESET',version=1,revision=3).json()['review']
+        self.draft['notes']['summary']='Changed in the new revision'
+        assert self.command(version=2,revision=3).status_code==201
+        assert self.command('FINALIZE',version=3,revision=3).status_code==201
+        assert ReviewRevision.objects.get(revision=2).review_data==old
+        assert ReviewRevision.objects.get(revision=3).review_data['status']=='FINAL'
+
     def test_start_new_revision_preserves_selected_working_draft(self):
         self.draft['notes']['summary']='Selected saved draft'
         assert self.command().status_code == 201
