@@ -81,6 +81,8 @@ def test_cnv_workspace_and_pdf_projection_share_manual_fields():
     assert 'data-cn-field="cytoband"' in html
     assert 'data-source-action="INCLUDE"' in html
     assert 'data-exclude-variant=' not in html
+    assert html.count('data-section-qc-comment="cnv"')==1
+    assert html.count('data-section-qc-comment="rna"')==1
     assert html.index('Gene_Symbol</th>') < html.index('Chromosome</th>') < html.index('Cytoband</th>')
     projected=project_report_export(report,review)
     assert projected['cnv'][0]['fields']['Gene_Symbol']=='ERBB2'

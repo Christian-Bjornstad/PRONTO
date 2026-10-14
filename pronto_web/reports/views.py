@@ -61,6 +61,8 @@ def report_index(request) -> HttpResponse:
         status=('reviewed' if latest and latest.review_data['status']=='FINAL' else
                 'under-review' if record.pk in active or any(a.action=='SAVE_DRAFT' for a in record.review_audits.all()) else 'un-reviewed')
         entries.append({'reportId':record.pk,'sample':patient_display(record.report_data['sample']),'status':status,'revisions':revisions,
+                        'working':active.get(record.pk),
+                        'latestFinal':next((r for r in revisions if r.review_data['status']=='FINAL'),None),
                         'updatedAt':latest.review_data.get('updatedAt') if latest else None})
     response = render(request, 'reports/index.html', {'entries': entries,'page':page})
     response["Cache-Control"] = "no-store"
@@ -153,7 +155,11 @@ def report_detail(request, report_id: str) -> HttpResponse:
         current,version=current_working(record,report)
         config={'url':reverse('working-command',args=[record.pk]),'version':version,'revision':current.revision,'sourceRevision':(review.revision if historical or version else latest.revision),'reportId':record.pk,'csrf':csrf_token}
         text=json.dumps(config).replace('<',r'\u003c')
-        html=html.replace('<body>', '<body><script type="application/json" id="working-config">'+text+'</script><div class="working-actions"><button type="button" id="start-new-revision">Start new revision</button><span id="working-message" role="status"></span></div>')
+        label=('Finalized' if review.status=='FINAL' else 'Saved snapshot' if historical else 'Working draft')
+        actions=(f'<div class="working-actions"><span class="working-revision-label" data-snapshot="{str(historical).lower()}">{label} · revision {review.revision}</span>'
+                 '<button type="button" id="start-new-revision">Start new revision</button><span id="working-message" role="status"></span></div>')
+        html=html.replace('<body>', '<body><script type="application/json" id="working-config">'+text+'</script>')
+        html=html.replace('<div class="report-topbar__actions">','<div class="report-topbar__actions">'+actions)
 
     response = HttpResponse(html, content_type="text/html; charset=utf-8")
     response["Cache-Control"] = "no-store"

@@ -30,7 +30,7 @@ def qc_control(review, section, *, readonly=False, suffix='section'):
     identifier=f'qc-{section}-{suffix}'
     options=''.join(f'<option value="{key}"{" selected" if key == status else ""}>{label}</option>'
                     for key,label in QC_OPTIONS.items())
-    comment = (f'<label>QC comment<textarea data-section-qc-comment="{section}" data-v4-edit maxlength="10000"'+(' disabled' if readonly else '')+'>'+shown(assessment.get('comment',''))+'</textarea></label>') if review.schema_version=='4.0' and section in {'cnv','rna'} else ''
+    comment = (f'<label>QC comment<textarea data-section-qc-comment="{section}" data-v4-edit maxlength="10000"'+(' disabled' if readonly else '')+'>'+shown(assessment.get('comment',''))+'</textarea></label>') if review.schema_version=='4.0' and section in {'cnv','rna'} and suffix!='report' else ''
     return (f'<div class="section-qc" data-qc-status="{status}"><label for="{identifier}">'
             f'{QC_LABELS[section]} QC</label><select id="{identifier}" data-section-qc="{section}"'
             f'{" disabled" if readonly else ""}>{options}</select>{comment}</div>')

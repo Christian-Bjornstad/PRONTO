@@ -117,6 +117,10 @@
     }
     const savedRevision = document.getElementById('board-saved-revision');
     if (savedRevision) savedRevision.textContent = `Saved revision: ${reviewState.revision}`;
+    const revisionLabel=document.querySelector('.working-revision-label');
+    if (revisionLabel && revisionLabel.dataset.snapshot!=='true') {
+      revisionLabel.textContent=`${reviewState.status==='FINAL' ? 'Finalized' : 'Working draft'} · revision ${reviewState.revision}`;
+    }
   }
 
   function refreshDirty() {
