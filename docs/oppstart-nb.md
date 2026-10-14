@@ -102,3 +102,15 @@ Kildenes Sample_ID-kolonner gjÃ¸r det mulig Ã¥ skille radene fra hver prÃ¸ve.
 ## Tidssone
 
 Appen viser lagring, versjonshistorikk og signering i `Europe/Oslo`, med automatisk sommer- og vintertid (CEST/CET). Tidsstemplene i databasen og API-et beholder UTC for entydig historikk.
+
+## Review og arbeidskladder
+
+Den lokale appen bruker nå én overskrivbar arbeidskladd per rapport. **Save** erstatter kladden uten å lage et rapport-snapshot for hver lagring. Signerte og eksporterte rapporter beholdes som faste revisjoner. Tidligere lagrede versjoner er bevart.
+
+**Start new revision** kopierer en valgt lagret rapport til en ny kladd, også etter Finalize. Dersom en aktiv kladd erstattes, viser appen en bekreftelse. En foreldet nettleser kan ikke overskrive nyere lagringer; last inn det nyeste før du fortsetter.
+
+I **Edit mode** kan CNV få nye rader med **Add CNV row**, Gain/Loss og Cytoband. Inc/Exc styrer hvilke funn som kommer med i rapporten. CNV og RNA har egne QC-kommentarer, også på Report. **Expand table** åpner samme tabell i en størrelsesjusterbar visning med zoom og faste gen-/kromosomkolonner.
+
+Biomarker-kolonnen viser eksakt genmedlemskap i listen fra september 2026. Et treff velger ikke Include eller Highlight. Class_judgement og CPSR_ClinVar_class gir startvalg for uvurderte varianter. Allerede lagrede valg beholdes; **Use source defaults** lar brukeren hente kildevalgene på nytt.
+
+For en egen serverinstallasjon aktiveres den nye arbeidsflyten med `PRONTO_WORKING_DRAFTS=true` etter migrering. Kommando-API-et bruker versjon 2 og et separat endringstoken. Eldre API-klienter skal bruke den gamle arbeidsflyten eller oppdateres først; lokal oppstart aktiverer den nye arbeidsflyten automatisk.

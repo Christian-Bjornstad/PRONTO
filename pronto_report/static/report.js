@@ -62,6 +62,13 @@
     event.preventDefault();
     activateTab(document.getElementById('tab-tumour-board'));
   });
+  const workingConfig = JSON.parse(document.getElementById('working-config')?.textContent || 'null');
+  window.prontoWorkingConfig = workingConfig;
+  function commandPayload(action, payload) {
+    if (!workingConfig) return payload;
+    const {declaredInitials, ...rest} = payload;
+    return {...rest, schemaVersion:'2.0',action,expectedVersion:workingConfig.version};
+  }
   const editControls = Array.from(document.querySelectorAll(".report-edit-controls"));
   const dirtyLabel = document.getElementById("dirty-lbl");
   const reviewDownload = document.getElementById("download-review");
@@ -115,14 +122,14 @@
   function refreshDirty() {
     const sourceDirty = corrections.size > 0 || removedCorrections.size > 0;
     dirtyLabel.textContent = resetting ? "Resetting …" : finalizing ? "Finalizing …" : saving ? "Saving …" : sourceDirty ? "Unsaved source corrections" :
-      reviewDirty ? "Unsaved review" : saveButton?.dataset.saveUrl ? "All changes saved" : "Local view only";
+      reviewDirty ? "Unsaved review" : workingConfig && workingConfig.version===0 && reviewState?.status==='DRAFT' ? "Save to start working draft" : saveButton?.dataset.saveUrl ? "All changes saved" : "Local view only";
     if (reviewDownload) reviewDownload.disabled = sourceDirty;
     if (saveButton?.dataset.saveUrl) saveButton.disabled = saving || resetting || finalizing ||
-      reviewState.status !== "DRAFT" || (!sourceDirty && !reviewDirty);
+      reviewState.status !== "DRAFT" || (!sourceDirty && !reviewDirty && !(workingConfig && workingConfig.version===0));
     if (resetButton) resetButton.disabled = saving || resetting || finalizing || reviewState.status !== "DRAFT";
     if (htmlExportButton) htmlExportButton.disabled = saving || resetting || finalizing || exportingHtml;
     if (finalizeButton) {
-      finalizeButton.disabled = saving || resetting || finalizing || sourceDirty || reviewDirty || reviewState.status !== "DRAFT";
+      finalizeButton.disabled = saving || resetting || finalizing || sourceDirty || reviewDirty || reviewState.status !== "DRAFT" || (workingConfig && workingConfig.version===0);
       if (finalizeHint) finalizeHint.textContent = sourceDirty || reviewDirty ? "Save changes before finalizing." : "";
     }
   }
@@ -560,10 +567,10 @@
 
   if (saveButton?.dataset.saveUrl) {
     const editableInputs = Array.from(document.querySelectorAll(
-      '.report-edit-controls input, textarea[data-review-note], #variant-table select[data-review-field], #variant-table textarea[data-review-field], [data-bulk-decision], [data-quick-field], #qc-review-status, #qc-review-comment, [data-section-qc], [data-source-decision], [data-source-highlight], [data-vus-variant], [data-highlight-variant], [data-exclude-variant], [data-metric-highlight], [data-figure-edit]'
+      '.report-edit-controls input, textarea[data-review-note], #variant-table select[data-review-field], #variant-table textarea[data-review-field], [data-bulk-decision], [data-quick-field], #qc-review-status, #qc-review-comment, [data-section-qc], [data-source-decision], [data-source-highlight], [data-vus-variant], [data-highlight-variant], [data-exclude-variant], [data-metric-highlight], [data-figure-edit], [data-v4-edit]'
     ));
     function lockInputs() {
-      const inputs=Array.from(new Set([...editableInputs,...document.querySelectorAll('[data-figure-edit]')]));
+      const inputs=Array.from(new Set([...editableInputs,...document.querySelectorAll('[data-figure-edit], [data-v4-edit]')]));
       const previouslyDisabled = inputs.map((input) => input.disabled);
       inputs.forEach((input) => { input.disabled = true; });
       return () => inputs.forEach((input, index) => { input.disabled = previouslyDisabled[index]; });
@@ -600,6 +607,8 @@
       }
       const declaredInitials = await actionInitials('Initials for saving');
       if (declaredInitials === null) return;
+      const invalid=document.querySelector('[data-v4-edit]:invalid');
+      if(invalid) {invalid.reportValidity();return;}
       const baseRevision = reviewState.revision;
       const draft = localDraft();
       const hadCorrectionEdits = corrections.size > 0 || removedCorrections.size > 0;
@@ -611,7 +620,7 @@
         const response = await fetch(saveButton.dataset.saveUrl, {
           method: "POST", credentials: "same-origin",
           headers: { "Content-Type": "application/json", "X-CSRFToken": saveButton.dataset.csrfToken },
-          body: JSON.stringify({ schemaVersion: "1.0", reportId: reviewState.reportId, baseRevision, draft, declaredInitials }),
+          body: JSON.stringify(commandPayload("SAVE", { schemaVersion: "1.0", reportId: reviewState.reportId, baseRevision, draft, declaredInitials })),
         });
         const result = await response.json();
         if (response.status === 409 && result.error?.code === "REVISION_CONFLICT") {
@@ -622,10 +631,11 @@
           return;
         }
         if (!response.ok || result.review?.reportId !== reviewState.reportId ||
-            result.review?.revision !== baseRevision + 1) {
+            result.review?.revision !== baseRevision + (workingConfig ? 0 : 1)) {
           throw new Error("Save was not confirmed. Changes remain local.");
         }
         Object.assign(reviewState, result.review);
+        if (workingConfig) {workingConfig.version=result.workingVersion;workingConfig.revision=result.review.revision;workingConfig.sourceRevision=result.review.revision;}
         updateAttribution();
         activities.clear();
         reviewState.variantReviews.forEach((item) => activities.set(item.variantId, item));
@@ -663,8 +673,8 @@
         const response = await fetch(resetButton.dataset.resetUrl, {
           method: 'POST', credentials: 'same-origin',
           headers: {'Content-Type': 'application/json', 'X-CSRFToken': saveButton.dataset.csrfToken},
-          body: JSON.stringify({schemaVersion: '1.0', reportId: reviewState.reportId,
-                                baseRevision, declaredInitials}),
+          body: JSON.stringify(commandPayload('RESET', {schemaVersion: '1.0', reportId: reviewState.reportId,
+                                baseRevision, declaredInitials})),
         });
         const result = await response.json();
         if (response.status === 409 && result.error?.code === 'REVISION_CONFLICT') {
@@ -675,10 +685,11 @@
           return;
         }
         if (!response.ok || result.review?.reportId !== reviewState.reportId ||
-            result.review?.revision !== baseRevision + 1 || result.audit?.action !== 'RESET_DRAFT') {
+            result.review?.revision !== baseRevision + (workingConfig ? 0 : 1) || (!workingConfig && result.audit?.action !== 'RESET_DRAFT')) {
           throw new Error('Reset was not confirmed');
         }
         Object.assign(reviewState, result.review);
+        if (workingConfig) {workingConfig.version=result.workingVersion;workingConfig.revision=result.review.revision;workingConfig.sourceRevision=result.review.revision;}
         reviewDirty = false;
         corrections.clear();
         removedCorrections.clear();
@@ -712,10 +723,10 @@
         const response = await fetch(finalizeButton.dataset.finalizeUrl, {
           method: "POST", credentials: "same-origin",
           headers: { "Content-Type": "application/json", "X-CSRFToken": saveButton.dataset.csrfToken },
-          body: JSON.stringify({
+          body: JSON.stringify(commandPayload("FINALIZE", {
             schemaVersion: "1.0", reportId: reviewState.reportId,
             baseRevision, draft: localDraft(), declaredInitials,
-          }),
+          })),
         });
         const result = await response.json();
         if (response.status === 409 && result.error?.code === "REVISION_CONFLICT") {
@@ -726,10 +737,11 @@
           return;
         }
         if (!response.ok || result.review?.reportId !== reviewState.reportId ||
-            result.review?.revision !== baseRevision + 1 || result.review?.status !== "FINAL") {
+            result.review?.revision !== baseRevision + (workingConfig ? 0 : 1) || result.review?.status !== "FINAL") {
           throw new Error("Finalization was not confirmed.");
         }
         Object.assign(reviewState, result.review);
+        if (workingConfig) {workingConfig.version=result.workingVersion;workingConfig.revision=result.review.revision;workingConfig.sourceRevision=result.review.revision;}
         reviewDirty = false;
         corrections.clear();
         removedCorrections.clear();
@@ -816,7 +828,7 @@
         reportingDecision: "UNREVIEWED",
         clinicalClassification: "UNCLASSIFIED",
         igvAssessment: "NOT_REVIEWED",
-        ...(reviewState.schemaVersion === '3.0' ? {reportHighlight:false} : {}),
+        ...(['3.0','4.0'].includes(reviewState.schemaVersion) ? {reportHighlight:false} : {}),
       };
       activities.set(variantId, activity);
       reviewState.variantReviews.push(activity);
@@ -881,7 +893,7 @@
   window.initReviewV3?.({state:reviewState, activityFor,
     changed:() => {reviewDirty=true;refreshDirty();updateReviewSummary();updateBoardFindings();},
     busy:() => saving || resetting || finalizing || exportingHtml || askingInitials,
-    isDirty:() => reviewDirty || corrections.size > 0 || removedCorrections.size > 0,
+    isDirty:() => reviewDirty || corrections.size > 0 || removedCorrections.size > 0 || !!(workingConfig && workingConfig.version===0 && reviewState.status==='DRAFT'),
     setExporting:(value) => {
       exportingHtml=value;
       if(value) releaseExternalInputs=lockExternalInputs();

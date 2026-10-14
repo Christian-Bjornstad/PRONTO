@@ -66,15 +66,17 @@ def _review_document(review: ReviewState) -> dict[str, Any]:
         "runQcAssessment": _thaw(review.run_qc_assessment),
         "valueCorrections": _thaw(review.value_corrections),
     }
-    if review.schema_version in {"2.0", "3.0"}:
+    if review.schema_version in {"2.0", "3.0", "4.0"}:
         document["notes"] = _thaw(review.notes) if review.notes is not None else None
     else:
         document["reportNotes"] = review.report_notes
-    if review.schema_version == '3.0':
+    if review.schema_version in {'3.0', '4.0'}:
         document.update(findingReviews=_thaw(review.finding_reviews),
                         biomarkerReviews=_thaw(review.biomarker_reviews),
                         sectionQc=_thaw(review.section_qc),
                         presentationFigures=_thaw(review.presentation_figures))
+    if review.schema_version == '4.0':
+        document['manualCnvRows'] = _thaw(review.manual_cnv_rows)
     if review.finalized_at is not None:
         document["finalizedAt"] = review.finalized_at
     if review.finalized_by is not None:

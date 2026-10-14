@@ -3,6 +3,7 @@
 import json
 import os
 import stat
+from html import escape
 
 from django.conf import settings
 from django.contrib.auth.views import redirect_to_login
@@ -52,11 +53,13 @@ def report_index(request) -> HttpResponse:
     reports = ReportRecord.objects.filter(grants__user=request.user).prefetch_related('reviews','review_audits').order_by('report_id')
     page=Paginator(reports,25).get_page(request.GET.get('page'))
     entries=[]
+    from .models import WorkingDraft
+    active={row.report_id:row for row in WorkingDraft.objects.filter(report__in=page)} if settings.PRONTO_WORKING_DRAFTS else {}
     for record in page:
         revisions=sorted(record.reviews.all(),key=lambda r:r.revision,reverse=True)
-        latest=revisions[0] if revisions else None
+        latest=active.get(record.pk) or (revisions[0] if revisions else None)
         status=('reviewed' if latest and latest.review_data['status']=='FINAL' else
-                'under-review' if any(a.action=='SAVE_DRAFT' for a in record.review_audits.all()) else 'un-reviewed')
+                'under-review' if record.pk in active or any(a.action=='SAVE_DRAFT' for a in record.review_audits.all()) else 'un-reviewed')
         entries.append({'reportId':record.pk,'sample':patient_display(record.report_data['sample']),'status':status,'revisions':revisions,
                         'updatedAt':latest.review_data.get('updatedAt') if latest else None})
     response = render(request, 'reports/index.html', {'entries': entries,'page':page})
@@ -90,6 +93,13 @@ def report_detail(request, report_id: str) -> HttpResponse:
         raise ValueError("Stored review revision does not match its record")
     needs_upgrade=review is not None and review.status=='DRAFT' and review.schema_version!='3.0' and not historical
     if review is not None and not historical: review=migrate_review_state_to_v3(review)
+    working_version=0
+    if settings.PRONTO_WORKING_DRAFTS and not historical:
+        from .working_drafts import current_working
+        review, working_version=current_working(record,report)
+        if review and review.status=='FINAL':
+            from pronto_report.review.source_defaults import upgrade_review
+            review=upgrade_review(report,review,seed_defaults=False)
     blobs = {asset.asset_id: bytes(asset.content) for asset in record.assets.all()}
     plot_images = load_plot_images_from_bytes(report, blobs)
     try:
@@ -119,9 +129,9 @@ def report_detail(request, report_id: str) -> HttpResponse:
     html = render_html(
         report, review, plot_images=plot_images, inline_assets=True,
         snapshot=historical,
-        save_url=reverse("review-save", args=[record.report_id]) if draft else None,
-        finalize_url=reverse("review-finalize", args=[record.report_id]) if draft else None,
-        reset_url=reverse("review-reset", args=[record.report_id]) if draft else None,
+        save_url=reverse('working-command' if settings.PRONTO_WORKING_DRAFTS else 'review-save', args=[record.report_id]) if draft else None,
+        finalize_url=reverse('working-command' if settings.PRONTO_WORKING_DRAFTS else 'review-finalize', args=[record.report_id]) if draft else None,
+        reset_url=reverse('working-command' if settings.PRONTO_WORKING_DRAFTS else 'review-reset', args=[record.report_id]) if draft else None,
         csrf_token=csrf_token,
         require_initials=getattr(settings, 'PRONTO_REQUIRE_INITIALS', False),
         print_url=reverse('report-print', args=[record.report_id]) if saved_view else None,
@@ -138,6 +148,13 @@ def report_detail(request, report_id: str) -> HttpResponse:
         igv_save_enabled=(not historical and alignment_saving_enabled(settings)
                           and ReportWriteGrant.objects.filter(report=record, user=request.user).exists()),
     )
+    if settings.PRONTO_WORKING_DRAFTS and review:
+        from .working_drafts import current_working
+        current,version=current_working(record,report)
+        config={'url':reverse('working-command',args=[record.pk]),'version':version,'revision':current.revision,'sourceRevision':(review.revision if historical or version else latest.revision),'reportId':record.pk,'csrf':csrf_token}
+        text=json.dumps(config).replace('<',r'\u003c')
+        html=html.replace('<body>', '<body><script type="application/json" id="working-config">'+text+'</script><div class="working-actions"><button type="button" id="start-new-revision">Start new revision</button><span id="working-message" role="status"></span></div>')
+
     response = HttpResponse(html, content_type="text/html; charset=utf-8")
     response["Cache-Control"] = "no-store"
     return response
@@ -168,6 +185,8 @@ def _review_error(exc: ReviewCommandError) -> JsonResponse:
 def _review_command(request, report_id: str, command_type, action: str) -> HttpResponse:
     if not request.user.is_authenticated or not request.user.is_active:
         return _review_error(ReviewCommandError("UNAUTHENTICATED", "Authentication required", 401))
+    if settings.PRONTO_WORKING_DRAFTS:
+        return _review_error(ReviewCommandError('CLIENT_UPGRADE_REQUIRED','Reload to use the current working draft.',409))
     grant = ReportGrant.objects.select_related("report").filter(
         report_id=report_id, user=request.user,
     ).first()

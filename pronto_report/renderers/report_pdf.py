@@ -66,6 +66,12 @@ def project_report_export(report, review):
                 for header,values in group['fields'].items()}
         findings[group['kind']].append({'id':identifier,'fields':fields,'review':finding_activities[identifier],
                                        'source':group['source'],'demo':group['demo']})
+    for row in review.manual_cnv_rows:
+        identifier=row['findingId']
+        if identifier in finding_activities:
+            findings['CNV'].insert(0,{'id':identifier,'fields':{'Gene_Symbol':row['geneSymbol'],'Tumor_FC':row['tumorFc']},'review':finding_activities[identifier],'source':'Manual CNV','demo':False})
+    for row in findings['CNV']:
+        row['fields'].update(Cytoband=row['review'].get('cytoband',''),CN_Change=row['review'].get('cnChange',''))
     highlights={item['metricId'] for item in v['biomarkerReviews'] if item['reportHighlight']}
     return {'reportId':report.report_id,'revision':review.revision,'status':review.status,
         'sample':r['sample'],'run':r['run'],'measurements':r['biomarkers'], 'variants':variants,
@@ -112,6 +118,8 @@ def _qc(label,assessment):
         [('ALIGN',(0,0),(-1,-1),'CENTER'),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('FONTSIZE',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)]))
     result=Table([[_paragraph(f'{label} QC: {status}',size=8,color=QC_COLORS[status],bold=True),indicator]],colWidths=[145,45],hAlign='LEFT')
     result.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+    if assessment.get('comment'):
+        return Table([[result],[_paragraph(assessment['comment'],size=8)]],hAlign='LEFT')
     return result
 
 
@@ -137,8 +145,8 @@ def _variant_table(model,width,compact=False):
 
 
 def _cnv_table(model,width):
-    return _table(['Gene','Chromosome','Start','Tumour CN','Adjusted tumour CN','Normal CN'],[
-        [item['fields'].get(key) for key in ('Gene_Symbol','Chromosome','Gene_Start','Tumor_CN','Adjusted_Tumor_CN','Normal_CN')]
+    return _table(['Gene','Chromosome','Cytoband','Gain / Loss','Tumour FC','Tumour CN','Adjusted tumour CN','Normal CN'],[
+        [item['fields'].get(key) for key in ('Gene_Symbol','Chromosome','Cytoband','CN_Change','Tumor_FC','Tumor_CN','Adjusted_Tumor_CN','Normal_CN')]
         for item in model['cnv']],width)
 
 
@@ -157,7 +165,7 @@ def _highlight_table(model,width,color=OLIVE):
         for item in model[key]:
             if item['review']['reportHighlight']:
                 f=item['fields'];rows.append([f.get('Gene_Symbol') or f.get('Gene_A'),
-                    f.get('Event_ID') or f.get('Gene_B') or f.get('Adjusted_Tumor_CN'),label])
+                    ' / '.join(str(f[k]) for k in ('CN_Change','Cytoband','Tumor_FC') if f.get(k) not in (None,'')) if key=='cnv' else f.get('Event_ID') or f.get('Gene_B'),label])
     rows.extend([item['label'],item['value'],'Signature']
                 for item in model['measurements'] if item['metricId'] in model['metricHighlights'])
     return _table(['Gene / molecular marker','Variant / result','Review / type'],rows,width,color)

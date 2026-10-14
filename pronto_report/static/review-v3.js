@@ -14,7 +14,8 @@
 /* Linked controls for one versioned working copy; persistence remains explicit. */
 window.initReviewV3 = function (api) {
   const {state, activityFor, changed, busy, setExporting, isDirty} = api;
-  if (state.schemaVersion !== '3.0') return;
+  if (state.schemaVersion==='4.0') window.initReviewV4?.(api);
+  if (!['3.0','4.0'].includes(state.schemaVersion)) return;
   function findingFor(id) {
     let item = state.findingReviews.find((value) => value.findingId === id);
     if (!item) { item = {findingId:id, reportingDecision:'UNREVIEWED', reportHighlight:false}; state.findingReviews.push(item); }
@@ -186,7 +187,7 @@ window.initReviewV3 = function (api) {
       if(initials===null) return;
       const layout=button.dataset.pdfLayout;
       if(!pendingPdf || pendingPdf.revision!==state.revision || pendingPdf.layout!==layout || pendingPdf.declaredInitials!==initials) {
-        pendingPdf={schemaVersion:'1.0',reportId:state.reportId,revision:state.revision,layout,declaredInitials:initials,requestId:crypto.randomUUID()};
+        pendingPdf={...(window.prontoWorkingConfig ? {workingVersion:window.prontoWorkingConfig.version} : {}),schemaVersion:'1.0',reportId:state.reportId,revision:state.revision,layout,declaredInitials:initials,requestId:crypto.randomUUID()};
       }
       status.textContent='Preparing saved PDF…';
       const response=await fetch(button.dataset.pdfUrl,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':button.dataset.csrf},body:JSON.stringify(pendingPdf)});
@@ -194,7 +195,12 @@ window.initReviewV3 = function (api) {
       const blob=await response.blob();const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;
       link.download=`InPreD-${state.reportId.replace(/[^A-Za-z0-9_-]/g,'-')}-r${state.revision}-${layout.toLowerCase()}.pdf`;
       document.body.append(link);link.click();link.remove();setTimeout(() => URL.revokeObjectURL(url),30000);
-      status.textContent=`${layout==='ESMO'?'ESMO':'Presentation'} PDF exported from saved revision ${state.revision}.`;pendingPdf=null;
+      if (window.prontoWorkingConfig && response.headers.get('X-Working-Version')) {
+        window.prontoWorkingConfig.version=Number(response.headers.get('X-Working-Version'));
+        state.revision=Number(response.headers.get('X-Working-Revision'));
+        window.prontoWorkingConfig.revision=state.revision;window.prontoWorkingConfig.sourceRevision=state.revision;
+      }
+      status.textContent=`${layout==='ESMO'?'ESMO':'Presentation'} PDF exported from saved revision ${pendingPdf.revision}.`;pendingPdf=null;
     }catch(error){status.textContent=error.message;}
     finally{setExporting(false);}
   }));

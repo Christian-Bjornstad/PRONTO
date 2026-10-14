@@ -74,7 +74,7 @@ class ReviewCommandService:
             raise ReviewCommandError(
                 "INVALID_DRAFT", "Draft did not pass validation", 422, issues=error.issues
             ) from error
-        if draft.schema_version not in {"2.0", "3.0"} or draft.status != "DRAFT" or draft.revision != base_revision:
+        if draft.schema_version not in {"2.0", "3.0", "4.0"} or draft.status != "DRAFT" or draft.revision != base_revision:
             raise ReviewCommandError("INVALID_DRAFT", "Expected a v2 draft at the base revision", 422)
         return draft
 
@@ -113,9 +113,9 @@ class ReviewCommandService:
         reviewed_variants = [item["variantId"] for item in draft.variant_reviews]
         if len(reviewed_variants) != len(set(reviewed_variants)) or set(reviewed_variants) - known_variants:
             raise ReviewCommandError("INVALID_DRAFT", "Unknown or duplicate reviewed variant", 422)
-        if current.schema_version == '3.0' and draft.schema_version != '3.0':
+        if current.schema_version in {'3.0','4.0'} and draft.schema_version not in {'3.0','4.0'}:
             raise ReviewCommandError('INVALID_DRAFT', 'Cannot discard v3 review fields', 422)
-        if draft.schema_version == '3.0':
+        if draft.schema_version in {'3.0','4.0'}:
             previous_legacy={item['variantId']:item['legacyClinicalClassification']
                 for item in migrate_review_state_to_v3(current).variant_reviews if 'legacyClinicalClassification' in item}
             draft_legacy={item['variantId']:item['legacyClinicalClassification']
@@ -124,6 +124,13 @@ class ReviewCommandService:
                 raise ReviewCommandError('INVALID_DRAFT','Legacy classification is read-only',422)
             known_findings = {row['findingId'] for table in report.source_tables
                               if table['kind'] in {'CNV', 'RNA'} for row in table['rows']}
+            manual_ids = [item['findingId'] for item in draft.manual_cnv_rows]
+            if len(manual_ids) != len(set(manual_ids)):
+                raise ReviewCommandError('INVALID_DRAFT','Duplicate manual CNV row',422)
+            known_findings.update(manual_ids)
+            cnv_ids = {row['findingId'] for table in report.source_tables if table['kind']=='CNV' for row in table['rows']} | set(manual_ids)
+            if any(('cnChange' in item or 'cytoband' in item) and item['findingId'] not in cnv_ids for item in draft.finding_reviews):
+                raise ReviewCommandError('INVALID_DRAFT','CNV fields require a CNV finding',422)
             for activities, key, known in ((draft.finding_reviews, 'findingId', known_findings),
                                           (draft.biomarker_reviews, 'metricId', {m['metricId'] for m in report.biomarkers})):
                 identifiers = [item[key] for item in activities]
@@ -194,7 +201,7 @@ class ReviewCommandService:
         attribution = self._attribution(request, actor_id, force=True)
         timestamp = self._timestamp()
         document = json.loads(serialize_review_state(current))
-        if current.schema_version == '3.0':
+        if current.schema_version in {'3.0','4.0'}:
             document['findingReviews'] = []
             document['biomarkerReviews'] = []
             document['presentationFigures'] = []
