@@ -217,7 +217,8 @@ class AlignmentRangeTests(ReportReadTests):
 
     def test_invalid_ranges_disclose_no_bytes(self):
         self.client.force_login(self.biologist)
-        for header in ("bytes=0-1,4-5", "bytes=10-", "garbage"):
+        for header in ("bytes=0-1,4-5", "bytes=10-", "garbage",
+                       "bytes=" + "9" * 5000 + "-", "bytes=-" + "9" * 5000):
             response = self.client.get(self.range_url, HTTP_RANGE=header)
             assert response.status_code == 416
             assert response["Content-Range"] == "bytes */10"

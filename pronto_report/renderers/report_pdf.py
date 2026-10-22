@@ -12,9 +12,14 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, 
 from pronto_report.migration import migrate_review_state_to_v3
 from pronto_report.serialization import serialize_report_data, serialize_review_state
 
-TEMPLATE_VERSION = '1.2'
+TEMPLATE_VERSION = '1.3'
 BLUE = '#203b63'; GREEN = '#14592c'; OLIVE = '#708322'
 QC_COLORS = {'PASS':'#399a44', 'CONDITIONAL':'#e88917', 'FAIL':'#cf2525', 'NOT_REVIEWED':'#777777'}
+FIELD_LABELS = {
+    'patientPseudonym':'Patient ID', 'sampleId':'Sample ID', 'referenceBuild':'Reference genome',
+    'tumourType':'Tumour type', 'specimenType':'Sample type',
+    'runId':'Run ID', 'assay':'Assay', 'instrument':'Instrument',
+}
 
 
 def project_report_export(report, review):
@@ -66,10 +71,12 @@ def project_report_export(report, review):
                 for header,values in group['fields'].items()}
         findings[group['kind']].append({'id':identifier,'fields':fields,'review':finding_activities[identifier],
                                        'source':group['source'],'demo':group['demo']})
+    manual_cnv=[]
     for row in review.manual_cnv_rows:
         identifier=row['findingId']
         if identifier in finding_activities:
-            findings['CNV'].insert(0,{'id':identifier,'fields':{'Gene_Symbol':row['geneSymbol'],'Tumor_FC':row['tumorFc']},'review':finding_activities[identifier],'source':'Manual CNV','demo':False})
+            manual_cnv.append({'id':identifier,'fields':{'Gene_Symbol':row['geneSymbol'],'Tumor_FC':row['tumorFc']},'review':finding_activities[identifier],'source':'Manual CNV','demo':False})
+    findings['CNV']=manual_cnv+findings['CNV']
     for row in findings['CNV']:
         row['fields'].update(Cytoband=row['review'].get('cytoband',''),CN_Change=row['review'].get('cnChange',''))
     highlights={item['metricId'] for item in v['biomarkerReviews'] if item['reportHighlight']}
@@ -119,7 +126,7 @@ def _qc(label,assessment):
     result=Table([[_paragraph(f'{label} QC: {status}',size=8,color=QC_COLORS[status],bold=True),indicator]],colWidths=[145,45],hAlign='LEFT')
     result.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
     if assessment.get('comment'):
-        return Table([[result],[_paragraph(assessment['comment'],size=8)]],hAlign='LEFT')
+        return Table([[result],[_paragraph(assessment['comment'],size=8)]],hAlign='LEFT',splitInRow=1)
     return result
 
 
@@ -214,11 +221,11 @@ def render_report_pdf(report, review, *, layout, export_initials, figure_assets:
     if layout=='ESMO':
         story=[_heading('Summary',BLUE),
             _heading('Patient and sample details'),
-            _table(['Field','Value'],[[key,value] for key,value in model['sample'].items()],width,BLUE,size=9),
+            _table(['Field','Value'],[[FIELD_LABELS.get(key,key),value] for key,value in model['sample'].items()],width,BLUE,size=9),
             *_note(model,'patientDetails','Additional patient and sample details'),
-            _heading('Assay details'),_table(['Field','Value'],[[key,value] for key,value in model['run'].items()],width,BLUE,size=9),
+            _heading('Assay details'),_table(['Field','Value'],[[FIELD_LABELS.get(key,key),value] for key,value in model['run'].items()],width,BLUE,size=9),
             *_note(model,'assayMethods','Assay / methods / limitations'),
-            _heading('Assay quality evaluation'),_qc('Overall',model['overallQc']),_paragraph(model['overallQc'].get('comment')),
+            _heading('Assay quality evaluation'),_qc('Overall',model['overallQc']),
             *_note(model,'history','History / Reason for testing'),
             *_note(model,'summary','Summary of most relevant findings'),PageBreak(),
             _heading('Results',GREEN),_heading('Mutations',GREEN),_qc('Small variants',model['qc']['variants']),_variant_table(model,width),
@@ -237,9 +244,9 @@ def render_report_pdf(report, review, *, layout, export_initials, figure_assets:
         first=lambda c,d:_header(c,d,model,export_initials)
     else:
         sidebar=[_paragraph('InPreD',size=13,color=BLUE,bold=True)]
-        for key,value in model['sample'].items(): sidebar.extend([_paragraph(key,size=7,bold=True),_paragraph(value,size=8)])
+        for key,value in model['sample'].items(): sidebar.extend([_paragraph(FIELD_LABELS.get(key,key),size=7,bold=True),_paragraph(value,size=8)])
         sidebar.extend([_paragraph('Assay / Run',size=7,bold=True),_paragraph(model['run'].get('runId'),size=7),_paragraph(f'Overall QC: {model["overallQc"]["status"]}',size=7,color=QC_COLORS[model['overallQc']['status']])])
-        qc_summary=Table([[_qc('CNV',model['qc']['cnv']),_qc('RNA',model['qc']['rna'])]],colWidths=[210,210],hAlign='LEFT')
+        qc_summary=Table([[_qc('CNV',model['qc']['cnv']),_qc('RNA',model['qc']['rna'])]],colWidths=[210,210],hAlign='LEFT',splitInRow=1)
         qc_summary.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('VALIGN',(0,0),(-1,-1),'TOP')]))
         main=[_heading('Mutational signatures',BLUE),_qc('Signatures',model['qc']['signatures']),_signatures(model,420),qc_summary,
               _heading('Key relevant findings',BLUE),_highlight_table(model,420,BLUE),
