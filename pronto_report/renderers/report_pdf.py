@@ -143,7 +143,8 @@ def _variant_table(model,width,compact=False):
     if compact:
         return _table(['Gene','Variant','Effect','VAF','Review'],[
             [item['gene'],item['protein'] or item['dna'],item['annotations'].get('codingStatus'),item['af'],
-             item['review']['clinicalClassification']] for item in model['variants']],width,BLUE,size=7)
+             item['review']['clinicalClassification']] for item in model['variants']],width,BLUE,size=7,
+             proportions=[37,45,80,30,67])
     return _table(['Gene','Transcript','Position','Variant','Effect','Depth','VAF','Review'],[
         [item['gene'],item['annotations'].get('refSeqMrna') or item['annotations'].get('ensemblTranscript'),
          item['location'],item['protein'] or item['dna'],item['annotations'].get('codingStatus'),
@@ -253,7 +254,7 @@ def render_report_pdf(report, review, *, layout, export_initials, figure_assets:
               *_note(model,'summary','Summary of most relevant findings'),
               *_note(model,'biomarkerContext','Therapeutic context'),
               *_note(model,'variantDescription','Variant description')]
-        right=[_heading(f'Mutations (N={len(model["variants"])})',BLUE),_qc('Small variants',model['qc']['variants']),_variant_table(model,225,True),_paragraph('VUS: Variant of uncertain significance',size=7)]
+        right=[_heading(f'Mutations (N={len(model["variants"])})',BLUE),_qc('Small variants',model['qc']['variants']),_variant_table(model,259,True),_paragraph('VUS: Variant of uncertain significance',size=7)]
         # Measure with a throwaway canvas; actual columns are drawn in onFirstPage.
         from reportlab.pdfgen.canvas import Canvas
         test_canvas=Canvas(BytesIO(),pagesize=page_size)
