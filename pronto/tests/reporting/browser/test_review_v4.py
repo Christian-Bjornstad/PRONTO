@@ -87,3 +87,88 @@ def test_working_response_and_selected_revision_wiring(browser, action):
             assert calls[-1]['action']==action and calls[-1]['expectedVersion']==1
             if action=='REOPEN': assert calls[-1]['sourceRevision']==2
         finally: context.close()
+
+
+def test_initial_working_draft_can_be_saved_without_edits(browser):
+    report, review = cnv_case()
+    html = render_html(report, review, inline_assets=True, save_url='/working/',
+                       finalize_url='/working/', csrf_token='test', actor_id='1', actor_label='writer')
+    config = {'url': '/working/', 'reportId': report.report_id, 'version': 0,
+              'revision': review.revision, 'sourceRevision': review.revision, 'csrf': 'test'}
+    html = html.replace('<body>', '<body><script type="application/json" id="working-config">'
+                        + json.dumps(config) + '</script>')
+    calls = []
+    with _serve(html) as url:
+        context = browser.new_context()
+        page = context.new_page()
+
+        def respond(route):
+            payload = route.request.post_data_json
+            calls.append(payload)
+            route.fulfill(status=201, content_type='application/json', body=json.dumps({
+                'review': payload['draft'], 'workingVersion': 1}))
+
+        page.route('**/working/', respond)
+        try:
+            page.goto(url)
+            assert page.locator('#dirty-lbl').inner_text() == 'Save to start working draft'
+            assert page.get_by_role('button', name='Finalize', exact=True).is_disabled()
+            page.get_by_role('button', name='Save', exact=True).click()
+            playwright.expect(page.locator('#dirty-lbl')).to_have_text('All changes saved', timeout=3000)
+            assert len(calls) == 1
+            assert calls[0]['action'] == 'SAVE' and calls[0]['expectedVersion'] == 0
+            assert page.get_by_role('button', name='Finalize', exact=True).is_enabled()
+            assert page.get_by_role('button', name='Save', exact=True).is_disabled()
+        finally:
+            context.close()
+
+
+@pytest.mark.parametrize('assessment, label', [('OK', 'OK'), ('ARTIFACT', 'Artifact'), ('NOT_RELIABLE', 'Not reliable')])
+def test_key_findings_shows_current_igv_qc_labels(browser, assessment, label):
+    report, review = cnv_case()
+    variant_id = report.variants[0]['variantId']
+    reviews = tuple({**item, 'igvAssessment': assessment} if item['variantId'] == variant_id else item
+                    for item in review.variant_reviews)
+    review = replace(review, variant_reviews=reviews)
+    with _serve(render_html(report, review, inline_assets=True)) as url:
+        context = browser.new_context()
+        page = context.new_page()
+        try:
+            page.goto(url)
+            summary = page.locator('#key-variant-table tr[data-variant-id]').filter(
+                has=page.locator(f'[data-highlight-variant="{variant_id}"]')).first
+            assert summary.locator('[data-review-summary="igv"]').inner_text() == label
+            choice = page.locator(f'#variant-table select[data-variant-id="{variant_id}"][data-review-field="igvAssessment"]').first
+            choice.select_option('NOT_REVIEWED')
+            assert summary.locator('[data-review-summary="igv"]').inner_text() == 'Not reviewed'
+            choice.select_option(assessment)
+            assert summary.locator('[data-review-summary="igv"]').inner_text() == label
+        finally:
+            context.close()
+
+
+def test_invalid_manual_cnv_value_cannot_download_a_stale_review(browser):
+    report, review = cnv_case()
+    with _serve(render_html(report, review, inline_assets=True)) as url:
+        context = browser.new_context(accept_downloads=True)
+        page = context.new_page()
+        try:
+            page.goto(url)
+            page.get_by_role('button', name='Edit mode: OFF').click()
+            page.get_by_role('tab', name='CNV review', exact=True).click()
+            value = page.locator('[data-manual-field="Tumor_FC"]').first
+            value.fill('invalid')
+            page.get_by_role('tab', name='Variant review').click()
+            with pytest.raises(playwright.TimeoutError):
+                with page.expect_download(timeout=500):
+                    page.get_by_role('button', name='Download ReviewState', exact=True).click()
+            assert 'Correct invalid values' in page.locator('#review-feedback').inner_text()
+            page.get_by_role('tab', name='CNV review', exact=True).click()
+            value.fill('3,5')
+            page.get_by_role('tab', name='Variant review').click()
+            with page.expect_download() as pending:
+                page.get_by_role('button', name='Download ReviewState', exact=True).click()
+            saved = json.loads(Path(pending.value.path()).read_text())
+            assert saved['manualCnvRows'][0]['tumorFc'] == 3.5
+        finally:
+            context.close()

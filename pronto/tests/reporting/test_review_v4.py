@@ -122,3 +122,39 @@ def test_published_display_does_not_seed_new_source_decisions():
     display=upgrade_review(report,final,seed_defaults=False)
     assert len(display.variant_reviews)==len(final.variant_reviews)
     assert display.variant_reviews[0]['reportingDecision']==final.variant_reviews[0]['reportingDecision']
+
+
+def test_esmo_overall_qc_comment_is_printed_once():
+    from pronto_report.renderers.report_pdf import render_report_pdf
+    from io import BytesIO
+    from pypdf import PdfReader
+    report,review=cnv_case()
+    review=replace(review,run_qc_assessment={'status':'PASS','comment':'Quality summary checked once'})
+    pdf=render_report_pdf(report,review,layout='ESMO',export_initials='reviewer')
+    text=' '.join(p.extract_text() for p in PdfReader(BytesIO(pdf)).pages)
+    assert text.count('Quality summary checked once')==1
+
+
+def test_pdf_preserves_manual_cnv_row_order():
+    from pronto_report.renderers.report_pdf import project_report_export
+    report,review=cnv_case()
+    extra={'findingId':'manual-cnv-second','geneSymbol':'MYC','tumorFc':3}
+    review=replace(review,manual_cnv_rows=(*review.manual_cnv_rows,extra),finding_reviews=(
+        *review.finding_reviews,{'findingId':extra['findingId'],'reportingDecision':'INCLUDE','reportHighlight':False}))
+    assert [row['fields']['Gene_Symbol'] for row in project_report_export(report,review)['cnv']]==['ERBB2','MYC']
+
+
+@pytest.mark.parametrize('layout',['ESMO','PRESENTATION'])
+def test_pdf_supports_maximum_length_qc_comments(layout):
+    from pronto_report.renderers.report_pdf import render_report_pdf
+    from io import BytesIO
+    from pypdf import PdfReader
+    report,review=cnv_case()
+    sections={key:{'status':'CONDITIONAL','comment':('Quality review details. '*500)[:9960]+' End '+key}
+              for key in review.section_qc}
+    review=replace(review,section_qc=sections,run_qc_assessment={
+        'status':'PASS','comment':('Overall quality review. '*500)[:9970]+' Overall end'})
+    pdf=render_report_pdf(report,review,layout=layout,export_initials='reviewer')
+    text=' '.join(p.extract_text() for p in PdfReader(BytesIO(pdf)).pages)
+    for key in sections: assert 'End '+key in text
+    assert 'Overall end' in text

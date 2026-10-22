@@ -348,7 +348,7 @@
       const decision = activity?.reportingDecision || 'UNREVIEWED';
       const igv = activity?.igvAssessment || 'NOT_REVIEWED';
       const decisionLabel = { UNREVIEWED: 'Unreviewed', INCLUDE: 'Included', EXCLUDE: 'Excluded' };
-      const igvLabel = { NOT_REVIEWED: 'Not reviewed', SUPPORTS: 'Supports', DOES_NOT_SUPPORT: 'Does not support', INCONCLUSIVE: 'Inconclusive', NOT_APPLICABLE: 'Not applicable' };
+      const igvLabel = { NOT_REVIEWED: 'Not reviewed', OK: 'OK', ARTIFACT: 'Artifact', NOT_RELIABLE: 'Not reliable', SUPPORTS: 'Supports', DOES_NOT_SUPPORT: 'Does not support', INCONCLUSIVE: 'Inconclusive', NOT_APPLICABLE: 'Not applicable' };
       row.querySelector('[data-review-summary="decision"]').textContent = decisionLabel[decision];
       row.querySelector('[data-review-summary="decision"]').dataset.status = decision;
       row.querySelector('[data-review-summary="igv"]').textContent = igvLabel[igv];
@@ -495,6 +495,16 @@
   const saveError = document.getElementById("save-error");
   const recovery = document.getElementById("save-recovery");
   const saveFeedback = document.getElementById("save-feedback");
+  function validReviewInputs() {
+    const invalid = document.querySelector('[data-v4-edit]:invalid');
+    if (!invalid) return true;
+    const panel = invalid.closest('[role="tabpanel"]');
+    const tab = panel && tabs.find((item) => item.getAttribute('aria-controls') === panel.id);
+    if (tab && panel.hidden) activateTab(tab);
+    invalid.reportValidity();
+    feedback.textContent = 'Correct invalid values before saving or downloading.';
+    return false;
+  }
   updateReviewSummary();
   refreshDirty();
 
@@ -586,6 +596,7 @@
       event.returnValue = "";
     });
     document.getElementById("export-local-draft").addEventListener("click", () => {
+      if (!validReviewInputs()) return;
       downloadJson(localDraft(), "local-draft");
     });
     document.getElementById("reload-latest").addEventListener("click", () => {
@@ -597,7 +608,7 @@
       }
     });
     saveButton.addEventListener("click", async () => {
-      if (saving || resetting || finalizing || askingInitials || (!reviewDirty && !corrections.size && !removedCorrections.size)) return;
+      if (saving || resetting || finalizing || askingInitials || (!reviewDirty && !corrections.size && !removedCorrections.size && !(workingConfig && workingConfig.version===0))) return;
       saveError.hidden = true;
       recovery.hidden = true;
       saveFeedback.hidden = true;
@@ -611,8 +622,7 @@
       }
       const declaredInitials = await actionInitials('Initials for saving');
       if (declaredInitials === null) return;
-      const invalid=document.querySelector('[data-v4-edit]:invalid');
-      if(invalid) {invalid.reportValidity();return;}
+      if (!validReviewInputs()) return;
       const baseRevision = reviewState.revision;
       const draft = localDraft();
       const hadCorrectionEdits = corrections.size > 0 || removedCorrections.size > 0;
@@ -909,6 +919,7 @@
     feedback.textContent='Save once to enable the new review fields for this saved version.';
   }
   download.addEventListener("click", () => {
+    if (!validReviewInputs()) return;
     const exported = JSON.parse(JSON.stringify(reviewState));
     if (exported.status !== "FINAL" && !saveButton?.dataset.saveUrl) {
       exported.revision += 1;

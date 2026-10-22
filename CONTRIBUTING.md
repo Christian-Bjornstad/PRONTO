@@ -73,11 +73,17 @@ git diff --cached
 
 ## Branch and commit workflow
 
-Create short-lived branches from current upstream `main`. Keep commits focused and use descriptive messages such as `test: normalize cross-platform path assertions` or `feat: add report data validation`.
+Create short-lived branches from the maintained target branch. Keep commits
+focused and use descriptive messages such as `test: normalize cross-platform
+path assertions` or `feat: add report data validation`.
 
-The fork remotes are expected to be:
+For a fork-based checkout, use this remote layout with your own fork:
 
 ```text
-origin    https://github.com/Christian-Bjornstad/PRONTO.git
+origin    https://github.com/YOUR-ORGANIZATION/PRONTO.git
 upstream  https://github.com/InPreD/PRONTO.git
 ```
+
+Keep implementation plans, meeting notes, personal filesystem paths and local
+credentials outside the repository. Maintain portable setup and operating
+instructions in `docs/`. Generated exports and local input files are ignored.

@@ -259,7 +259,7 @@ def alignment_component(request, report_id: str, source_id: str, component: str)
         else:
             start, end = parse_single_range(request.headers["Range"], size)
             status = 206
-    except RangeNotSatisfiable:
+    except ValueError:  # Includes malformed ranges and oversized integer fields.
         handle.close()
         response = HttpResponse(status=416)
         response["Content-Range"] = f"bytes */{size}"

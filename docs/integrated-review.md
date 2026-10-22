@@ -1,79 +1,77 @@
 # Integrated review and PDF exports
 
-The report workspace uses a single explicitly saved working copy for small
-variants, CNV, RNA, QC, free text and presentation figures. Old revisions stay
-immutable. Opening a legacy DRAFT offers a v3 working copy; Save persists that
-upgrade before signing or exporting.
+The workspace saves small variants, CNV, RNA, QC, free text and presentation
+figures in one explicit working copy. Source facts remain separate from review
+decisions. See [review and revision behavior](report-review-workspace.md) and
+the [local startup guide](oppstart-nb.md).
 
-- Small variants: full source columns in Details and the complete table;
-  Review = Benign / VUS / Oncogenic, Exclude, and Report highlight. VUS in Key
-  findings mirrors Review. Legacy Pathogenic/Other labels remain read-only.
-- CNV review: complete source table with independent inclusion and highlights;
-  Table / Plots views, B3 above C1 initially, then individual panels and Cancan.
-- RNA review: complete fusion/splice source table and domain plots. Spreadsheet
-  QC highlights remain separate from manual report selection.
-- Highlights are **Key relevant findings**. Exclude always overrides highlight;
-  classifying a variant does not automatically include or exclude it.
-- Five manual, linked QC assessments: small variants, CNV, RNA, signatures and
-  overall. Green/Pass, Orange/Conditional, Red/Fail and neutral/Not reviewed.
-- TMB, MSI and HRD display their score and ranges. Ranges describe the display,
-  not clinical thresholds. Missing HRD is unavailable. Only the explicitly
-  enriched demonstration supplies the example HRD score 42.
-- Report page: manual history, summary, therapeutic context, variant description,
-  clinical actionability, trials, follow-up, methods, references, patient details
-  and additional comments. This does not infer clinical evidence or treatment.
+## Review surfaces
 
-## Saved outputs
+- Small variants expose all available source columns in one table. Inc/Exc,
+  Review, Report highlight and IGV QC are separate choices. Source defaults use
+  Class_judgement and CPSR_ClinVar_class, preserving saved manual choices.
+- Review supports Benign, Likely benign, VUS, Pathogenic, Likely pathogenic,
+  Oncogenic and Likely oncogenic, with Not reviewed as the empty state.
+- CNV has a full source table, Inc/Exc, Report highlight, Gain/Loss, Cytoband and
+  manual top rows. The plots view starts with B3 above C1, then offers individual
+  panels and the Cancan plot when supplied.
+- RNA shows fusion/splice source columns, reporting choices and domain plots.
+  Source QC highlighting is independent of manual report selection.
+- Report highlights are **Key relevant findings**. Exclude overrides highlight.
+- Five QC assessments cover small variants, CNV, RNA, mutational signatures and
+  overall assessment: Green/Pass, Orange/Conditional, Red/Fail and Not reviewed.
+  CNV and RNA comments are edited in their own tabs and included in PDFs.
+- TMB, MSI and HRD display score and range. Ranges describe display bounds, not
+  clinical thresholds. Missing scores remain unavailable.
+- The Report page accepts history, summary, therapeutic context, variant
+  description, clinical actionability, trials, follow-up, methods, references,
+  patient details and additional comments as free text.
+
+## PDF formats
 
 **Presentation PDF** is landscape A4 with a patient sidebar, Key relevant
-findings and a compact variant table. Additional selected CNV/RNA and free text
-continue on subsequent landscape pages when needed. **ESMO PDF** is portrait A4
-with Summary, Results and Key relevant findings / clinical evidence sections.
-Both approximate the supplied screenshots; there is no editable source template.
-Long text/tables continue rather than being clipped. Both contain the saved
-selection, saved corrections, QC, ranges, DRAFT/FINAL status, revision and export
-initials. Existing offline HTML downloads also accept v3 snapshots.
+findings and compact findings tables. Selected CNV/RNA and free text continue
+on subsequent pages when necessary. **ESMO PDF** is portrait A4 with Summary,
+Results and clinical evidence sections. Layouts follow the supplied visual
+references; long content continues instead of being clipped.
 
-Export requires Save first and self-reported initials. The backend validates
-access, CSRF and the saved revision and records a transactional PDF audit. Retry
-of the same request ID uses the same snapshot; changing its identity conflicts.
+Both formats contain saved selections, corrections, QC, ranges, DRAFT/FINAL
+status, revision and recorded reviewer identity. Export requires saved changes.
+The backend checks report access, CSRF and saved revision/version, then records
+a transactional audit for the exact exported snapshot. Repeating the same
+request ID returns that snapshot; changing its identity conflicts. Exporting
+does not finalize a report.
 
-**Presentation figures** accepts PNG, JPEG and WebP, previews each figure and
-supports captions, ordering and removal from the selected list. Save records
-the selection, captions and order. Figures appear only at the very end of the
-landscape PDF, never in ESMO. Images are decoded and re-encoded to PNG, stripped
-of original metadata, bounded to 8 MB, and stored privately
-with report authorization. Up to 30 figures can be selected; immutable assets
-remain available to earlier revisions after removal from a later selection.
-Uploads have a per-report 64 MB / 100-asset quota. Source images up to 64 million
-pixels are accepted to accommodate high-resolution scientific plots such as the
-provided Cancan image (7500 × 6600). They are scaled proportionally to at most
-16 million stored pixels and flattened onto the PDF's white background.
+## Presentation figures
+
+PNG, JPEG and WebP uploads support previews, captions, ordering and removal from
+the selected list. Save records the selection, captions and order. Figures
+appear only at the end of the landscape PDF. Historical snapshots retain their
+selected immutable assets.
+
+Images are decoded and re-encoded as PNG without original metadata. Each upload
+is limited to 8 MB and 64 million source pixels, then scaled proportionally to
+at most 16 million stored pixels. Up to 30 figures can be selected. The private
+per-report store is limited to 64 MB and 100 assets. Access requires the report
+grant; local uploads and generated PDFs must stay outside Git.
 
 ## Patient overview and history
 
 `/` and `/reports/` list authorized reports, 25 per page, with patient/sample,
-tumour type, status and save time. Seeding alone is `un-reviewed`; a SAVE_DRAFT
-audit produces `under-review`; FINAL produces `reviewed`. Open report selects
-the latest snapshot. Saved version opens `?revision=N`, a read-only view without
-save/finalization/upload endpoints. Missing or unauthorized revisions return 404.
+tumour type, status and save time. A fresh report is un-reviewed; saved work is
+under-review; signed work is reviewed. The overview distinguishes the latest
+signed revision from an active draft. Open a historical snapshot with
+`?revision=N`; missing or unauthorized revisions return 404.
 
-## Explicit local mixed-sample demonstration
+## Dependencies and test inputs
 
-Do not commit `info/` inputs or generated patient PDFs. To start a separate new
-loopback demonstration database:
+Runtime dependencies are in `requirements.txt`, tests in `requirements-test.txt`,
+and browser checks additionally use `requirements-browser.txt`. Poppler handles
+source PDF plots; generated reports use ReportLab.
 
-```powershell
-$env:PRONTO_DJANGO_SECRET_KEY = '<local secret>'
-python manage.py run_demo --database new-integrated.demo.sqlite3 --report demo-integrated-review --port 8770 --supplementary-demo-dir 'C:/Users/molpa/Documents/Inpred/info'
-```
-
-This imports the existing approved variant fixture plus the provided CNV CSV,
-RNA XLSX, Cancan image and domain PDFs, explicitly marked as mixed-sample demo.
-The RNA sample mismatch and plot/Event_ID mismatch are retained; approximate
-filenames never establish patient or variant matching. Existing databases are
-refused by run_demo. Restart with `resume_demo` to preserve saved revisions.
-
-Install `requirements.txt` and `requirements-test.txt`; browser checks additionally
-use `requirements-browser.txt`. PDF plot display uses the existing Poppler
-dependency. The generated report PDFs themselves use ReportLab.
+Use approved fixture inputs or the [synthetic cohort](synthetic-demo.md) for
+testing. Local supplemental workbooks, source figures and generated patient
+outputs stay outside Git. A separate loopback fixture demonstration can use
+`run_demo --supplementary-demo-dir PATH_TO_APPROVED_INPUTS`; it requires a new
+isolated database. `resume_demo` resumes that database without re-importing it.
+These commands are separate from the authenticated local launcher.

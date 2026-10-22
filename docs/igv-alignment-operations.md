@@ -35,8 +35,8 @@ or malformed entries make the registry unavailable rather than triggering a
 filename search. Multiple valid pairs remain separate user choices.
 
 This registry alone does not save an uploaded file. Full-file preservation,
-retention/deletion policy, and clinical deployment controls are specified in
-`docs/superpowers/specs/2026-09-24-igv-alignment-sources-design.md`.
+retention/deletion policy and deployment controls are described under
+[Private preservation gate](#private-preservation-gate) below.
 
 For embedded IGV, configure both `PRONTO_IGV_GRCh37_FASTA_URL` and
 `PRONTO_IGV_GRCh37_FAI_URL` (and/or the corresponding `GRCh38` names) as

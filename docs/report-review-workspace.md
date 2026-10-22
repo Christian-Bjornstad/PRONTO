@@ -1,122 +1,83 @@
-# Review workspace increment — 2026-09-26
+# Report review workspace
 
-Approved workflow: inspect source information, explicitly select findings, then
-view the selected findings in the tumour-board report. The original report.html
-remains the visual reference; this increment is not a claim of full visual parity.
+For local installation and login, see the [startup guide](oppstart-nb.md).
+The workspace keeps imported `ReportData` separate from the reviewer's saved
+decisions, comments, corrections and report text in `ReviewState`.
 
-- Default navigation opens Variant review; explicit panel links still work.
-- Per-variant selection uses existing reportingDecision and does not classify a
-  variant. Deselecting returns it to UNREVIEWED; EXCLUDE remains available.
-- AF is a fraction (0–1), displayed with exactly three decimal places using a
-  decimal comma. Underlying precision and numeric sorting are unchanged.
-- Tumour DNA depth is displayed from the existing depthTumourDna annotation.
-- Expandable details expose the currently imported annotations, not every column
-  that may exist in the source spreadsheet.
-- QC status and comment use runQcAssessment and the existing explicit save,
-  revision, and finalization flow. Source measurements remain unchanged.
-- OncoKB and local biomarker matching currently have **display placeholders
-  only**: “Ikke mottatt” and “Ikke krysssjekket”. No API request or matching is
-  performed, and no negative finding is inferred. Pipeline field contracts and
-  the versioned local list/match rules require a subsequent increment.
+## Review tables
 
-Verification covers browser selection, report output, exported QC state, exact
-AF display with preserved source precision, and database persistence of QC and
-selection without mutation of source ReportData.
+Variant review, CNV and RNA display their source data in horizontally scrollable
+tables. **Expand table** moves the same live table into a resizable dialog.
+Zoom scales the complete table, including controls and column widths. Closing
+the dialog returns the table to its tab without losing edits.
 
-## Compact reference-style workspace
+**Inc / Exc** controls reporting independently of classification. Excluded rows
+are muted and struck through, and do not appear in PDF findings. **Report
+highlight** selects included findings for **Key relevant findings**. Changing a
+filter does not change any saved selection. Duplicate small-variant occurrences
+share their review while retaining separate source occurrence identifiers.
 
-The owner-approved density increment restores the reference's 14 px body and
-12.5 px table text, tighter header/tab/table spacing and smaller section titles.
-Touch-sized header/preview controls remain on narrow screens; the variant table
-scrolls within its own region rather than widening the whole page. The sticky
-tabs follow the measured header height when the desktop header wraps.
+Small variants start from source defaults for reporting and classification
+when no saved manual choice exists. **Use source defaults** explicitly replaces
+those choices from `Class_judgement` and `CPSR_ClinVar_class`. The Biomarker column
+shows gene-list membership; membership alone never includes or highlights a row.
+IGV QC offers OK, Artifact and Not reliable independently of the reporting choice.
 
-Occurrence ID, stable variant ID, source tier and imported annotations are
-available under each row's **Detaljer** disclosure. They are not removed from
-the underlying report. AF, tumour DNA depth, OncoKB/biomarker placeholders and
-selection controls remain in the table. Tier remains searchable.
+CNV supports Gain/Loss and editable Cytoband. **Add CNV row** inserts a manual
+row above the source rows with editable Gene_Symbol and Tumor_FC. The remaining
+source fields stay empty. Reporting/highlight and CNV review controls remain
+available. Included manual rows need a gene before finalization.
 
-**Forhåndsvis rapport** opens the existing tumour-board panel and moves keyboard
-focus to its tab. The count represents unique included variant IDs, not source
-occurrences or only the filtered rows. The link works for saved/read-only
-snapshots as well. Previewing neither saves, finalizes, logs a print request nor
-asks for initials; those remain separate explicit actions. The preview control
-is omitted from print layout.
+CNV and RNA each have their own QC comment field. Their comments are included
+in PDF output without adding duplicate editors to the Report tab. QC status
+controls are linked across the review tabs and Report.
 
-Browser coverage exercises duplicate inclusion/deselection, filtered-out
-findings, keyboard navigation, read-only preview, source details and layouts at
-320, 768, 1024 and 1440 px. This increment is not full reference parity or
-clinical-user acceptance.
+## Save, finalize and start another revision
+
+The local launcher enables `PRONTO_WORKING_DRAFTS`. One active `WorkingDraft`
+holds each report's editable review. **Save** replaces this draft and records a
+small action event; it does not preserve the full previous draft on every save.
+Source facts stay immutable. Existing historical `ReviewRevision` rows remain
+available.
+
+**Finalize** requires saved changes, preserves a signed FINAL snapshot and
+closes the active draft. A FINAL snapshot is read-only. **Start new revision**
+copies the selected saved DRAFT or FINAL into a new working draft without
+changing the selected historical snapshot. Replacing an active working draft
+requires confirmation. Starting from the current working draft preserves that
+selected source once before creating the new revision.
+
+PDF export requires a saved review and records the exact snapshot exported.
+An active draft is frozen for export; subsequent edits use the next revision.
+Retries of the same export request return the same exported snapshot.
+See [PDF formats and figures](integrated-review.md).
+
+All current actions use the authenticated account. Older revisions retain their
+original attribution. Historical revisions open through `?revision=N` and are
+read-only. The patient overview distinguishes the latest signed report from
+an active draft and offers saved history separately.
 
 ## Recovery after an unsuccessful save
 
-If saving fails, do not close the page before securing the working copy:
+If saving fails, keep the page open until the working copy is secured:
 
-1. The page keeps the variant selection, QC assessment and QC comment marked
-   unsaved. A failed request does not advance the visible base revision.
-2. Use the offered local draft download to preserve those edits. This JSON is
-   a working-copy backup, not confirmation of a database save or a final report.
-3. For a network/server failure, retry once the service is available. If the
-   first request actually committed but its response was lost, the retry can
-   produce a revision conflict; compare against the saved revision.
-4. For a conflict, secure the local copy before loading the latest saved
-   revision. Reconcile the differences explicitly. There is no automatic merge
-   or overwrite, and the download does not itself resolve the conflict.
+1. Local edits remain marked unsaved; a failed request does not advance the
+   browser's acknowledged revision or draft version.
+2. Use the offered local draft JSON download to preserve the working copy.
+   This is a backup, not confirmation of a database save.
+3. Retry after a network/server failure. If the first request committed but
+   its response was lost, the retry can report a version conflict.
+4. For a conflict, secure the local copy before loading the latest saved review
+   and reconcile the differences explicitly. There is no automatic merge.
 
-The application's audited print action remains blocked while edits are unsaved.
-This does not claim to prevent browser-menu printing or screenshots.
+Signing and PDF export are blocked while edits are unsaved. Revision/version
+checks reject stale browser requests rather than overwriting another save.
+The JSON download is not automatically imported back into the database.
 
-Regression coverage includes browser-level simulated HTTP 409, HTTP 503 and
-network failures with initials, variant selection, QC assessment/comment,
-schema-validated backup and blocked print requests. A separate Django test
-uses two authorized users with distinct initials and conflicting content;
-the stale request cannot replace the first saved revision, create a new audit
-entry or mutate source ReportData. These are complementary browser/API tests,
-not a simultaneous production-database load test.
+## Compatibility
 
-## Local initials demo
-
-For the Tuesday walkthrough, use the [Norwegian startup guide and checklist](demo-walkthrough-nb.md).
-The note/sign-off panel follows the reference's two-column, four-card layout,
-collapsing to one column on narrow screens. Sign-off displays the last saved
-self-reported initials and revision, updated only after an acknowledged save;
-historical records without initials say so instead of presenting a technical
-service account as the biologist. Snapshot exports retain these labels.
-Reset is now available for DRAFT reviews. It requires confirmation and initials,
-creates a new blank saved revision, and leaves source facts, older revisions and
-audit rows intact. It is not available after finalization.
-Report copy is operational: no generic quality-process footer or commentary
-about which biologist should finalize. Finalization still confirms that the
-report will be locked; draft status, attribution and actionable errors remain.
-
-`browser/test_demo_workflow.py` exercises real Chrome against an isolated Django
-test database without mocking the save/reset/finalize/HTML endpoints: selection,
-QC and report notes, TMB correction, initials, save/reload, reset, same-person
-finalization, downloaded offline HTML, print preview and audit records. The in-app browser's
-native finalization confirmation stalled during manual verification; use
-Chrome/Edge for the walkthrough. The user-facing demo remains an untouched draft.
-
-Set a process-local `PRONTO_DJANGO_SECRET_KEY`, then run:
-
-```powershell
-python manage.py run_demo --database fresh-preview.demo.sqlite3 --report demo-preview --port 8768
-```
-
-Open `/reports/demo-preview/` directly: no login page. The command requires a
-new database filename on each start and refuses existing databases. This protects
-existing finalized reports; it is not the production deployment entry point.
-The dedicated technical user has report access only. Do not run behind a proxy
-or expose externally; only direct loopback connections are accepted.
-
-Save, Reset and Finalize require self-reported initials. The Download report HTML
-action requires initials and an acknowledged audit event for the exact saved
-revision. The audit means HTML_DOWNLOAD_REQUESTED, not that the browser saved or
-opened the file. An exact failed retry keeps the same request ID and renders
-the same historical revision; changed request details conflict. Initials are
-not authentication. The older print-request endpoint and its audit records
-remain for compatibility, but the live workspace now offers HTML download.
-
-Offline HTML printing is explicitly local-only: it does not prompt for fresh
-requester initials or create a central audit event. Browser-menu printing and
-screenshots cannot be comprehensively audited. Clinical deployment, privacy
-retention policy and production database concurrency remain outside this demo.
+The older immutable-per-save API remains available when working drafts are
+disabled. Its legacy command and attribution rules differ from the current
+workspace. See the [command contract](review-command-contract.md) for the two
+versions. Enabling working drafts on a separate deployment requires migration
+and `PRONTO_WORKING_DRAFTS=true`; the loopback launcher enables it automatically.
