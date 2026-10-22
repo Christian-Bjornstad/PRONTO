@@ -1,32 +1,29 @@
-# Authenticated Django read slice
+# Authenticated Django report access
 
-Task 25 adds a minimal Django 5.2 LTS adapter around the validated PRONTO
-contracts. It does not replace the existing PPTX workflow or add save/finalize
-HTTP endpoints. Tests seed an approved non-sensitive report, a review revision,
-an asset, and a per-user grant; the application does not auto-import or expose
-any production report.
+Django wraps the validated PRONTO contracts without replacing the legacy PPTX
+workflow. Report input is stored as `ReportRecord`, historical reviews as
+`ReviewRevision`, the active editable copy as `WorkingDraft`, and source plots
+as `ReportAsset`. A per-user `ReportGrant` is required for each report.
 
-## Local setup
+For an authenticated local setup, use the [startup guide](oppstart-nb.md).
+The launcher creates the local configuration, runs migrations and starts the
+loopback server. A separate deployment must supply `PRONTO_DJANGO_SECRET_KEY`
+outside source control and configure its database, HTTPS and application server.
 
-Install `requirements.txt`. Set `PRONTO_DJANGO_SECRET_KEY` to a unique secret
-outside source control, then run `python manage.py migrate` and
-`python manage.py runserver`. An optional `PRONTO_DJANGO_DB` selects the local
-SQLite file. Database files are gitignored. Create users and populate
-`ReportRecord`, `ReviewRevision`, `ReportAsset`, and `ReportGrant` only with
-approved, validated data. `python manage.py test pronto_web.reports` provides
-a complete non-sensitive example without persisting it outside the test DB.
+`/accounts/login/` uses Django session authentication and CSRF protection.
+`/reports/` lists only granted reports. A report request checks its grant before
+reading JSON or asset bytes, validates the stored ReportData/ReviewState and
+identifiers, verifies source attachment hashes, then renders the report. Source
+plots are embedded after authorization. Report/list responses use
+`Cache-Control: no-store`.
 
-Open `/accounts/login/` and then `/reports/`. Login uses Django's session and
-CSRF handling. The list only includes granted reports. A report request checks
-the grant before reading the stored JSON or asset bytes, validates ReportData
-and the latest ReviewState, checks stored IDs/revisions, verifies attachment
-hashes, and renders the existing read-only, self-contained PRONTO page. Plots
-are embedded after authorization; no separate file-serving URL exists. Report
-and list responses use `Cache-Control: no-store`.
+Historical snapshots open through `?revision=N`; editing and upload controls are
+not attached to that view. Current draft editing, signing and PDF actions are
+separate authenticated commands described in the
+[working-draft API](review-command-contract.md#working-draft-api-v2).
+A report grant permits reading/reviewing but does not grant the separate
+alignment-preservation permission. See [IGV operations](igv-alignment-operations.md).
 
-The settings intentionally bind to localhost/testserver and require an
-external secret. SQLite, local password management, backups, retention,
-HTTPS/proxy configuration, operational logging, and deployment authorization
-still need review before any real patient data is used. The transactional
-draft endpoint is documented in `django-draft-save.md`; explicit **Lagre**
-browser wiring and finalization remain separate tasks.
+Run `python manage.py test pronto_web.reports` with the test settings for
+request/access tests. Tests use approved or synthetic data in isolated databases;
+they do not import data into the running local database.

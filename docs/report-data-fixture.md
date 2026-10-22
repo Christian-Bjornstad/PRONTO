@@ -4,7 +4,7 @@ Date: 2026-09-22
 
 ## Source fixture
 
-Task 9 uses the already approved public OUS fixture at:
+The adapter uses the already approved public OUS fixture at:
 
 ```text
 test_data/ous/251114_A02134_0115_BHCJCKDRX7_TSO_500_LocalApp_postprocessing_results

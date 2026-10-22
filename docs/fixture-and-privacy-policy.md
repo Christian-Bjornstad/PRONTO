@@ -36,7 +36,11 @@ This approval applies only to the files already tracked at that commit. It does 
 | Credentials, tokens, private keys, or environment files | Never commit | A value-free `.env.example` is allowed |
 | Patient or other personal data | Never commit to this public repository | None; use an approved restricted system instead |
 
-The workspace-level `report.html`, prototype outputs, `output_version_*` directories, Office files, screenshots, and extracted derivatives described in `docs/discovery-html-django.md` remain local reference material. Their non-sensitive classification does not make bulk versioning useful or appropriate.
+Workspace-level HTML prototypes, generated output directories, Office files,
+screenshots and extracted derivatives remain local reference material. Their
+non-sensitive classification does not make bulk versioning useful or appropriate.
+Implementation plans, meeting notes and personal setup details also stay outside
+Git; maintained user, contributor and operating guides belong in `docs/`.
 
 ## Approval process for a new fixture
 

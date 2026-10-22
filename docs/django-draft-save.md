@@ -1,8 +1,14 @@
-# Django draft revision endpoint
+# Legacy Django draft revision endpoint
 
-Task 26 adds `POST /reports/<report-id>/revisions/` for an authenticated user
-with a `ReportGrant` on that exact report. Task 27 connects the original
-**Lagre** control on the authenticated draft page. A missing grant or report is
+This page describes the immutable-per-save compatibility API used when
+`PRONTO_WORKING_DRAFTS` is disabled. The current local workspace uses the
+[working-draft command API](review-command-contract.md#working-draft-api-v2)
+and [overwritable drafts](report-review-workspace.md); its Save action does not
+create a full historical revision on every click. Actor identity comes from
+the authenticated account in the current workspace.
+
+`POST /reports/<report-id>/revisions/` accepts an authenticated user
+with a `ReportGrant` on that exact report. A missing grant or report is
 reported as 404 without revealing the report data. Mutating requests require
 Django session CSRF protection. Responses use `Cache-Control: no-store`.
 
@@ -22,9 +28,9 @@ against duplicate commits. Django's `atomic()` encloses both writes, while
 `select_for_update()` serializes writers on databases that support row locks.
 SQLite is useful for local development but does not implement
 `select_for_update()`; production database and concurrent-writer behavior
-require deployment review before real patient data is used. This branch adds
-`0002_review_audit` independently of the IGV storage branch's migration;
-integrating both branches will require a Django merge migration.
+require deployment review before real patient data is used. The
+`0003_merge_review_alignment` migration joins the independent review and
+alignment migration histories.
 
 The live page starts clean and never autosaves. A click submits its current
 base revision with the complete draft and any reasoned source corrections.
@@ -43,7 +49,7 @@ to the source value explicitly removes the correction in the next save.
 After a successful correction save, the browser reloads the server-rendered
 report so the provenance shown on screen matches the committed revision.
 
-Task 28 adds `POST /reports/<report-id>/finalizations/` using the same
+`POST /reports/<report-id>/finalizations/` uses the same
 authentication, grant, CSRF, JSON size cap, transactional revision, and audit
 boundary. Its complete draft must exactly match the latest saved revision;
 otherwise it returns 409 without locking anything. The original report UI
