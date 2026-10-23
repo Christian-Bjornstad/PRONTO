@@ -44,11 +44,11 @@ def _fact(label: str, value: object) -> str:
 
 def render_summary_html(report: ReportData, review: ReviewState, *, export_initials: str) -> str:
     """Render only immutable facts and the exact saved human review snapshot."""
-    if review.report_id != report.report_id or review.schema_version not in {'2.0','3.0'}:
+    if review.report_id != report.report_id or review.schema_version not in {'2.0','3.0','4.0'}:
         raise ValueError('A matching saved review is required')
     if not export_initials:
         raise ValueError("Export initials are required")
-    if review.schema_version=='3.0':
+    if review.schema_version in {'3.0','4.0'}:
         return _render_v3(report,review,export_initials)
     corrections = {str(item["path"]): item for item in review.value_corrections}
     def effective(path: str, source: object) -> object:

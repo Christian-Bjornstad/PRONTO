@@ -56,6 +56,38 @@ class HtmlExportTests(TestCase):
         assert b'Later revision only' not in replay.content
         assert ReportHtmlExportAudit.objects.filter(report=self.record).count() == 1
 
+    def test_finalized_current_review_exports_saved_manual_cnv_and_notes(self):
+        from pronto_report.review.source_defaults import upgrade_review
+        from pronto_report.serialization import serialize_review_state
+        from pronto_report.validation import validate_review_state
+        from pronto_web.reports.models import ReportHtmlExportAudit
+
+        report = self.report
+        review = upgrade_review(report, self.review)
+        document = json.loads(serialize_review_state(review))
+        document['manualCnvRows'] = [{'findingId': 'manual-cnv-export', 'geneSymbol': 'ERBB2', 'tumorFc': 4.2}]
+        document['findingReviews'] = [{'findingId': 'manual-cnv-export', 'reportingDecision': 'INCLUDE',
+                                       'reportHighlight': True, 'cnChange': 'GAIN', 'cytoband': '17q12'}]
+        document.update(status='FINAL', finalizedAt=document['updatedAt'], finalizedBy=str(self.writer.pk))
+        document['notes']['summary'] = 'Saved current review <checked>'
+        saved = validate_review_state(document, report=report)
+        ReviewRevision.objects.filter(report=self.record).delete()
+        ReviewRevision.objects.create(report=self.record, revision=saved.revision,
+                                      review_data=json.loads(serialize_review_state(saved)))
+        client = Client()
+        client.force_login(self.writer)
+
+        response = self.post(client, self.payload(revision=saved.revision))
+
+        assert response.status_code == 200
+        assert b'Saved current review &lt;checked&gt;' in response.content
+        assert b'<script' not in response.content
+        assert b'Selected CNV' in response.content
+        assert b'ERBB2' in response.content and b'17q12' in response.content
+        assert b'4,2' in response.content and b'GAIN' in response.content
+        assert b'Final' in response.content
+        assert ReportHtmlExportAudit.objects.get(report=self.record).revision == saved.revision
+
     def test_export_rejects_invalid_access_csrf_stale_and_conflicting_key(self):
         from pronto_web.reports.models import ReportHtmlExportAudit
         payload = self.payload()
