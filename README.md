@@ -1,5 +1,7 @@
 # PRONTO 
 For the patient report web app, see [the startup guide](docs/oppstart-nb.md).
+For ownership transfer, architecture, database, operations and validation, see
+[the Norwegian handover manual](docs/overtakelse-nb.md).
 
 **(rePort geneRator fOr iNpred Tumor bOards)**
 
