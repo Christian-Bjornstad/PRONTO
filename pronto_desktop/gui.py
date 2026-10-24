@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .theme import build_stylesheet
+from .branding import application_icon, icon_pixmap
 
 ROLE_LABELS = {
     "metadata": "Kliniske metadata", "summary": "TMB / MSI-sammendrag",
@@ -221,11 +222,18 @@ class MainWindow(QMainWindow):
         self._worker: Worker | None = None
         self._closing = False
         self._operation = ""
+        self._source_revision = 0
+        self._auto_scan_pending = False
+        self._scan_timer = QTimer(self)
+        self._scan_timer.setSingleShot(True)
+        self._scan_timer.setInterval(600)
+        self._scan_timer.timeout.connect(self._auto_scan)
         self._history: list[tuple[str, str, str, str]] = []
         self._persisted_history: list[tuple[str, str, str, str]] = []
         self._pool = QThreadPool(self)
         self._pool.setMaxThreadCount(1)
         self.setWindowTitle("PRONTO")
+        self.setWindowIcon(application_icon())
         self.setMinimumSize(1100, 760)
         self.resize(1280, 850)
         self.setStyleSheet(build_stylesheet())
@@ -279,9 +287,19 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(16, 28, 16, 24)
         layout.setSpacing(8)
+        brand_row = QHBoxLayout()
+        brand_row.setSpacing(8)
+        mark = QLabel()
+        mark.setObjectName("app-mark")
+        mark.setAccessibleName("PRONTO")
+        mark.setPixmap(icon_pixmap(28))
+        mark.setFixedSize(28, 28)
+        brand_row.addWidget(mark)
         brand = label("PRONTO")
+        brand.setWordWrap(False)
         brand.setObjectName("brand")
-        layout.addWidget(brand)
+        brand_row.addWidget(brand)
+        layout.addLayout(brand_row)
         detail = label("Analyse og rapport")
         detail.setObjectName("brand-detail")
         layout.addWidget(detail)
@@ -443,14 +461,27 @@ class MainWindow(QMainWindow):
             widget.currentIndexChanged.connect(self._import_options_changed)
         contents.addLayout(options)
         inner_layout.addWidget(foldercard)
-        self.plan_summary = label("Velg mappe og kontroller filene.", muted=True)
-        inner_layout.addWidget(self.plan_summary)
+        self.plan_summary = label("Velg mappe. Filene finnes automatisk.", muted=True)
+        self.plan_hint = label("", muted=True)
+        self.plan_hint.setAccessibleName("Veiledning for prøvevalg")
+        self.plan_hint.hide()
+        summary_labels = QVBoxLayout()
+        summary_labels.setSpacing(4)
+        summary_labels.addWidget(self.plan_summary)
+        summary_labels.addWidget(self.plan_hint)
+        selection_row = QHBoxLayout()
+        selection_row.addLayout(summary_labels, 1)
+        self.select_ready_button = button("Velg klare prøver", "select-ready-samples")
+        self.select_ready_button.clicked.connect(self.select_ready_samples)
+        self.select_ready_button.setEnabled(False)
+        selection_row.addWidget(self.select_ready_button)
+        inner_layout.addLayout(selection_row)
         self.plan_tree = QTreeWidget()
         self.plan_tree.setObjectName("import-plan")
         self.plan_tree.setAccessibleName("Importplan med prøver, kildefiler og avvik")
         self.plan_tree.setHeaderLabels(["Prøve / kilde", "Kjøring / fil", "Metadata", "Status"])
         self.plan_tree.setAlternatingRowColors(True)
-        self.plan_tree.setMinimumHeight(210)
+        self.plan_tree.setMinimumHeight(160)
         self.plan_tree.setUniformRowHeights(True)
         self.plan_tree.itemChanged.connect(self._selection_changed)
         self.plan_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
@@ -468,6 +499,12 @@ class MainWindow(QMainWindow):
         self.mapping_button = button("Koble kildefil …", "map-source")
         self.mapping_button.clicked.connect(self.map_source)
         self.mapping_button.setEnabled(False)
+        self.mapping_button.hide()
+        self.advanced_sources_button = button("Filvalg", "advanced-sources")
+        self.advanced_sources_button.setCheckable(True)
+        self.advanced_sources_button.setToolTip("Vis manuell kobling av kildefiler")
+        self.advanced_sources_button.setEnabled(False)
+        self.advanced_sources_button.toggled.connect(lambda: self._set_busy(self._worker is not None))
         self.cancel_button = button("Avbryt", "cancel-job")
         self.cancel_button.clicked.connect(self.cancel_job)
         self.cancel_button.hide()
@@ -475,6 +512,7 @@ class MainWindow(QMainWindow):
         self.import_button.clicked.connect(self.prepare_import)
         self.import_button.setEnabled(False)
         actions.addWidget(self.scan_button)
+        actions.addWidget(self.advanced_sources_button)
         actions.addWidget(self.mapping_button)
         actions.addWidget(self.cancel_button)
         actions.addStretch()
@@ -644,6 +682,7 @@ class MainWindow(QMainWindow):
             callback(result)
         except Exception as exc:
             self._log(f"Kunne ikke vise resultatet: {exc}")
+        self._resume_auto_scan()
 
     def _job_failed(self, message: str) -> None:
         operation = self._operation
@@ -653,6 +692,8 @@ class MainWindow(QMainWindow):
         self.plan_summary.setText(f"{message}" + (" Forrige importplan er beholdt." if self.plan is not None else ""))
         if self._closing:
             self.close()
+        else:
+            self._resume_auto_scan()
 
     def _set_busy(self, busy: bool) -> None:
         self.progress.setVisible(busy)
@@ -660,7 +701,13 @@ class MainWindow(QMainWindow):
         self.cancel_button.setVisible(busy)
         self.cancel_button.setEnabled(busy)
         self.scan_button.setEnabled(not busy)
+        self.advanced_sources_button.setEnabled(not busy and self.plan is not None)
+        self.mapping_button.setVisible(self.plan is not None and (
+            self.advanced_sources_button.isChecked() or any(report.issues for report in self.plan.reports)))
         self.mapping_button.setEnabled(not busy and self.plan is not None and bool(self.plan.reports))
+        self.select_ready_button.setEnabled(not busy and self.plan is not None and any(
+            self._eligible_for_selection(report) and not getattr(report, "selected", True)
+            for report in self.plan.reports))
         self.import_button.setEnabled(not busy and self.plan is not None and any(r.ready and getattr(r, "selected", True) for r in self.plan.reports))
         self.backup_button.setEnabled(not busy)
         self.account_button.setEnabled(not busy)
@@ -676,6 +723,9 @@ class MainWindow(QMainWindow):
         self._refresh_server()
 
     def cancel_job(self) -> None:
+        self._scan_timer.stop()
+        self._auto_scan_pending = False
+        self._source_revision += 1
         if self._worker is not None:
             self._worker.cancel.set()
             self.cancel_button.setEnabled(False)
@@ -685,7 +735,12 @@ class MainWindow(QMainWindow):
         start = self.folder_fields[index].text()
         directory = QFileDialog.getExistingDirectory(self, f"Velg mappe {index + 1} fra kjøringen", start)
         if directory:
-            self.folder_fields[index].setText(directory)
+            if directory == self.folder_fields[index].text():
+                self._folders_changed()
+            else:
+                self.folder_fields[index].setText(directory)
+            self._scan_timer.stop()
+            self._auto_scan()
 
     def _toggle_folders(self, expanded: bool) -> None:
         for index in range(1, len(self.folder_fields)):
@@ -705,19 +760,42 @@ class MainWindow(QMainWindow):
         self._folders_changed()
 
     def _folders_changed(self) -> None:
+        self._source_revision += 1
+        self._scan_timer.stop()
         self._folder_button_text()
         if self.plan is not None:
             self.plan = None
             self.plan_tree.clear()
-            self.plan_summary.setText("Kildene er endret. Kontroller filene på nytt.")
             self.import_button.setEnabled(False)
             self.mapping_button.setEnabled(False)
             self.metrics["samples"].setText("0")
             self.metrics["ready"].setText("0")
+        self.plan_hint.hide()
+        self.mapping_button.hide()
+        self.advanced_sources_button.setChecked(False)
+        self.advanced_sources_button.setEnabled(False)
+        self.select_ready_button.setEnabled(False)
+        paths = [field.text().strip() for field in self.folder_fields if field.text().strip()]
+        self._auto_scan_pending = bool(paths) and all(Path(path).is_absolute() for path in paths)
+        self.plan_summary.setText("Finner filer automatisk …" if self._auto_scan_pending
+                                  else "Velg mappe. Filene finnes automatisk.")
+        if self._auto_scan_pending and not self._closing:
+            self._scan_timer.start(600)
 
-    def start_scan(self) -> None:
+    def _resume_auto_scan(self) -> None:
+        if self._auto_scan_pending and not self._closing and not self._scan_timer.isActive():
+            self._scan_timer.start(0)
+
+    def _auto_scan(self) -> None:
+        if self._closing or not self._auto_scan_pending or self._worker is not None:
+            return
+        self.start_scan(automatic=True)
+
+    def start_scan(self, *, automatic: bool = False) -> None:
         if self._worker is not None:
             return
+        self._scan_timer.stop()
+        self._auto_scan_pending = False
         self.navigate(1)
         folders = tuple(Path(field.text().strip()) for field in self.folder_fields if field.text().strip())
         if not folders:
@@ -727,9 +805,25 @@ class MainWindow(QMainWindow):
             return
         from pronto_ingest.discovery import discover_folders
         options = {"report_version": self.report_version.currentData(), "cnv_source": self.cnv_source.currentData(), "cnv_solution": self.cnv_solution.currentData()}
-        self._job("Kontrollerer filer …", lambda progress, cancel: discover_folders(folders, progress=progress, cancel=cancel, **options), self.show_plan)
+        revision = self._source_revision
+        def discover(progress: Any, cancel: Any) -> Any:
+            # Network paths and existence checks remain outside the GUI thread.
+            if automatic and not all(folder.is_dir() for folder in folders):
+                return None
+            return discover_folders(folders, progress=progress, cancel=cancel, **options)
+        self._job("Finner og kobler filer …", discover, lambda plan: self._scan_finished(plan, revision))
+
+    def _scan_finished(self, plan: Any, revision: int) -> None:
+        if revision != self._source_revision:
+            return
+        if plan is None:
+            self.plan_summary.setText("Velg en eksisterende mappe.")
+            return
+        self.show_plan(plan)
 
     def show_plan(self, plan: Any) -> None:
+        self._scan_timer.stop()
+        self._auto_scan_pending = False
         self.plan = plan
         self.plan_tree.blockSignals(True)
         self.plan_tree.clear()
@@ -756,10 +850,11 @@ class MainWindow(QMainWindow):
                 child.setToolTip(1, str(issue))
                 root.addChild(child)
         if plan.unassigned:
-            group = QTreeWidgetItem(["Kilder uten kobling", "", "", "Ikke inkludert"])
+            group = QTreeWidgetItem(["Andre filer", str(len(plan.unassigned)), "", "Ikke brukt"])
+            group.setToolTip(0, "Filer som ikke inngår i det valgte rapportgrunnlaget.")
             self.plan_tree.addTopLevelItem(group)
             for candidate in plan.unassigned:
-                item = QTreeWidgetItem([ROLE_LABELS.get(candidate.role, candidate.role), Path(candidate.path).name, "", "Uavklart"])
+                item = QTreeWidgetItem([ROLE_LABELS.get(candidate.role, candidate.role), Path(candidate.path).name, "", "Ikke brukt"])
                 item.setToolTip(1, str(candidate.path))
                 group.addChild(item)
         for warning in plan.warnings:
@@ -773,21 +868,46 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _report_status(report: Any) -> str:
+        if getattr(report, "metadata_flag", "").strip().upper() in {"N", "NO", "NEI", "FALSE", "0"}:
+            return "Sperret i metadata"
         if not report.ready:
             return "Må avklares"
         return "Klar" if getattr(report, "selected", True) else "Ikke valgt"
 
+    @staticmethod
+    def _eligible_for_selection(report: Any) -> bool:
+        return bool(report.ready and getattr(report, "metadata_flag", "").strip().upper()
+                    in {"", "-", "Y", "YES", "JA", "TRUE", "1"})
+
+    def select_ready_samples(self) -> None:
+        if self.plan is None or self._worker is not None:
+            return
+        from pronto_ingest.discovery import set_report_selected
+        plan = self.plan
+        for report in self.plan.reports:
+            if self._eligible_for_selection(report) and not report.selected:
+                plan = set_report_selected(plan, report.key, True)
+        self.show_plan(plan)
+
     def _update_plan_summary(self) -> None:
         if self.plan is None:
             return
-        ready = sum(bool(report.ready) for report in self.plan.reports)
+        ready = sum(self._eligible_for_selection(report) for report in self.plan.reports)
         selected = sum(bool(report.ready and getattr(report, "selected", True)) for report in self.plan.reports)
         self.metrics["samples"].setText(str(len(self.plan.reports)))
         self.metrics["ready"].setText(str(selected))
         summary = f"{len(self.plan.reports)} prøver · {ready} klare · {selected} valgt for import"
-        if self.plan.unassigned:
-            summary += f" · {len(self.plan.unassigned)} kilder uten kobling"
         self.plan_summary.setText(summary)
+        if ready:
+            if ready != len(self.plan.reports):
+                self.plan_hint.setText("Klare prøver kan importeres. Kontroller øvrige avvik.")
+            else:
+                self.plan_hint.setText("Filer funnet. Velg prøver for import." if not selected
+                                       else "Filer funnet. Kontroller prøvevalget før import.")
+        else:
+            self.plan_hint.setText("Kontroller avvikene under prøvene." if self.plan.reports
+                                   else "Fant ingen prøver. Kontroller at riktig kjøringsmappe er valgt.")
+        self.plan_hint.show()
 
     def _selection_changed(self, item: QTreeWidgetItem, column: int) -> None:
         if column != 0 or self.plan is None or self._worker is not None:
@@ -816,12 +936,10 @@ class MainWindow(QMainWindow):
         dialog = MappingDialog(self.plan, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             from pronto_ingest.discovery import assign_source
-            try:
-                plan = assign_source(self.plan, dialog.report.currentData(), dialog.role.currentData(), dialog.source.currentData())
-            except Exception as exc:
-                self._log(f"Koblingen ble ikke endret: {exc}")
-            else:
-                self.show_plan(plan)
+            plan, revision = self.plan, self._source_revision
+            key, role, source = dialog.report.currentData(), dialog.role.currentData(), dialog.source.currentData()
+            self._job("Kontrollerer filvalg …", lambda progress, cancel: assign_source(plan, key, role, source),
+                      lambda result: self._scan_finished(result, revision))
 
     def prepare_import(self) -> None:
         if self.plan is None or self._worker is not None:
@@ -995,6 +1113,8 @@ class MainWindow(QMainWindow):
         self._log(f"Sikkerhetskopi opprettet: {path}")
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        self._scan_timer.stop()
+        self._auto_scan_pending = False
         if self._worker is not None:
             self._closing = True
             self.cancel_job()
