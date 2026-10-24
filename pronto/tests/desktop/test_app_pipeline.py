@@ -4,8 +4,11 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
 
-def test_five_folders_to_authenticated_saved_report_and_exports(tmp_path):
+
+@pytest.mark.parametrize('layout', ['legacy', 'actual'])
+def test_run_to_authenticated_saved_report_and_exports(tmp_path, layout):
     root = Path(__file__).resolve().parents[3]
     environment = dict(os.environ)
     for name in ('DJANGO_SETTINGS_MODULE', 'PRONTO_DJANGO_DB', 'PRONTO_DJANGO_SECRET_KEY'):
@@ -13,6 +16,7 @@ def test_five_folders_to_authenticated_saved_report_and_exports(tmp_path):
     environment['LOCALAPPDATA'] = str(tmp_path / 'profile')
     script = r'''
 import http.cookiejar
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -25,23 +29,32 @@ from urllib.error import HTTPError
 from uuid import uuid4
 
 from pronto_desktop.runtime import DesktopRuntime
-from pronto_ingest.discovery import discover_folders
+from pronto_ingest.discovery import discover_folders, set_report_selected
 from pronto_ingest.importer import import_plan
 
 target = Path(sys.argv[1])
+layout = sys.argv[2]
 root = Path.cwd()
 fixture = root / 'test_data/ous/251114_A02134_0115_BHCJCKDRX7_TSO_500_LocalApp_postprocessing_results'
-sample = 'IPD2225-D01-P01-A08'
-folders = [target / 'sources' / str(n) for n in range(5)]
-for directory in folders:
-    directory.mkdir(parents=True)
-shutil.copy2(fixture / 'InPreD_PRONTO_metadata.txt', folders[0])
-shutil.copy2(next(fixture.glob('*_variant_summary.tsv')), folders[1])
-for path in (fixture / sample).iterdir():
-    if path.name.endswith('_small_variant_table_forQC.tsv') or path.name == 'sample_list.tsv':
-        shutil.copy2(path, folders[2] / path.name)
-    elif path.suffix == '.png' or path.name.endswith('_CNV_overview_plots.pdf'):
-        shutil.copy2(path, folders[3] / path.name)
+if layout == 'actual':
+    from scripts.create_desktop_example import create_example, SAMPLE
+    create_example(target / 'sources')
+    folders = [target / 'sources']
+    sample = SAMPLE
+else:
+    sample = 'IPD2225-D01-P01-A08'
+    folders = [target / 'sources' / str(n) for n in range(5)]
+    for directory in folders:
+        directory.mkdir(parents=True)
+    shutil.copy2(fixture / 'InPreD_PRONTO_metadata.txt', folders[0])
+    shutil.copy2(next(fixture.glob('*_variant_summary.tsv')), folders[1])
+    for path in (fixture / sample).iterdir():
+        if path.name.endswith('_small_variant_table_forQC.tsv') or path.name == 'sample_list.tsv':
+            shutil.copy2(path, folders[2] / path.name)
+        elif path.suffix == '.png' or path.name.endswith('_CNV_overview_plots.pdf'):
+            shutil.copy2(path, folders[3] / path.name)
+source_hashes = {str(path): hashlib.sha256(path.read_bytes()).hexdigest()
+                 for path in (target / 'sources').rglob('*') if path.is_file()}
 with socket.socket() as sock:
     sock.bind(('127.0.0.1', 0))
     port = sock.getsockname()[1]
@@ -51,10 +64,22 @@ user = runtime.create_user('handover-operator', 'Synthetic-workstation-password!
 plan = discover_folders(folders)
 assert len(plan.reports) == 1
 assert plan.reports[0].ready, plan.reports[0].issues
+if layout == 'actual':
+    assert plan.profile == 'tsoppi-run-v1'
+    assert not plan.reports[0].selected
+    try:
+        import_plan(plan, user, runtime.raw_root)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('Unselected metadata must not import')
+    plan = set_report_selected(plan, plan.reports[0].key, True)
 result = import_plan(plan, user, runtime.raw_root)
 assert [item.status for item in result.items] == ['imported'], result
 again = import_plan(plan, user, runtime.raw_root)
 assert [item.status for item in again.items] == ['already_imported']
+assert source_hashes == {str(path): hashlib.sha256(path.read_bytes()).hexdigest()
+                         for path in (target / 'sources').rglob('*') if path.is_file()}
 report_id = result.items[0].report_id
 jar = http.cookiejar.CookieJar()
 client = build_opener(HTTPCookieProcessor(jar))
@@ -112,7 +137,7 @@ finally:
 assert not runtime.server.running
 print('DESKTOP_PIPELINE_OK')
 '''
-    completed = subprocess.run([sys.executable, '-c', script, str(tmp_path)], cwd=root,
+    completed = subprocess.run([sys.executable, '-c', script, str(tmp_path), layout], cwd=root,
                                env=environment, capture_output=True, text=True, timeout=180)
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert 'DESKTOP_PIPELINE_OK' in completed.stdout

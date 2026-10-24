@@ -1,1 +1,1 @@
-"""Bounded local import of an explicitly selected five-folder run."""
+"""Bounded local import of explicitly selected sequencing run sources."""

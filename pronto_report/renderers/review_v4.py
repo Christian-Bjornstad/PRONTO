@@ -2,11 +2,13 @@
 from html import escape
 
 from .review_v3 import checkbox, shown
+from .source_fields import cnv_display_fields
 
 
 def cnv_row(table, row, activities, readonly, manual=False):
     identifier=row['findingId']; activity=activities.get(identifier,{})
     fields=row.get('manualFields') or dict(zip(table['headers'],row['values']))
+    if table['kind']=='CNV': fields=cnv_display_fields(fields)
     decision=activity.get('reportingDecision','UNREVIEWED')
     disabled=' disabled' if readonly else ''
     options=''.join(f'<option value="{value}"{" selected" if value==decision else ""}>{value}</option>'

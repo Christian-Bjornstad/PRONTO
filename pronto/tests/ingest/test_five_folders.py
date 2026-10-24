@@ -32,9 +32,12 @@ def test_discovers_recursive_five_folder_run(five_folders):
     assert report.run_id == '251114_A02134_0115_BHCJCKDRX7'
 
 
-def test_requires_five_separate_nonoverlapping_folders(five_folders):
+def test_requires_one_to_five_separate_nonoverlapping_folders(five_folders):
     with pytest.raises(ValueError):
-        discover_folders(five_folders[:4])
+        discover_folders(())
+    assert discover_folders(five_folders[:4]).reports
+    with pytest.raises(ValueError):
+        discover_folders((*five_folders, five_folders[0].parent))
     with pytest.raises(ValueError):
         discover_folders((*five_folders[:4], five_folders[0]))
     nested = five_folders[0] / 'child'

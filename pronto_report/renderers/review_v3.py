@@ -1,6 +1,7 @@
 """Markup for source-complete review and linked manual section QC."""
 import base64
 from html import escape
+from .source_fields import cnv_display_fields
 
 NOTE_FIELDS = (
     ('history','History / Reason for testing'), ('variantDescription','Variant description'),
@@ -53,6 +54,8 @@ def source_table(table, review, *, readonly=False):
                   + f'<span hidden data-source-kind="{table["kind"]}"></span></td>')
         search=' '.join(str(v) for v in row['values'] if v is not None).casefold()
         fields=dict(zip(table['headers'],row['values']))
+        if table['kind'] == 'CNV':
+            fields=cnv_display_fields(fields)
         short=' · '.join(str(fields.get(key)) for key in ('Gene_Symbol','Gene_A','Gene_B','Event_ID','Adjusted_Tumor_CN') if fields.get(key) is not None)
         rows.append(f'<tr data-source-id="{identifier}" data-source-kind="{table["kind"]}" '
                     f'data-source-label="{escape(short,quote=True)}" '
@@ -87,11 +90,14 @@ def figure(identifier, media, payload, caption):
 def plot_kind(asset):
     """Prefer the importer's explicit role, with established filename fallbacks."""
     description = str(asset.get('description', '')).strip().casefold()
-    roles = {'cnv': 'cnv', 'qc': 'qc', 'rna / domene': 'rna'}
+    roles = {'cnv': 'cnv', 'qc': 'qc', 'rna / domene': 'rna', 'rna-profil': 'rna',
+             'mutasjonssignatur': 'signatures'}
     if description in roles:
         return roles[description]
     name = str(asset['name']).casefold()
-    if 'domain_plot' in name:
+    if 'joint_mutational_signature' in name:
+        return 'signatures'
+    if 'domain_plot' in name or 'rna_profiles' in name:
         return 'rna'
     if 'cnv' in name or 'cancan' in name:
         return 'cnv'
@@ -130,9 +136,16 @@ def rna_plots(report, images):
             continue
         for page,(media,payload) in enumerate(images.get(str(asset['assetId']),())):
             results.append(figure(f'rna-plot-{len(results)}-{page}',media,payload,str(asset['name'])))
-    return ('<p>Source domain plots. Source QC approval and report highlights are independent; '
-            'plots are not automatically matched by approximate filenames.</p>'+''.join(results)
-            if results else '<p class="empty-state">No RNA domain plots provided.</p>')
+    return ''.join(results) if results else '<p class="empty-state">No RNA plots provided.</p>'
+
+
+def signature_plots(report, images):
+    results = []
+    for asset in report.attachments:
+        if plot_kind(asset) == 'signatures':
+            for page, (media, payload) in enumerate(images.get(str(asset['assetId']), ())):
+                results.append(figure(f'signature-plot-{len(results)}-{page}', media, payload, str(asset['name'])))
+    return ''.join(results)
 
 
 def enhance_context(context, report, review, images, readonly):
@@ -145,7 +158,7 @@ def enhance_context(context, report, review, images, readonly):
         + '<div id="cnv-plots-view" hidden>'+cnv_plots(report,images)+'</div>')
     context['rna_content'] = qc_control(review,'rna',readonly=readonly) + source_tables(report,review,'RNA',readonly) + rna_plots(report,images)
     context['report_section_qc']=''.join(qc_control(review,key,readonly=readonly,suffix='report') for key in QC_LABELS)
-    context['signature_highlights']=''
+    context['signature_highlights']=signature_plots(report,images)
     from .report_pdf import project_report_export
     selected=project_report_export(report,review)
     source_items=[(kind,row) for kind in ('cnv','rna') for row in selected[kind]]

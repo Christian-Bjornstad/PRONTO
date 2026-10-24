@@ -11,6 +11,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, 
 
 from pronto_report.migration import migrate_review_state_to_v3
 from pronto_report.serialization import serialize_report_data, serialize_review_state
+from .source_fields import cnv_display_fields
 
 TEMPLATE_VERSION = '1.3'
 BLUE = '#203b63'; GREEN = '#14592c'; OLIVE = '#708322'
@@ -69,6 +70,7 @@ def project_report_export(report, review):
     for identifier,group in grouped.items():
         fields={header:(values[0] if len(values)==1 else ' / '.join(str(value) for value in values))
                 for header,values in group['fields'].items()}
+        if group['kind']=='CNV': fields=cnv_display_fields(fields)
         findings[group['kind']].append({'id':identifier,'fields':fields,'review':finding_activities[identifier],
                                        'source':group['source'],'demo':group['demo']})
     manual_cnv=[]

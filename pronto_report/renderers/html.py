@@ -513,7 +513,8 @@ def _plot_figure(kind: str, index: int, total: int, media_type: str, payload: by
     if media_type not in {"image/png", "image/jpeg"}:
         raise ValueError("Unsupported report plot image type")
     label = (f"CNV {panel}" if kind == "cnv" and panel else f"CNV page {index} of {total}" if kind == "cnv"
-             else f"RNA plot {index} of {total}" if kind == "rna" else f"QC plot {index} of {total}")
+             else f"RNA plot {index} of {total}" if kind == "rna"
+             else f"Mutational signature {index} of {total}" if kind == "signatures" else f"QC plot {index} of {total}")
     data_uri = f"data:{media_type};base64,{base64.b64encode(payload).decode('ascii')}"
     hidden = " hidden" if kind == "cnv" and index != 1 and panel is None else ""
     return (
@@ -540,7 +541,7 @@ def _plot_content(
         for media_type, payload in plot_images.get(str(item["assetId"]), ())
     ]
     if not images:
-        label = {"cnv": "CNV plot", "rna": "RNA plot", "qc": "QC plot"}[kind]
+        label = {"cnv": "CNV plot", "rna": "RNA plot", "qc": "QC plot", "signatures": "Mutational signature"}[kind]
         return f'<p class="empty-state">{label} is not available for this report.</p>'
     # Verified against the nine raster pages of the approved OUS CNV overview PDF.
     panels = ("A1", "A2", "B2", "B3", "C1", "C2", "C3", "C4", "C6") if (
@@ -549,7 +550,7 @@ def _plot_content(
     ) else ()
     figure_items = [
         _plot_figure(kind, index, len(images), media_type, payload,
-                     str(item["name"]) if kind == "rna" else str(item.get("description", "")),
+                     str(item["name"]) if kind in {"rna", "signatures"} else str(item.get("description", "")),
                      panels[index - 1] if panels else None)
         for index, (item, media_type, payload) in enumerate(images, start=1)
     ]
@@ -1015,6 +1016,7 @@ def render_html(
         "cnv_content": _plot_content(report, plot_images, "cnv"),
         "qc_content": _plot_content(report, plot_images, "qc"),
         "rna_content": _plot_content(report, plot_images, "rna"),
+        "signature_highlights": _plot_content(report, plot_images, "signatures") if any(review_v3.plot_kind(item) == 'signatures' for item in report.attachments) else '',
         "qc_metrics": _qc_metrics(report),
         "qc_review": _qc_review(review, snapshot),
         "tumour_content": _tumour_content(report, review, snapshot, bool(html_export_url or pdf_export_url), actor_label is not None),

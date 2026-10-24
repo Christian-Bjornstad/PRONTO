@@ -3,7 +3,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 REQUIRED_ROLES = ('metadata', 'summary', 'variants', 'sample_list')
-ROLES = (*REQUIRED_ROLES, 'cnv_table', 'rna_table', 'cnv_plot', 'qc_plot', 'other_plot')
+ROLES = (*REQUIRED_ROLES, 'cnv_table', 'rna_table', 'cnv_plot', 'qc_plot', 'other_plot',
+         'linkage', 'cancan_table', 'signature_plot', 'rna_profile_plot', 'supporting')
 
 
 class ImportCancelled(Exception):
@@ -24,6 +25,13 @@ class ReportPlan:
     run_id: str
     files: dict[str, tuple[Path, ...]] = field(default_factory=dict)
     issues: tuple[str, ...] = ()
+    profile: str = 'legacy'
+    metadata_flag: str = ''
+    selected: bool = True
+    selection_confirmed: bool = False
+    cnv_source: str = 'merged'
+    cnv_solution: str = 'main'
+    report_version: str = ''
 
     @property
     def key(self):
@@ -32,6 +40,10 @@ class ReportPlan:
 
     @property
     def ready(self):
+        if self.profile == 'tsoppi-run-v1':
+            return (not self.issues
+                    and all(len(self.files.get(role, ())) == 1 for role in REQUIRED_ROLES[:3])
+                    and (len(self.files.get('sample_list', ())) == 1 or bool(self.files.get('linkage'))))
         return not self.issues and all(len(self.files.get(role, ())) == 1 for role in REQUIRED_ROLES)
 
 
@@ -42,6 +54,11 @@ class DiscoveryPlan:
     unassigned: tuple[SourceCandidate, ...] = ()
     warnings: tuple[str, ...] = ()
     source_signatures: dict[Path, tuple[int, int]] = field(default_factory=dict)
+    profile: str = 'legacy'
+    run_ids: tuple[str, ...] = ()
+    report_version: str = ''
+    cnv_source: str = 'merged'
+    cnv_solution: str = 'main'
 
 
 @dataclass(frozen=True)
