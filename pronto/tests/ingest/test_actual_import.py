@@ -247,6 +247,114 @@ def test_rna_row_with_conflicting_identity_columns_is_not_imported(actual_source
     path = actual_sources['raw'] / DNA / f'{RNA}_fusion_and_splice_variant_candidates.tsv'
     write(path, 'Provisional_Event_Type\tSample_ID\tsample_id\tGene_A\n'
           f'Fusion\t{RNA}\tOTHER-RNA\tTEST\n')
-    result = import_plan(selected_plan(actual_sources), actor, tmp_path / 'archive')
+    plan = discover_folders(tuple(actual_sources.values()))
+    assert not plan.reports[0].ready
+    assert any('rna_table' in issue for issue in plan.reports[0].issues)
+    # Import also rejects the row if a caller bypasses the discovery warning.
+    report = replace(plan.reports[0], issues=(), selected=True, selection_confirmed=True)
+    result = import_plan(replace(plan, reports=(report,)), actor, tmp_path / 'archive')
     assert result.items[0].status == 'failed'
     assert not ReportRecord.objects.exists()
+
+
+@pytest.mark.parametrize('family,role', [('_TSO_500_LocalApp_postprocessing_results', 'cnv_table'),
+                                      ('-Report-preQC-NewPRONTO-Version', 'variants')])
+def test_import_scope_accepts_known_run_folder_aliases(tmp_path, family, role):
+    from pronto_ingest.contracts import ReportPlan
+    from pronto_ingest.importer import _validate_run_scope
+    plan = ReportPlan(DNA, RUN, profile='tsoppi-run-v1', report_version='new')
+    _validate_run_scope(tmp_path / (RUN + family) / DNA / 'synthetic.tsv', role, plan)
+
+
+@pytest.mark.parametrize('name,role', [(f'{DNA}-MAIN-gene-table-v2.TSV', 'cancan_table'),
+                                     (f'{DNA}-main-Cancan-result-v2.PNG', 'cnv_plot')])
+def test_import_filename_accepts_role_aliases_with_exact_sample(tmp_path, name, role):
+    from pronto_ingest.contracts import ReportPlan
+    from pronto_ingest.importer import _filename_identity
+    plan = ReportPlan(DNA, RUN, profile='tsoppi-run-v1', report_version='new', cnv_source='cancan')
+    _filename_identity(tmp_path / DNA / name, role, plan, {DNA, RNA})
+
+
+@pytest.mark.django_db
+def test_aliases_import_automatically_without_manual_file_assignment(actual_sources, tmp_path, django_user_model):
+    from pronto_web.reports.models import ImportSource, ReportRecord
+    actor = django_user_model.objects.create_user(username='operator')
+    raw = actual_sources['raw']
+    (raw / 'InPreD_PRONTO_metadata_tsoppi.txt').rename(raw / 'Clinical_metadata.txt')
+    (raw / f'{RUN}_variant_summary.tsv').rename(raw / 'variant-summary.txt')
+    variant = actual_sources['new'] / DNA / f'{DNA}_small_variant_table_forQC.tsv'
+    variant.rename(variant.with_name(f'{DNA}-small-variant-table-forQC-v2.TXT'))
+    plan = selected_plan(actual_sources)
+    result = import_plan(plan, actor, tmp_path / 'archive')
+    assert result.items[0].status == 'imported', result
+    assert ReportRecord.objects.get().report_data['sample']['sampleId'] == DNA
+    assert ImportSource.objects.get(role='variants').original_name.endswith('forQC-v2.TXT')
+
+
+@pytest.mark.django_db
+def test_csv_primary_alias_keeps_original_table_and_hash(actual_sources, tmp_path, django_user_model):
+    from hashlib import sha256
+    from pronto_web.reports.models import ReportRecord
+    actor = django_user_model.objects.create_user(username='operator')
+    path = actual_sources['new'] / DNA / f'{DNA}_small_variant_table_forQC.tsv'
+    target = path.with_name(f'{DNA}_small_variant_table_forQC_v2.csv')
+    write(target, path.read_text().replace('\t', ';'))
+    path.unlink()
+    result = import_plan(selected_plan(actual_sources), actor, tmp_path / 'archive')
+    assert result.items[0].status == 'imported', result
+    table = ReportRecord.objects.get().report_data['sourceTables'][0]
+    assert table['fileName'] == target.name
+    assert table['sha256'] == sha256(target.read_bytes()).hexdigest()
+    assert table['headers'] == ['Sample_ID', 'Gene_symbol', 'Genomic_location', 'DNA_change', 'Change_summary']
+    assert table['rows'][0]['values'][-1] == 'Synthetic change'
+
+
+@pytest.mark.parametrize('name,role', [('OTHER-small-variant-table-forQC-v2.TXT', 'variants'),
+                                     ('OTHER-merged-CNV-summary-FC-sorted-v2.TSV', 'cnv_table'),
+                                     ('OTHER-sample-QC-plot-v2.PNG', 'qc_plot'),
+                                     ('OTHER-fusion-and-splice-variant-candidates-withQC-v2.xlsx', 'rna_table')])
+def test_manual_alias_with_explicit_foreign_sample_is_rejected(tmp_path, name, role):
+    from pronto_ingest.contracts import ReportPlan
+    from pronto_ingest.importer import _filename_identity, ImportProblem
+    plan = ReportPlan(DNA, RUN, profile='tsoppi-run-v1', report_version='new')
+    with pytest.raises(ImportProblem):
+        _filename_identity(tmp_path / DNA / name, role, plan, {DNA, RNA})
+
+
+@pytest.mark.django_db
+def test_generic_analysis_summary_name_uses_content_and_run_scope(actual_sources, tmp_path, django_user_model):
+    actor = django_user_model.objects.create_user(username='operator')
+    source = actual_sources['raw'] / f'{RUN}_variant_summary.tsv'
+    source.rename(source.with_name('analysis_variant_summary.tsv'))
+    result = import_plan(selected_plan(actual_sources), actor, tmp_path / 'archive')
+    assert result.items[0].status == 'imported', result
+
+
+def test_nested_foreign_run_cannot_hide_inside_current_run(tmp_path):
+    from pronto_ingest.contracts import ReportPlan
+    from pronto_ingest.importer import _validate_run_scope, ImportProblem
+    plan = ReportPlan(DNA, RUN, profile='tsoppi-run-v1', report_version='new')
+    source = tmp_path / RUN / DNA / OLD_RUN / DNA / 'synthetic.tsv'
+    with pytest.raises(ImportProblem):
+        _validate_run_scope(source, 'cnv_table', plan)
+
+
+@pytest.mark.django_db
+def test_quoted_multiline_primary_cell_survives_canonicalisation(actual_sources, tmp_path, django_user_model):
+    import csv
+    from pronto_web.reports.models import ReportRecord
+    actor = django_user_model.objects.create_user(username='operator')
+    path = actual_sources['new'] / DNA / f'{DNA}_small_variant_table_forQC.tsv'
+    target = path.with_suffix('.csv')
+    expected = 'First line\n#clinical content\nLast line'
+    with target.open('w', encoding='utf-8', newline='') as stream:
+        stream.write('# Synthetic /hg19/TR\n')
+        writer = csv.writer(stream, delimiter=';')
+        writer.writerow(['Sample_ID', 'Gene_symbol', 'Genomic_location', 'DNA_change', 'Change_summary'])
+        writer.writerow([DNA, 'TEST', '1:123', 'A>G', expected])
+    path.unlink()
+    result = import_plan(selected_plan(actual_sources), actor, tmp_path / 'archive')
+    assert result.items[0].status == 'imported', result
+    document = ReportRecord.objects.get().report_data
+    assert document['variants'][0]['source']['rawValue'] == expected
+    assert document['sourceTables'][0]['rows'][0]['values'][-1] == expected

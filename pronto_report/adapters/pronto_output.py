@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import csv
 import hashlib
 import re
 from pathlib import Path
@@ -34,16 +33,13 @@ def _is_missing(value: str | None) -> bool:
 
 def _rows(path: Path) -> list[dict[str, str]]:
     if path.stat().st_size > MAX_SOURCE_BYTES:
-        raise AdapterError("Source file exceeds the allowed size")
-    with path.open(encoding="utf-8-sig", newline="") as source_file:
-        data_lines = (line for line in source_file if not line.startswith("#"))
-        reader = csv.DictReader(data_lines, delimiter="\t")
-        rows = []
-        for row in reader:
-            if len(rows) >= MAX_SOURCE_ROWS:
-                raise AdapterError("Source table exceeds the allowed row count")
-            rows.append(row)
-        return rows
+        raise AdapterError('Source file exceeds the allowed size')
+    from .text_tables import read_text_rows
+    try:
+        return read_text_rows(path, delimiter='\t', max_bytes=MAX_SOURCE_BYTES,
+                              max_rows=MAX_SOURCE_ROWS)
+    except ValueError:
+        raise AdapterError('Source table exceeds a limit or has an invalid text format') from None
 
 
 def _sha256(path: Path) -> str:

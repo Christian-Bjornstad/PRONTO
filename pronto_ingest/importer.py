@@ -16,6 +16,7 @@ from .contracts import (ImportCancelled, ImportItemResult, ImportResult, REQUIRE
                         ROLES, check_cancel)
 from .discovery import MAX_BYTES, SAMPLE_COLUMNS, IDENTIFIER, regular_file, table_rows
 from .linkage import resolve_links
+from .naming import classify_run_directory, declared_file_sample, file_matches, summary_run_id
 
 MAX_ASSET_BYTES = 64 * 1024 * 1024
 MAX_ASSETS = 100
@@ -55,7 +56,15 @@ def _validate_plot(content, media):
 
 
 def _filename_identity(path, role, report_plan, linked):
-    if role == 'summary' and path.name.endswith('_variant_summary.tsv'):
+    if report_plan.profile == 'tsoppi-run-v1':
+        declared_sample = declared_file_sample(path.name, role, solution=report_plan.cnv_solution)
+        allowed = linked if role == 'qc_plot' else linked - {report_plan.sample_id} if role in {'rna_table', 'rna_profile_plot'} else {report_plan.sample_id}
+        if declared_sample is not None and declared_sample not in allowed:
+            raise ImportProblem('Kildefilens prøve-ID avviker fra valgt prøve.')
+    declared_run = summary_run_id(path.name) if role == 'summary' else None
+    if declared_run and declared_run != report_plan.run_id:
+        raise ImportProblem('Sammendragsfilens kjørings-ID avviker fra valgt kjøring.')
+    if report_plan.profile == 'legacy' and role == 'summary' and path.name.endswith('_variant_summary.tsv'):
         if path.name[:-len('_variant_summary.tsv')] != report_plan.run_id:
             raise ImportProblem('Sammendragsfilens kjørings-ID avviker fra valgt kjøring.')
     suffixes = {'variants': ('_small_variant_table_forQC.tsv', '_small_variant_table.tsv'),
@@ -68,13 +77,13 @@ def _filename_identity(path, role, report_plan, linked):
         if path.name.endswith(suffix) and path.name[:-len(suffix)] not in allowed:
             raise ImportProblem('Kildefilens prøve-ID avviker fra valgt prøve.')
     if report_plan.profile == 'tsoppi-run-v1' and role in {'cnv_table', 'cancan_table'}:
-        if report_plan.sample_id not in path.parts or not path.name.startswith(report_plan.sample_id + '_'):
+        if report_plan.sample_id not in path.parts:
             raise ImportProblem('CNV-kilden mangler eksakt DNA-prøve i mappe og filnavn.')
-        if role == 'cancan_table' and path.name != f'{report_plan.sample_id}_{report_plan.cnv_solution}_gene_table.tsv':
+        if role == 'cancan_table' and not file_matches(path.name, report_plan.sample_id, 'cancan_table', solution=report_plan.cnv_solution):
             raise ImportProblem('Cancan-tabellen avviker fra valgt løsning.')
     if (report_plan.profile == 'tsoppi-run-v1' and role == 'cnv_plot'
             and report_plan.cnv_source == 'cancan'
-            and path.name != f'{report_plan.sample_id}_{report_plan.cnv_solution}_cancan_result.png'):
+            and not file_matches(path.name, report_plan.sample_id, 'cancan_plot', solution=report_plan.cnv_solution)):
         raise ImportProblem('Cancan-plottet avviker fra valgt prøve og løsning.')
 
 
@@ -82,24 +91,26 @@ def _validate_run_scope(path, role, report_plan):
     """A manual choice must retain the versioned profile's run and DNA scope."""
     if report_plan.profile != 'tsoppi-run-v1':
         return
-    version_suffix = {'new': '_report_preQC_newPRONTO_version',
-                      'legacy': '_report_preQC', 'raw': ''}[report_plan.report_version]
+    version = report_plan.report_version
     versions = {
-        'metadata': ('',), 'summary': ('',), 'variants': (version_suffix,),
-        'sample_list': ('', version_suffix), 'linkage': ('',),
-        'cnv_table': ('',), 'cancan_table': ('_CNVs',), 'qc_plot': ('',),
-        'signature_plot': ('',), 'rna_profile_plot': ('',), 'rna_table': ('',),
-        'supporting': (version_suffix,), 'other_plot': ('', version_suffix),
-        'cnv_plot': ('_CNVs',) if report_plan.cnv_source == 'cancan' else ('', version_suffix),
+        'metadata': ('raw',), 'summary': ('raw',), 'variants': (version,),
+        'sample_list': ('raw', version), 'linkage': ('raw',),
+        'cnv_table': ('raw',), 'cancan_table': ('cnv',), 'qc_plot': ('raw',),
+        'signature_plot': ('raw',), 'rna_profile_plot': ('raw',), 'rna_table': ('raw',),
+        'supporting': (version,), 'other_plot': ('raw', version),
+        'cnv_plot': ('cnv',) if report_plan.cnv_source == 'cancan' else ('raw', version),
     }
-    root_names = {report_plan.run_id + suffix for suffix in versions[role]}
     for root in path.parents:
-        if root.name not in root_names:
+        family = classify_run_directory(root.name)
+        if family is None:
             continue
+        if family[0] != report_plan.run_id or family[1] not in versions[role]:
+            break
         if role in {'metadata', 'summary'} and path.parent == root:
             return
         if role not in {'metadata', 'summary'} and path.is_relative_to(root / report_plan.sample_id):
             return
+        break
     raise ImportProblem('Kildefilen avviker fra valgt kjøring, rapportversjon eller DNA-prøvemappe.')
 
 
@@ -197,17 +208,16 @@ def _canonical_sources(report_plan, sources, canonical, linked):
         writer = csv.DictWriter(stream, fieldnames=list(row), delimiter='\t')
         writer.writeheader()
         writer.writerow(row)
-    shutil.copyfile(sources['summary'][0], canonical / 'run_variant_summary.tsv')
+    _canonical_table(sources['summary'][0], canonical / 'run_variant_summary.tsv')
     variant = sources['variants'][0]
     builds = {_reference_build(path) for path in dict.fromkeys((*sources.get('variants', ()), *sources.get('linkage', ())))}
     builds.discard(None)
     if len(builds) > 1:
         raise ImportProblem('Variantkildene angir ulike referansegenomer.')
     target = sample_dir / f'{report_plan.sample_id}_small_variant_table_forQC.tsv'
-    if _reference_build(variant) is None and builds:
-        target.write_bytes(f'# Reference declared by archived source: /{next(iter(builds))}/\n'.encode() + variant.read_bytes())
-    else:
-        shutil.copyfile(variant, target)
+    reference_comment = (f'# Reference declared by archived source: /{next(iter(builds))}/\n'
+                         if _reference_build(variant) is None and builds else '')
+    _canonical_table(variant, target, extra_comment=reference_comment)
     if sources.get('sample_list'):
         shutil.copyfile(sources['sample_list'][0], sample_dir / 'sample_list.tsv')
     else:
@@ -216,6 +226,23 @@ def _canonical_sources(report_plan, sources, canonical, linked):
             writer.writerow(['sample_type', 'sample_ID'])
             writer.writerow(['dna_tumor', report_plan.sample_id])
             writer.writerows(['rna_tumor', sample] for sample in sorted(linked - {report_plan.sample_id}))
+
+
+def _canonical_table(source, target, *, extra_comment=''):
+    """Normalise the adapter delimiter only; archived source bytes are preserved."""
+    rows = table_rows(source)
+    if not rows:
+        raise ImportProblem('Den påkrevde kildetabellen mangler datarader.')
+    with target.open('w', encoding='utf-8', newline='') as output:
+        output.write(extra_comment)
+        with source.open(encoding='utf-8-sig') as original:
+            for line in original:
+                if not line.startswith('#'):
+                    break
+                output.write(line)
+        writer = csv.DictWriter(output, fieldnames=list(rows[0]), delimiter='\t')
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def _build_report(report_plan, sources, archive, hashes, original_names, cancel=None):
@@ -230,6 +257,14 @@ def _build_report(report_plan, sources, archive, hashes, original_names, cancel=
     report = adapt_pronto_output(canonical, sample_id=report_plan.sample_id,
                                 generated_at=now, generator_version='desktop-1')
     document = json.loads(serialize_report_data(report))
+    variant_source = sources['variants'][0]
+    variant_table = read_source_table(variant_source, kind='VARIANTS')
+    if len(variant_table['rows']) != len(document['variants']):
+        raise ImportProblem('Varianttabellen avviker fra rapportens variantgrunnlag.')
+    variant_table['fileName'] = original_names[variant_source]
+    for row, variant in zip(variant_table['rows'], document['variants']):
+        row['findingId'], row['occurrenceId'] = variant['variantId'], variant['occurrenceId']
+    document['sourceTables'] = [variant_table]
     # Hash provenance points to the archived original bytes, using opaque relative
     # names. No workstation paths are exposed through report JSON or HTML.
     document['provenance']['sourceFiles'] = [

@@ -14,6 +14,9 @@ import stat
 
 from .contracts import (DiscoveryPlan, ReportPlan, SourceCandidate, REQUIRED_ROLES,
                         ROLES, check_cancel)
+from .naming import (classify_run_directory, conflicts_sample_name, file_matches,
+                     nearest_run_directory, normalise_role, plot_role, summary_run_id, variant_excluded)
+from pronto_report.adapters.text_tables import read_text_rows
 
 MAX_FILES = 50000
 MAX_DEPTH = 30
@@ -21,13 +24,8 @@ MAX_BYTES = 25 * 1024 * 1024
 MAX_ROWS = 10000
 IDENTIFIER = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$')
 SAMPLE_COLUMNS = ('Sample_ID', 'Sample_id', 'sample_id', 'sample_ID')
-RUN_NAME = re.compile(r'^\d{6}_[A-Za-z0-9]+_\d{4}_[A-Za-z0-9]+$')
-RUN_SUFFIXES = (('_report_preQC_newPRONTO_version', 'new'), ('_report_preQC', 'legacy'), ('_CNVs', 'cnv'), ('', 'raw'))
 POSITIVE_FLAGS = {'Y', 'YES', 'JA', 'TRUE', '1'}
 NEGATIVE_FLAGS = {'N', 'NO', 'NEI', 'FALSE', '0'}
-SUPPORT_SUFFIXES = ('AllReportVariants_AltProtein', 'AllReportVariants_CodingRegion', 'Main_Findings',
-                    'preMTB_workingTable', 'preMTBTable_Appendix', 'sequence_summary', 'TMB_coding',
-                    'TMB_DURR_coding', 'pathogenic_germline', 'TERT')
 
 
 def regular_file(path):
@@ -44,23 +42,7 @@ def table_rows(path, *, header=None):
     """Bound complete text tables. Keep source bytes separately during import."""
     if not regular_file(path) or path.stat().st_size > MAX_BYTES:
         raise ValueError('Kildetabell er for stor eller utilgjengelig.')
-    with path.open(encoding='utf-8-sig', newline='') as stream:
-        lines = []
-        for line in stream:
-            if len(line) > 1024 * 1024 or len(lines) > MAX_ROWS + 500:
-                raise ValueError('Kildetabell overskrider radgrensen.')
-            if line.startswith('#'):
-                if line.startswith('#sample_type\t'):
-                    lines.append(line[1:])
-                continue
-            if line.strip():
-                lines.append(line)
-    if not lines:
-        raise ValueError('Tom kildetabell.')
-    delimiter = '\t' if '\t' in lines[0] else ';' if ';' in lines[0] else ','
-    rows = list(csv.DictReader(lines, delimiter=delimiter))
-    if len(rows) > MAX_ROWS or any(None in row or len(row) > 500 for row in rows):
-        raise ValueError('Kildetabell har ugyldig struktur eller størrelse.')
+    rows = read_text_rows(path, max_bytes=MAX_BYTES, max_rows=MAX_ROWS)
     if header and (not rows or not set(header) <= rows[0].keys()):
         raise ValueError('Kildetabell har ukjente kolonner.')
     return rows
@@ -84,11 +66,10 @@ def _headers(path):
 
 
 def _role(path, table_cache=None):
-    name = path.name.lower()
     if path.suffix.lower() in {'.tsv', '.txt', '.csv'}:
-        if path.name.endswith('_sample_concordance.tsv'):
+        if file_matches(path.name, path.parent.name, 'linkage'):
             return 'linkage'
-        if path.parent.name == 'extra_files' and any(path.name.endswith('_' + suffix + '.txt') for suffix in SUPPORT_SUFFIXES):
+        if normalise_role(path.parent.name) == 'extrafiles' and file_matches(path.name, path.parent.parent.name, 'supporting'):
             return 'supporting'
         headers = _headers(path)
         if {'Sample_id', 'Sequencing_run_id', 'Study_id'} <= headers:
@@ -117,16 +98,7 @@ def _role(path, table_cache=None):
             except (ValueError, KeyError):
                 continue
     elif path.suffix.lower() in {'.png', '.pdf'}:
-        if 'cnv_overview_plots' in name or 'cancan' in name:
-            return 'cnv_plot'
-        if 'sample_qc_plot' in name:
-            return 'qc_plot'
-        if 'domain_plot' in name:
-            return 'other_plot'
-        if name.endswith('_joint_mutational_signature.pdf'):
-            return 'signature_plot'
-        if name.endswith('_rna_profiles.pdf'):
-            return 'rna_profile_plot'
+        return plot_role(path.name)
     return ''
 
 
@@ -186,11 +158,10 @@ def discover_folders(folders, progress=None, cancel=None, *, report_version='aut
         for directory, children, files in os.walk(folder, followlinks=False):
             check_cancel(cancel)
             current = Path(directory)
-            for suffix, version in RUN_SUFFIXES:
-                run = current.name[:-len(suffix)] if suffix and current.name.endswith(suffix) else current.name if not suffix else ''
-                if RUN_NAME.fullmatch(run):
-                    locations.setdefault(run, {}).setdefault(version, []).append(current)
-                    break
+            family = classify_run_directory(current.name)
+            if family:
+                run, version = family
+                locations.setdefault(run, {}).setdefault(version, []).append(current)
             children[:] = sorted(child for child in children if not (current / child).is_symlink()
                                   and not getattr((current / child).lstat(), 'st_file_attributes', 0) & 0x400)
             if len(current.relative_to(folder).parts) >= MAX_DEPTH:
@@ -229,9 +200,7 @@ def discover_folders(folders, progress=None, cancel=None, *, report_version='aut
                     unreadable_count += 1
     actual_runs = {run: roots for run, roots in locations.items() if any(
         candidate.role == 'metadata' and candidate.path.parent in roots.get('raw', ())
-        and candidate.path.name == 'InPreD_PRONTO_metadata_tsoppi.txt'
-        and any(c.role == 'summary' and c.path.parent == candidate.path.parent
-                and c.path.name == run + '_variant_summary.tsv' for c in candidates)
+        and any(row.get('Sequencing_run_id') == run for row in row_cache.get(candidate.path, ()))
         for candidate in candidates)}
     if actual_runs:
         return _actual_plan(folders, candidates, row_cache, table_cache, warnings, actual_runs,
@@ -329,6 +298,35 @@ def discover_folders(folders, progress=None, cancel=None, *, report_version='aut
                          tuple(dict.fromkeys(warnings)), signatures)
 
 
+def _exact_row_identity(rows, allowed, require_column=False):
+    declared = False
+    for row in rows:
+        ids = {str(row[column]) for column in SAMPLE_COLUMNS if row.get(column) not in (None, '')}
+        if ids and not ids <= allowed or require_column and not ids:
+            return False
+        declared = declared or bool(ids)
+    return declared or not require_column
+
+
+def _source_table_identity(table, allowed, require_column=False):
+    columns = [table['headers'].index(column) for column in SAMPLE_COLUMNS if column in table['headers']]
+    if not columns or not table['rows']:
+        return not require_column
+    return any(bool(ids := {str(row['values'][column]) for column in columns
+                            if row['values'][column] not in (None, '')}) and ids <= allowed
+               for row in table['rows'])
+
+
+def _row_identity_issues(sample, files, linked, row_cache, table_cache):
+    issues = []
+    if any(not _exact_row_identity(row_cache[path], {sample}) for path in files.get('variants', ())):
+        issues.append('variants: tabellen inneholder en annen prøve-ID')
+    for role, allowed in (('cnv_table', {sample}), ('rna_table', linked - {sample})):
+        if any(not _source_table_identity(table_cache[path], allowed) for path in files.get(role, ())):
+            issues.append(role + ': tabellen mangler samstemt prøve-ID')
+    return tuple(issues)
+
+
 def _actual_plan(folders, candidates, row_cache, table_cache, warnings, runs,
                  report_version, cnv_source, cnv_solution, cancel,
                  unknown_count, unreadable_count, omitted_count):
@@ -337,15 +335,14 @@ def _actual_plan(folders, candidates, row_cache, table_cache, warnings, runs,
     for run, roots in sorted(runs.items()):
         version = next((value for value in ('new', 'legacy', 'raw') if roots.get(value)), 'raw') if report_version == 'auto' else report_version
         metadata = [c.path for c in candidates if c.role == 'metadata'
-                    and c.path.parent in roots.get('raw', ())
-                    and c.path.name == 'InPreD_PRONTO_metadata_tsoppi.txt']
+                    and c.path.parent in roots.get('raw', ())]
         explicit_rna = set()
         for candidate in candidates:
             dna = candidate.path.parent.name
             if candidate.path.parent.parent not in roots.get('raw', ()):
                 continue
-            if not ((candidate.role == 'linkage' and candidate.path.name == dna + '_sample_concordance.tsv')
-                    or (candidate.role == 'variants' and candidate.path.name == dna + '_small_variant_table.tsv')
+            if not ((candidate.role == 'linkage' and file_matches(candidate.path.name, dna, 'linkage'))
+                    or (candidate.role == 'variants' and file_matches(candidate.path.name, dna, 'raw_variants'))
                     or candidate.role == 'sample_list'):
                 continue
             try:
@@ -371,10 +368,12 @@ def _actual_plan(folders, candidates, row_cache, table_cache, warnings, runs,
             check_cancel(cancel)
             files = {'metadata': tuple(sorted({path for path, _ in rows}))}
 
-            def matches(role, versions=('raw',), name=None, nested=False):
+            def matches(role, versions=('raw',), name_role=None, sample_id=None, nested=False):
                 selected_roots = [root for value in versions for root in roots.get(value, ())]
                 return tuple(sorted(c.path for c in candidates if c.role == role
-                    and (name is None or c.path.name == name)
+                    and (name_role is None or file_matches(c.path.name, sample_id or sample, name_role, solution=cnv_solution))
+                    and (boundary := nearest_run_directory(c.path)) is not None
+                    and boundary[1] == run and boundary[2] in versions
                     and any((c.path.is_relative_to(root / sample) if nested else c.path.parent == root / sample)
                             for root in selected_roots)
                     and (role not in REQUIRED_ROLES and role != 'cancan_table' or c.path in row_cache)
@@ -382,19 +381,26 @@ def _actual_plan(folders, candidates, row_cache, table_cache, warnings, runs,
 
             summary = tuple(sorted(c.path for c in candidates if c.role == 'summary'
                 and c.path in row_cache and c.path.parent in roots.get('raw', ())
-                and c.path.name == run + '_variant_summary.tsv'
+                and summary_run_id(c.path.name) in {None, run}
                 and sum(row.get('sample_id') in {sample, sample + '_P'} for row in row_cache[c.path]) == 1))
             if summary:
                 files['summary'] = summary
-            suffix = '_small_variant_table.tsv' if version == 'raw' else '_small_variant_table_forQC.tsv'
-            variants = matches('variants', (version,), sample + suffix)
+            variants = matches('variants', (version,), 'raw_variants' if version == 'raw' else 'qc_variants')
+            if not variants:
+                # Renamed primary tables need exact row identity. A known
+                # clinical subset or a foreign ID is never a fallback.
+                variants = tuple(path for path in matches('variants', (version,))
+                    if not variant_excluded(path.name)
+                    and not conflicts_sample_name(path.name, sample, 'variants')
+                    and not file_matches(path.name, sample, 'raw_variants')
+                    and _exact_row_identity(row_cache[path], {sample}, require_column=True))
             if variants:
                 files['variants'] = variants
             lists = matches('sample_list', ('raw', version) if version != 'raw' else ('raw',))
             if lists:
                 files['sample_list'] = tuple(dict.fromkeys(lists))
-            linkage = (*matches('linkage', name=sample + '_sample_concordance.tsv'),
-                       *matches('variants', name=sample + '_small_variant_table.tsv'))
+            linkage = (*matches('linkage', name_role='linkage'),
+                       *matches('variants', name_role='raw_variants'))
             if linkage:
                 files['linkage'] = tuple(dict.fromkeys(linkage))
             link_issues, linked = (), {sample}
@@ -405,44 +411,56 @@ def _actual_plan(folders, candidates, row_cache, table_cache, warnings, runs,
             if cnv_source == 'merged':
                 # This versioned profile explicitly defines FC before fraction.
                 for priority in ('FC', 'fraction'):
-                    cnv = matches('cnv_table', name=f'{sample}_merged_CNV_summary_{priority}_sorted.tsv')
+                    cnv = matches('cnv_table', name_role='cnv_fc' if priority == 'FC' else 'cnv_fraction')
                     if cnv:
                         files['cnv_table'] = cnv
                         break
-                plots = matches('cnv_plot', (version,), sample + '_CNV_overview_plots.pdf')
+                if not files.get('cnv_table'):
+                    cnv = tuple(path for path in matches('cnv_table')
+                                if not conflicts_sample_name(path.name, sample, 'cnv_table'))
+                    if cnv:
+                        files['cnv_table'] = cnv
+                plots = matches('cnv_plot', (version,), 'cnv_plot')
                 if not plots and version != 'raw':
-                    plots = matches('cnv_plot', name=sample + '_CNV_overview_plots.pdf')
+                    plots = matches('cnv_plot', name_role='cnv_plot')
             else:
-                cancan = matches('cancan_table', ('cnv',), f'{sample}_{cnv_solution}_gene_table.tsv', nested=True)
+                cancan = matches('cancan_table', ('cnv',), 'cancan_table', nested=True)
                 if cancan:
                     files['cancan_table'] = cancan
-                plots = matches('cnv_plot', ('cnv',), f'{sample}_{cnv_solution}_cancan_result.png', nested=True)
+                plots = matches('cnv_plot', ('cnv',), 'cancan_plot', nested=True)
             if plots:
                 files['cnv_plot'] = plots
-            for role, name in (('signature_plot', sample + '_joint_mutational_signature.pdf'),):
-                paths = matches(role, name=name)
+            for role in ('signature_plot',):
+                paths = matches(role, name_role=role)
                 if paths:
                     files[role] = paths
             for linked_id in sorted(linked):
                 for suffix in ('.png', '.pdf'):
-                    paths = matches('qc_plot', name=linked_id + '_sample_QC_plot' + suffix)
+                    paths = tuple(path for path in matches('qc_plot', name_role='qc_plot', sample_id=linked_id)
+                                  if path.suffix.casefold() == suffix)
                     if paths:
                         files['qc_plot'] = (*files.get('qc_plot', ()), *paths)
                         break
                 if linked_id != sample:
-                    for role, suffix in (('rna_table', '_fusion_and_splice_variant_candidates.tsv'),
-                                         ('rna_profile_plot', '_RNA_profiles.pdf')):
-                        paths = matches(role, name=linked_id + suffix)
+                    for role in ('rna_table', 'rna_profile_plot'):
+                        paths = matches(role, name_role=role, sample_id=linked_id)
+                        if role == 'rna_table' and not paths:
+                            paths = tuple(path for path in matches(role)
+                                if not conflicts_sample_name(path.name, linked_id, role)
+                                and _source_table_identity(table_cache[path], {linked_id}, require_column=True))
                         if paths:
                             files[role] = (*files.get(role, ()), *paths)
             supporting = matches('supporting', (version,), nested=True)
-            supporting = tuple(path for path in supporting if path.parent.name == 'extra_files'
-                               and path.name.startswith(sample + '_'))
+            supporting = tuple(path for path in supporting if normalise_role(path.parent.name) == 'extrafiles'
+                               and file_matches(path.name, sample, 'supporting'))
             if supporting:
                 files['supporting'] = supporting
             flags = {flag.upper() for _, flag in rows}
             flag = rows[0][1] if len(flags) == 1 else ' | '.join(sorted(flags))
             issues = _issues(files, 'tsoppi-run-v1') + link_issues
+            issues += _row_identity_issues(sample, files, linked, row_cache, table_cache)
+            if len(rows) != 1:
+                issues += ('metadata: prøve og kjøring må ha én entydig rad',)
             if len(flags) != 1 or not flags <= POSITIVE_FLAGS | NEGATIVE_FLAGS | {'-', ''}:
                 issues += ('Create_report: ukjent eller motstridende verdi',)
             if cnv_source == 'cancan' and not files.get('cancan_table'):
@@ -487,10 +505,35 @@ def assign_source(plan, report_key, role, path):
             issues = _issues(files, report.profile)
             if report.profile == 'tsoppi-run-v1':
                 from .linkage import resolve_links
+                linked = {report.sample_id}
                 try:
-                    resolve_links(report.sample_id, files)
+                    linked = resolve_links(report.sample_id, files)
                 except ValueError:
                     issues += ('DNA/RNA-kobling: mangler eller er ikke samstemt',)
+                try:
+                    metadata_paths = files.get('metadata', ())
+                    if len(metadata_paths) == 1:
+                        metadata = table_rows(metadata_paths[0], header={'Sample_id', 'Sequencing_run_id', 'Study_id'})
+                        current = [row for row in metadata if row.get('Sample_id') == report.sample_id
+                                   and row.get('Sequencing_run_id') == report.run_id]
+                        flags = {row.get('Create_report', '').strip().upper() for row in current}
+                        flag = next(iter(flags)) if len(flags) == 1 else ' | '.join(sorted(flags))
+                        selected, confirmed = report.selected, report.selection_confirmed
+                        if len(current) != 1 or flag not in POSITIVE_FLAGS | {'-', ''}:
+                            selected = confirmed = False
+                        elif role == 'metadata' and not confirmed:
+                            selected = flag in POSITIVE_FLAGS
+                        report = replace(report, metadata_flag=flag, selected=selected, selection_confirmed=confirmed)
+                        if len(current) != 1:
+                            issues += ('metadata: prøve og kjøring må ha én entydig rad',)
+                    row_cache = {source: table_rows(source) for source in files.get('variants', ())}
+                    from pronto_report.adapters.source_tables import read_source_table
+                    table_cache = {source: read_source_table(source, kind=kind)
+                                   for role, kind in (('cnv_table', 'CNV'), ('rna_table', 'RNA'))
+                                   for source in files.get(role, ())}
+                    issues += _row_identity_issues(report.sample_id, files, linked, row_cache, table_cache)
+                except (OSError, ValueError):
+                    issues += ('Kildetabell: format eller prøve-ID må kontrolleres',)
                 if report.cnv_source == 'cancan' and not files.get('cancan_table'):
                     issues += ('cancan_table: mangler valgt løsning',)
                 if report.metadata_flag.strip().upper() not in POSITIVE_FLAGS | NEGATIVE_FLAGS | {'-', ''}:

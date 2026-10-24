@@ -255,3 +255,212 @@ def test_explicitly_linked_rna_without_r03_token_never_becomes_report(actual_run
     metadata.write_text(metadata.read_text().replace(RNA, explicit_rna))
     (actual_run['raw'] / explicit_rna).mkdir()
     assert [report.sample_id for report in discover_folders(tuple(actual_run.values())).reports] == [DNA]
+
+
+@pytest.mark.parametrize('name', ['InPreD_PRONTO_metadata.txt', 'clinical-metadata-v2.txt'])
+def test_metadata_filename_uses_headers_inside_declared_run(actual_run, name):
+    original = actual_run['raw'] / 'InPreD_PRONTO_metadata_tsoppi.txt'
+    original.rename(original.with_name(name))
+    plan = discover_folders((actual_run['raw'].parent,))
+    assert plan.profile == 'tsoppi-run-v1'
+    assert len(plan.reports) == 1 and plan.reports[0].ready
+    assert plan.reports[0].files['metadata'][0].name == name
+
+
+def test_summary_can_have_generic_name_inside_exact_run(actual_run):
+    original = actual_run['raw'] / f'{RUN}_variant_summary.tsv'
+    original.rename(original.with_name('variant_summary.tsv'))
+    plan = discover_folders((actual_run['raw'].parent,))
+    assert plan.profile == 'tsoppi-run-v1'
+    assert plan.reports[0].ready
+    assert plan.reports[0].files['summary'][0].name == 'variant_summary.tsv'
+
+
+def test_raw_tso_folder_and_case_separator_report_aliases(actual_run):
+    parent = actual_run['raw'].parent
+    actual_run['raw'].rename(parent / (RUN + '_TSO_500_LocalApp_postprocessing_results'))
+    actual_run['new'].rename(parent / (RUN + '-REPORT-preQC-newPRONTO-version'))
+    report = discover_folders((parent,)).reports[0]
+    assert report.ready and report.report_version == 'new'
+
+
+def test_known_file_role_aliases_accept_case_separators_and_version_suffix(actual_run):
+    source = actual_run['new'] / DNA / f'{DNA}_small_variant_table_forQC.tsv'
+    source.rename(source.with_name(f'{DNA}-SMALL-variant-table-for-QC-v2.TSV'))
+    cnv = actual_run['raw'] / DNA / f'{DNA}_merged_CNV_summary_FC_sorted.tsv'
+    cnv.rename(cnv.with_name(f'{DNA}_merged_cnv_summary_fc_sorted_v2.tsv'))
+    plot = actual_run['raw'] / DNA / f'{RNA}_RNA_profiles.pdf'
+    plot.rename(plot.with_name(f'{RNA}-rna-profiles-v2.PDF'))
+    report = discover_folders((actual_run['raw'].parent,)).reports[0]
+    assert report.ready
+    assert report.files['variants'][0].name.endswith('-v2.TSV')
+    assert report.files['cnv_table'][0].name.endswith('fc_sorted_v2.tsv')
+    assert report.files['rna_profile_plot'][0].name.endswith('-v2.PDF')
+
+
+def test_unprefixed_known_support_files_are_scoped_by_dna_directory(actual_run):
+    source = write(actual_run['new'] / DNA / 'extra_files' / 'sequence_summary.txt', 'source only')
+    report = discover_folders((actual_run['raw'].parent,)).reports[0]
+    assert source in report.files['supporting']
+
+
+def test_rna_withqc_workbook_is_found_from_exact_sample_rows(actual_run):
+    from openpyxl import Workbook
+    raw = actual_run['raw'] / DNA / f'{RNA}_fusion_and_splice_variant_candidates.tsv'
+    raw.unlink()
+    path = raw.with_name(f'{RNA}_fusion_and_splice_variant_candidates_withQC.xlsx')
+    book = Workbook()
+    book.active.append(['Provisional_Event_Type', 'Sample_ID', 'Gene_A'])
+    book.active.append(['Fusion', RNA, 'TEST'])
+    book.save(path)
+    report = discover_folders((actual_run['raw'].parent,)).reports[0]
+    assert report.ready and report.files['rna_table'] == (path,)
+
+
+def test_summary_declaring_another_run_never_binds_by_matching_sample(actual_run):
+    original = actual_run['raw'] / f'{RUN}_variant_summary.tsv'
+    original.rename(original.with_name(f'{OLD_RUN}_variant_summary.tsv'))
+    plan = discover_folders((actual_run['raw'].parent,))
+    assert plan.profile == 'tsoppi-run-v1'
+    assert not plan.reports[0].ready
+    assert not plan.reports[0].files.get('summary')
+
+
+def test_variant_alias_with_wrong_patient_rows_is_blocked(actual_run):
+    path = actual_run['new'] / DNA / f'{DNA}_small_variant_table_forQC.tsv'
+    write(path, f'Sample_ID\tGene_symbol\tGenomic_location\tDNA_change\n{OTHER}\tTEST\t1:1\tA>G\n')
+    report = discover_folders((actual_run['raw'].parent,)).reports[0]
+    assert not report.ready
+    assert any('prøve-ID' in issue for issue in report.issues)
+
+
+def test_two_different_forqc_aliases_remain_ambiguous(actual_run):
+    path = actual_run['new'] / DNA / f'{DNA}_small_variant_table_forQC.tsv'
+    write(path.with_name(f'{DNA}_small_variant_table_forQC_v2.tsv'), path.read_text() + 'OTHER\t1:2\tA>G\n')
+    report = discover_folders((actual_run['raw'].parent,)).reports[0]
+    assert not report.ready
+    assert len(report.files['variants']) == 2
+
+
+def test_foreign_variant_filename_is_not_a_generic_header_fallback(actual_run):
+    path = actual_run['new'] / DNA / f'{DNA}_small_variant_table_forQC.tsv'
+    path.unlink()
+    write(path.with_name(f'{OTHER}_small_variant_table_forQC_v2.tsv'),
+          f'Sample_ID\tGene_symbol\tGenomic_location\tDNA_change\n{DNA}\tTEST\t1:1\tA>G\n')
+    report = discover_folders((actual_run['raw'].parent,)).reports[0]
+    assert not report.ready and not report.files.get('variants')
+
+
+def test_foreign_cnv_filename_is_not_a_generic_header_fallback(actual_run):
+    for name in ('FC', 'fraction'):
+        (actual_run['raw'] / DNA / f'{DNA}_merged_CNV_summary_{name}_sorted.tsv').unlink()
+    write(actual_run['raw'] / DNA / f'{OTHER}_merged_CNV_summary_FC_sorted_v2.tsv',
+          'Gene_Symbol\tChromosome\tGene_Start\nTEST\t1\t1\n')
+    report = discover_folders((actual_run['raw'].parent,)).reports[0]
+    assert 'cnv_table' not in report.files
+
+
+def test_generic_variant_table_requires_exact_row_identity_and_not_clinical_subset(actual_run):
+    original = actual_run['new'] / DNA / f'{DNA}_small_variant_table_forQC.tsv'
+    original.unlink()
+    generic = write(original.with_name('variants.csv'),
+                    f'Sample_ID,Gene_symbol,Genomic_location,DNA_change\n{DNA},TEST,1:1,A>G\n')
+    report = discover_folders((actual_run['raw'].parent,)).reports[0]
+    assert report.ready and report.files['variants'] == (generic,)
+    generic.rename(generic.with_name('variants_blacklisted.csv'))
+    report = discover_folders((actual_run['raw'].parent,)).reports[0]
+    assert not report.ready and 'variants' not in report.files
+
+
+def test_sample_identifier_case_is_not_normalised_with_role_words(actual_run):
+    source = actual_run['new'] / DNA / f'{DNA}_small_variant_table_forQC.tsv'
+    # Use a different case in a temporary intermediate basename as Windows
+    # itself treats case-only rename operations specially.
+    temporary = source.with_name('renaming.tsv')
+    source.rename(temporary)
+    temporary.rename(source.with_name(f'{DNA.lower()}_small_variant_table_forQC.tsv'))
+    report = discover_folders((actual_run['raw'].parent,)).reports[0]
+    assert not report.ready and not report.files.get('variants')
+
+
+def test_table_reader_preserves_comment_and_blank_lines_inside_quoted_csv_cells(tmp_path):
+    from pronto_ingest.discovery import table_rows
+    source = write(tmp_path / 'synthetic.csv',
+                   '# leading comment with an unmatched " quote\n'
+                   'Sample_ID,Gene_symbol,Change_summary\n'
+                   f'{DNA},TEST,"line1\n# source annotation\n\nline4"\n'
+                   '# another outside-record comment with " quote\n')
+    source.write_bytes(source.read_text().encode('utf-8'))
+    rows = table_rows(source, header={'Sample_ID', 'Gene_symbol', 'Change_summary'})
+    assert rows == [{'Sample_ID': DNA, 'Gene_symbol': 'TEST',
+                     'Change_summary': 'line1\n# source annotation\n\nline4'}]
+
+
+def test_nested_foreign_run_is_not_an_automatic_cancan_source(actual_run):
+    folder = actual_run['cnv'] / DNA / OLD_RUN / DNA
+    write(folder / f'{DNA}_main_gene_table.tsv',
+          f'# Sample id: {DNA}\nchr\tgene.name\ttotal.cn\n1\tTEST\t2\n')
+    write(folder / f'{DNA}_main_cancan_result.png', 'synthetic')
+    report = discover_folders((actual_run['raw'].parent,), cnv_source='cancan').reports[0]
+    assert not report.ready
+    assert not report.files.get('cancan_table') and not report.files.get('cnv_plot')
+
+
+@pytest.mark.parametrize('selected_role', ['variants', 'cnv_table'])
+def test_manual_mapping_cannot_clear_wrong_variant_row_identity(actual_run, selected_role):
+    from pronto_ingest.discovery import assign_source
+    source = actual_run['new'] / DNA / f'{DNA}_small_variant_table_forQC.tsv'
+    write(source, f'Sample_ID\tGene_symbol\tGenomic_location\tDNA_change\n{OTHER}\tTEST\t1:1\tA>G\n')
+    plan = discover_folders((actual_run['raw'].parent,))
+    report = plan.reports[0]
+    chosen = assign_source(plan, report.key, selected_role, report.files[selected_role][0])
+    assert not chosen.reports[0].ready
+    assert any('prøve-ID' in issue for issue in chosen.reports[0].issues)
+
+
+def test_explicit_metadata_file_choice_recomputes_current_run_flag(actual_run):
+    from pronto_ingest.discovery import assign_source
+    original = actual_run['raw'] / 'InPreD_PRONTO_metadata_tsoppi.txt'
+    positive = write(original.with_name('clinical_metadata_v2.txt'),
+                     original.read_text().replace(f'{DNA}\t{RUN}\tTEST\t-', f'{DNA}\t{RUN}\tTEST\tY'))
+    plan = discover_folders((actual_run['raw'].parent,))
+    report = plan.reports[0]
+    assert not report.ready
+    chosen = assign_source(plan, report.key, 'metadata', positive)
+    report = chosen.reports[0]
+    assert report.ready and report.metadata_flag == 'Y' and report.selected
+
+
+def test_choosing_negative_metadata_clears_explicit_sample_selection(actual_run):
+    from pronto_ingest.discovery import assign_source, set_report_selected
+    original = actual_run['raw'] / 'InPreD_PRONTO_metadata_tsoppi.txt'
+    negative = write(original.with_name('clinical_metadata_v2.txt'),
+                     original.read_text().replace(f'{DNA}\t{RUN}\tTEST\t-', f'{DNA}\t{RUN}\tTEST\tNO'))
+    plan = discover_folders((actual_run['raw'].parent,))
+    key = plan.reports[0].key
+    plan = assign_source(plan, key, 'metadata', original)
+    plan = set_report_selected(plan, key, True)
+    plan = assign_source(plan, key, 'metadata', negative)
+    report = plan.reports[0]
+    assert report.metadata_flag == 'NO'
+    assert not report.selected and not report.selection_confirmed
+    with pytest.raises(ValueError):
+        set_report_selected(plan, key, True)
+
+
+def test_duplicate_current_metadata_rows_remain_blocked_after_mapping(actual_run):
+    from pronto_ingest.discovery import assign_source
+    original = actual_run['raw'] / 'InPreD_PRONTO_metadata_tsoppi.txt'
+    with original.open('a') as stream:
+        stream.write(f'{DNA}\t{RUN}\tTEST\t-\n')
+    plan = discover_folders((actual_run['raw'].parent,))
+    chosen = assign_source(plan, plan.reports[0].key, 'metadata', original)
+    assert not chosen.reports[0].ready
+    assert any('metadata' in issue.lower() for issue in chosen.reports[0].issues)
+
+
+def test_legacy_plot_classification_still_accepts_established_substring_names(tmp_path):
+    from pronto_ingest.discovery import _role
+    assert _role(tmp_path / f'{DNA}_Cancan_plot.png') == 'cnv_plot'
+    assert _role(tmp_path / f'{DNA}_sample_QC_plot_extra.pdf') == 'qc_plot'
+    assert _role(tmp_path / f'{DNA}_domain_plot_extra.pdf') == 'other_plot'

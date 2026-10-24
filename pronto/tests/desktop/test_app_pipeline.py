@@ -7,7 +7,7 @@ import sys
 import pytest
 
 
-@pytest.mark.parametrize('layout', ['legacy', 'actual'])
+@pytest.mark.parametrize('layout', ['legacy', 'actual', 'aliases'])
 def test_run_to_authenticated_saved_report_and_exports(tmp_path, layout):
     root = Path(__file__).resolve().parents[3]
     environment = dict(os.environ)
@@ -36,11 +36,20 @@ target = Path(sys.argv[1])
 layout = sys.argv[2]
 root = Path.cwd()
 fixture = root / 'test_data/ous/251114_A02134_0115_BHCJCKDRX7_TSO_500_LocalApp_postprocessing_results'
-if layout == 'actual':
+if layout in {'actual', 'aliases'}:
     from scripts.create_desktop_example import create_example, SAMPLE
-    create_example(target / 'sources')
+    roots = create_example(target / 'sources')
     folders = [target / 'sources']
     sample = SAMPLE
+    if layout == 'aliases':
+        raw, cnv, old, new = roots
+        (raw / 'InPreD_PRONTO_metadata_tsoppi.txt').rename(raw / 'Clinical_metadata.txt')
+        next(raw.glob('*_variant_summary.tsv')).rename(raw / 'analysis_variant_summary.tsv')
+        source = new / sample / f'{sample}_small_variant_table_forQC.tsv'
+        source.rename(source.with_name(f'{sample}-Small-Variant-Table-forQC-v2.TXT'))
+        source = raw / sample / f'{sample}_merged_CNV_summary_FC_sorted.tsv'
+        source.rename(source.with_name(f'{sample}-MERGED-CNV-SUMMARY-fc-sorted-v2.TSV'))
+        raw.rename(raw.with_name(raw.name + '_TSO_500_LocalApp_postprocessing_results'))
 else:
     sample = 'IPD2225-D01-P01-A08'
     folders = [target / 'sources' / str(n) for n in range(5)]
@@ -64,7 +73,7 @@ user = runtime.create_user('handover-operator', 'Synthetic-workstation-password!
 plan = discover_folders(folders)
 assert len(plan.reports) == 1
 assert plan.reports[0].ready, plan.reports[0].issues
-if layout == 'actual':
+if layout in {'actual', 'aliases'}:
     assert plan.profile == 'tsoppi-run-v1'
     assert not plan.reports[0].selected
     try:
