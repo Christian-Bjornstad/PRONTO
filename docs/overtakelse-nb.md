@@ -1,12 +1,16 @@
-# PRONTO manual for overtakelse og drift
+# PRONTO appen
 
-Teknisk overlevering av rapportløsningen til ny forvalter
+Manual for overtakelse og drift
 
-23. oktober 2026 · Leveransegrunnlag c2bab16 med rettelse for HTML eksport av ReviewState v4
+Teknisk og praktisk overlevering til ny forvalter
 
-Denne manualen forklarer hvordan PRONTO installeres, brukes, vedlikeholdes og videreføres. Den dekker hele kjeden fra TSOPPI og kliniske metadata til database, vurderingsarbeid, HTML, PDF og IGV. Målgruppen er både fagbrukeren som skal overta rapportarbeidet, og utvikleren eller driftsansvarlig som skal kunne forvalte løsningen uten muntlig forklaring fra den opprinnelige utvikleren.
+24. oktober 2026
 
-Lokal rapportbehandling er kontrollert med automatiske tester, en separat gjennomkjøring av import, lagring, ferdigstilling og eksport, samt kontroll av den eksisterende databasen. Denne leveransen gir et konkret grunnlag for overtakelse. Innføring med reelle pasientdata, flerbrukerdrift og permanent BAM eller CRAM lagring krever de lokale driftsbeslutningene og kontrollene beskrevet i kapittel 15 og 18.
+Programversjon og eksakte kontrollresultater identifiseres i pakkens manifest.
+
+Denne manualen forklarer hvordan den nye PRONTO-appen installeres, brukes, vedlikeholdes og videreføres. Appen samler valg av fem kjøringsmapper, kontrollert import, database og serverstyring. Den eksisterende HTML-arbeidsflaten brukes videre til vurdering og rapportering. Den dekker hele kjeden fra TSOPPI og kliniske metadata til database, vurderingsarbeid, HTML, PDF og IGV. Målgruppen er både fagbrukeren som skal overta rapportarbeidet, og utvikleren eller driftsansvarlig som skal kunne forvalte løsningen uten muntlig forklaring fra den opprinnelige utvikleren.
+
+Lokal rapportbehandling og appens importløp er kontrollert på godkjent testgrunnlag og syntetiske filer. Den faktiske femmappestrukturen på jobb-PC-en er ennå ikke tilgjengelig for kontroll. Før reelle kjøringer tas i bruk må filgjenkjenning, prøvekobling og rapportinnhold verifiseres mot disse filene. Kontroller og begrensninger er samlet i kapittel 17. Innføring med reelle pasientdata, flerbrukerdrift og permanent BAM eller CRAM lagring krever de lokale driftsbeslutningene og kontrollene beskrevet i kapittel 15 og 18.
 
 Leveransen består av denne manualen, et eget kildekodearkiv og et kontrollnotat med versjon og testresultater. Kildekodearkivet inneholder den konkrete programversjonen og godkjente testfiler. Den lokale databasen, passord, nøkler, referansegenomer og genererte pasientrapporter overføres separat gjennom godkjent intern lagring.
 
@@ -14,7 +18,7 @@ Leveransen består av denne manualen, et eget kildekodearkiv og et kontrollnotat
 
 ### Start her
 
-Les kapittel 2 for helhetsbildet, kapittel 7 for oppstart, kapittel 8 for daglig bruk og kapittel 14 for sikkerhetskopi. Utvikleren bør deretter lese datakontraktene, databasemodellen og importløpet i kapittel 5, 6 og 10. Kapittel 18 brukes ved selve overtakelsen.
+Les kapittel 2 for helhetsbildet, kapittel 7 for appens fem sider og oppstart, kapittel 8 for daglig rapportarbeid og kapittel 14 for sikkerhetskopi. Utvikleren bør deretter lese datakontraktene, databasemodellen og importløpet i kapittel 5, 6 og 10. Kapittel 18 brukes ved selve overtakelsen.
 
 Den nye forvalteren må overta tre forskjellige ting: programkoden, det private driftsoppsettet og ansvaret for datagrunnlaget. Et kildekodearkiv alene inneholder ingen brukerkontoer eller vurderinger. En databasekopi alene inneholder ikke alle genomfiler, den hemmelige nøkkelen eller et komplett installert Python-miljø.
 
@@ -23,7 +27,7 @@ Den nye forvalteren må overta tre forskjellige ting: programkoden, det private 
 1. Pakk ut kildekoden til en ny prosjektmappe. Kontroller versjonen mot kontrollnotatet. Ikke arbeid videre i den eldre PRONTO-hovedmappen ved en feil.
 2. Installer Python-miljøet og Poppler som beskrevet i kapittel 7. Bruk en isolert database ved første kontroll.
 3. Avtal om overtakelsen gjelder en tom installasjon eller eksisterende rapporter og historikk. Flytt eksisterende privat tilstand etter fremgangsmåten i kapittel 14.
-4. Opprett en personlig konto. Kontroller at akkurat de riktige rapportene er synlige, og at en annen konto uten rapporttilgang ikke kan åpne dem.
+4. Opprett første personlige konto i en tom database, eller logg inn med eksisterende konto. Kontroller riktig datamappe i Innstillinger, prøv de fem mappene i Importer og avklar alle kilder før import. Kontroller rapporttilgang med både riktig konto og en annen konto uten tilgang.
 5. Gjennomfør en rapport på godkjent testgrunnlag: åpne, rediger, lagre, last siden på nytt, ferdigstill og last ned begge PDF-formatene. Bruk en testkopi ved øving.
 6. Gjenopprett en backup til en annen filsti. Kontroller rapporter, vedlegg, siste FINAL og aktiv kladd før den gamle installasjonen tas ut av bruk.
 
@@ -39,16 +43,17 @@ Rollene kan fylles av samme person, men ansvaret må være navngitt. Ingen nye e
 
 ## 2 Helheten fra analyse til rapport
 
-PRONTO omfatter en eldre kommandolinjeflyt for rapportgenerering og en nyere nettbasert arbeidsflate. Den eldre flyten behandler TSOPPI-resultater og kan produsere PowerPoint og remisseutkast. Nettløsningen bygger et validert rapportgrunnlag, viser det i HTML og lagrer brukerens vurderinger i Django-databasen. Nettløsningen lager PDF direkte med ReportLab.
+PRONTO omfatter en ny lokal app for import og serverstyring, en nettbasert rapportarbeidsflate og en eldre kommandolinjeflyt for rapportgenerering. Den eldre flyten behandler TSOPPI-resultater og kan produsere PowerPoint og remisseutkast. Nettløsningen bygger et validert rapportgrunnlag, viser det i HTML og lagrer brukerens vurderinger i Django-databasen. Nettløsningen lager PDF direkte med ReportLab.
 
 | Trinn | Hva skjer | Ansvarlig del |
 | 1 Analysegrunnlag | TSO500 og TSOPPI produserer annoterte varianttabeller, sammendrag, prøveoversikt og plott. | Ekstern analysepipeline |
 | 2 Kliniske metadata | Prøve, run, pseudonym og kliniske opplysninger knyttes til analysen. | InPreD metadatafil og laboratoriets rutine |
-| 3 Rapportgrunnlag | Adapteren leser deklarerte filer, lager stabile identifikatorer og lagrer kildespor. | pronto_report/adapters/ |
-| 4 Privat lagring | Rapport, bilder, vurderinger og tilganger lagres gjennom Django ORM. | pronto_web/reports/ |
-| 5 Arbeidsflate | Python bygger HTML; JavaScript håndterer tabeller, redigering, dialoger og kommandoer. | renderers, templates og static |
-| 6 Faglig vurdering | Brukeren velger inkludering, klassifisering, QC, kommentarer og rapporttekst. | ReviewState og WorkingDraft |
-| 7 Leveranse | En lagret vurdering vises som historikk, FINAL, PDF eller en separat HTML-rapport. | Eksportendepunkter og renderere |
+| 3 Filer og importplan | Brukeren velger fem mapper. Filgjenkjenningen kobler kilder til prøve og kjøring og viser mangler før import. | pronto_desktop og pronto_ingest/discovery.py |
+| 4 Rapportgrunnlag | Importen validerer filer, arkiverer kildekopier, beregner hash og oppretter rapport og første DRAFT samlet per prøve. | pronto_ingest/importer.py og adapterne |
+| 5 Privat lagring | Rapport, bilder, vurderinger og tilganger lagres gjennom Django ORM. | pronto_web/reports/ |
+| 6 Arbeidsflate | Python bygger HTML; JavaScript håndterer tabeller, redigering, dialoger og kommandoer. | renderers, templates og static |
+| 7 Faglig vurdering | Brukeren velger inkludering, klassifisering, QC, kommentarer og rapporttekst. | ReviewState og WorkingDraft |
+| 8 Leveranse | En lagret vurdering vises som historikk, FINAL, PDF eller en separat HTML-rapport. | Eksportendepunkter og renderere |
 
 ### Hvor data faktisk hentes fra
 
@@ -65,6 +70,13 @@ Kildegrunnlaget og vurderingen er skilt. En brukerendring av en kildeverdi regis
 Alle stier i tabellen er relative til den prosjektmappen som inneholder manage.py. Rediger kildefilene og generer rapporten på nytt; en ferdig HTML-fil er et resultat, ikke riktig sted for varige kodeendringer.
 
 | Fil eller mappe | Rolle ved vedlikehold |
+| PRONTO_INSTALL.cmd og PRONTO_START.cmd | Inngang for installasjon og oppstart med lokal Python eller Python FELLES gjennom Ivanti. |
+| install_python_felles.py og start_python_felles.py | Installerer og starter i aktiv Python 3.14 uten krav om et separat child-interpreter-løp. |
+| pronto_desktop/gui.py og theme.py | Appens fem sider, filvalg, bakgrunnsjobber, fremdrift, innlogging og visuell utforming. |
+| pronto_desktop/runtime.py | Datarot, databasevalg, migrering, kontoer, historikk, sikkerhetskopi og oppstartsinnstillinger. |
+| pronto_desktop/server.py | Lokal WSGI-server, helseidentitet, portkonflikter, gjenbruk og trygg stopp. |
+| pronto_ingest/contracts.py og discovery.py | Importkontrakter, femmappe-søk, kilderoller og eksplisitt kobling av funnet fil til prøve. |
+| pronto_ingest/importer.py | Prøvevalidering, kildearkiv, hash, dublettvern, databaseinnlegging og importstatus. |
 | Script/PRONTO.py | Eldre hovedprogram for TSOPPI-behandling, filtrering og PowerPoint eller remisse. |
 | pronto/pronto.py | Hjelpefunksjoner brukt av den eldre analyse og rapportflyten. |
 | Config/configure_PRONTO.ini | Node, kildesti, tegnsett og filtreringsoppsett for den eldre flyten. |
@@ -88,9 +100,9 @@ Alle stier i tabellen er relative til den prosjektmappen som inneholder manage.p
 
 ## 4 Analysefiler og kliniske opplysninger
 
-### Filene adapteren forventer
+### Filene appen finner og adapteren bruker
 
-En kilderot inneholder InPreD_PRONTO_metadata.txt og nøyaktig én fil som matcher *_variant_summary.tsv. Under mappen med aktuell sample_id skal sample_list.tsv og én småvarianttabell finnes. Adapteren foretrekker *_small_variant_table_forQC.tsv; hvis ingen finnes, brukes *_small_variant_table.tsv. Flere treff gir feil fremfor et tilfeldig filvalg.
+Appen søker i fem valgte mapper og deres undermapper. Den identifiserer kjente tabeller fra kolonneoverskrifter og kjente plott fra filnavn; kildeidentitet krever eksakt prøvekobling. Ved import lager appen en midlertidig, kanonisk kilderot som passer den eksisterende adapteren. Ved direkte bruk av denne adapteren inneholder kilderoten InPreD_PRONTO_metadata.txt og nøyaktig én fil som matcher *_variant_summary.tsv. Under mappen med aktuell sample_id skal sample_list.tsv og én småvarianttabell finnes. Adapteren foretrekker *_small_variant_table_forQC.tsv; hvis ingen finnes, brukes *_small_variant_table.tsv. Flere treff gir feil fremfor et tilfeldig filvalg.
 
 Metadatafilen må inneholde aktuell Sample_id. Sequencing_run_id og Study_id brukes som obligatoriske identitetsopplysninger. Sammendraget må ha den aktuelle prøven, med støtte for prøvens _P-suffiks. Manglende kildefiler, manglende identitet eller manglende sammendragsrad avbryter importen.
 
@@ -98,10 +110,12 @@ Metadatafilen må inneholde aktuell Sample_id. Sequencing_run_id og Study_id bru
 | Metadata TSV | Prøve, run, pasientpseudonym og tilgjengelig klinisk diagnose. |
 | Variant summary TSV | TMB og MSI med rå kildeverdi og kildeposisjon. |
 | Small variant table TSV | Gen, koordinat, alleler, transkript, proteinendring, frekvens, dybde og annoteringer. |
-| Sample list TSV | Deklarert prøveliste i importgrunnlaget og kildespor. Full klinisk prøvekobling må kvalitetssikres i importløpet. |
+| Sample list TSV | Eksakt kobling til én DNA-tumorprøve og eventuelle RNA-tumor-ID-er. Kildespor og validering før tabellrader tas inn. |
 | CNV overview PDF | Deklarert CNV-plott for aktuell prøve. |
 | Sample QC PNG | Deklarerte QC-bilder i prøvemappen. |
-| CNV og RNA tabeller | Kan representeres som sourceTables i ReportData v2. Ordinær, pasientkoblet import må settes opp eksplisitt. |
+| CNV og RNA tabeller | Importeres som sourceTables i ReportData v2. Rader med prøve-ID filtreres på bekreftet prøve og tillatte RNA-koblinger. Generisk tabell uten identitet krever eksplisitt kobling. |
+
+Kjente tilleggsnavn er CNV_summary_table.csv, fusion_and_splice_variant_candidates_withQC.xlsx, <sampleID>_CNV_overview_plots.pdf og <sampleID>_sample_QC_plot.png. Eksempler på RNA-domeneplott er MET-splice-variant_domain_plot.pdf og TMPRSS2-ERG_2000_domain_plot.pdf. Navnet alene bekrefter ikke prøvetilhørighet.
 
 ### Beregning og visning
 
@@ -109,7 +123,7 @@ Webadapteren leser TMB og MSI fra sammendraget. Den gjennomfører ikke en ny TMB
 
 DisplayRange er en visningsskala, for eksempel [0-100+]. Den er ikke en klinisk grenseverdi. Manglende verdier skal fremstå som utilgjengelige. I det godkjente OUS-testgrunnlaget er TMB 14,9 og MSI 4,13, og alle 30 kildeforekomstene av småvarianter bevares. Dette er testkontroller, ikke referanseverdier for andre prøver.
 
-Kildetabell-leseren støtter XLSX, TSV, TXT og semikolonseparert CSV. Den har grenser på 25 MiB filstørrelse, 10 000 datarader og 500 kolonner. XLSX har i tillegg grense for utpakket størrelse. Flere ark krever eksplisitt arkvalg. Gul kildefarge kan registreres som sourceApproved, men setter ikke automatisk brukerens rapportvalg.
+Kildetabell-leseren støtter XLSX, TSV og TXT samt CSV med semikolon, komma eller tabulator når forventet kolonneoverskrift entydig identifiserer skilletegnet. Den har grenser på 25 MiB filstørrelse, 10 000 datarader og 500 kolonner. XLSX har i tillegg grense på 100 MiB samlet utpakket størrelse. Bibliotekleseren kan ta et eksplisitt arknavn, men desktopprofilen gjenkjenner støttede enkeltarkfiler. Flerarksarbeidsbøker krever en validert profilendring. Gul kildefarge kan registreres som sourceApproved, men setter ikke automatisk brukerens rapportvalg.
 
 ## 5 Datakontrakter og identitet
 
@@ -137,7 +151,7 @@ Startvalg hentes fra Class_judgement, CPSR_ClinVar_class og IGV_QC når de er en
 
 ## 6 Databasen og hva som lagres hvor
 
-Lokal oppstart bruker SQLite. Den aktive filen velges i .local-web/config.json; standard er .local-web/pronto.sqlite3. Grunninnstillingene har også et annet standardnavn, pronto_web.sqlite3. Det er derfor avgjørende å lese faktisk konfigurasjon før backup, migrering eller flytting. Ikke velg database ut fra navnet på den første SQLite-filen i prosjektmappen.
+Lokal oppstart bruker SQLite. Appens datamappe og port huskes i brukerprofilens PRONTO/desktop.json, på Windows normalt under LOCALAPPDATA. En ny datarot bruker database/pronto.sqlite3. Første oppstart uten eget valg gjenbruker det eldre oppsettet fra .local-web/config.json; standard der er .local-web/pronto.sqlite3. Grunninnstillingene har også et annet standardnavn, pronto_web.sqlite3. Det er derfor avgjørende å lese faktisk konfigurasjon før backup, migrering eller flytting. Ikke velg database ut fra navnet på den første SQLite-filen i prosjektmappen.
 
 | Django modell | Innhold og sammenheng |
 | ReportRecord | Én rapport med report_id som primærnøkkel og ReportData i JSON. |
@@ -155,46 +169,82 @@ Lokal oppstart bruker SQLite. Den aktive filen velges i .local-web/config.json; 
 | SavedAlignment | Metadata, hash og private lagringsnøkler for bevarte BAM eller CRAM-par. Filbytes ligger på filsystemet. |
 | AlignmentUploadSession | Eier, forventet størrelse, mottatt byteantall, utløp og tilstand under opplasting. |
 | AlignmentEvent | Minimalt spor for SAVE, COPY og DELETE av alignments. |
+| ImportBatch | Én importjobb med bruker, fem mapper som antall, start, slutt og samlet status. Inneholder ikke kildemappenes absolutte stier. |
+| ImportItem | Én prøves resultat i jobben, med prøve, kjøring, fingerprint, status og eventuell rapportkobling. |
+| ImportSource | Hver arkivert kilde med rolle, opprinnelig filnavn, relativ arkivnøkkel, SHA-256 og størrelse. Bytes ligger i raw_imports. |
 | Django auth og session | Brukere, passordhasher, grupper, tillatelser og innloggingssesjoner. |
 
-Databasen inneholder ikke bare et register over filstier. Den inneholder selve rapportgrunnlaget, vurderingene, rapportbildene og presentasjonsfigurene. BAM eller CRAM, referansegenomer, lokale kildefiler og ferdige PDF eller HTML-nedlastinger kan ligge utenfor databasen og må håndteres separat.
+Databasen inneholder ikke bare et register over filstier. Den inneholder selve rapportgrunnlaget, vurderingene, rapportbildene og presentasjonsfigurene. Importerte kildesnapshots ligger i datarotens raw_imports med genererte arkivnøkler. BAM eller CRAM, referansegenomer, opprinnelige analysemapper og ferdige PDF eller HTML-nedlastinger kan også ligge utenfor databasen og må håndteres separat.
 
-Migreringene ligger i pronto_web/reports/migrations/. Historikken har to 0002-grener som samles i 0003. Den inneholder også 0010 for arbeidskladder. Bruk migrate; ikke slett migreringsfiler eller endre tabellene manuelt. Audit er beskyttet av applikasjonsrutiner og databaseforhold, men er ikke et kryptografisk, manipulasjonssikkert register mot en databaseadministrator.
+Migreringene ligger i pronto_web/reports/migrations/. Historikken har to 0002-grener som samles i 0003. Den inneholder også 0010 for arbeidskladder og 0011_import_batches for ImportBatch, ImportItem og ImportSource. Bruk migrate; ikke slett migreringsfiler eller endre tabellene manuelt. Audit er beskyttet av applikasjonsrutiner og databaseforhold, men er ikke et kryptografisk, manipulasjonssikkert register mot en databaseadministrator.
 
-## 7 Installasjon og lokal oppstart
+## 7 Installere starte og bruke appen
 
-### Ny installasjon på Windows
+### Installasjon med lokal Python eller Python FELLES
 
-Bruk Python 3.14 som prosjektet og CI er satt opp for. Installer Poppler slik at pdfinfo og pdftoppm finnes i PATH. Poppler brukes når kildeplott i PDF skal vises i HTML. PDF-rapportene som PRONTO selv produserer, bruker ReportLab.
+Pakk ut hele programmappen til en fast plass som brukeren har riktig tilgang til. Behold startfiler, Python-filer, maler, skjemaer og statiske filer samlet. PRONTO_INSTALL.cmd brukes første gang og ved nødvendig reparasjon. PRONTO_START.cmd brukes til vanlig oppstart. Ingen demonstrasjonspasienter opprettes automatisk.
 
-Åpne PowerShell i den utpakkede PRONTO-mappen:
+Programmet er satt opp for Python 3.14. requirements-desktop.txt inkluderer de eksisterende Python-avhengighetene og PyQt6. På en PC med Ivanti åpner startfilene Python FELLES og legger en kommando på utklippstavlen. Lim inn med Ctrl+V og trykk Enter. Installeringskommandoen kjøres i den aktive tolken. Lukk Python FELLES etter installasjon og start appen på nytt. Denne konkrete Ivanti-integrasjonen og maskinens rettigheter må kontrolleres på jobb-PC-en.
+
+På en lokal utviklermaskin kan et isolert miljø opprettes fra prosjektmappen:
 
 ```powershell
 py -3.14 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe scripts\start_web.py --setup-user ditt-brukernavn
+.\.venv\Scripts\python.exe -m pip install -r requirements-desktop.txt
+.\.venv\Scripts\python.exe -m pronto_desktop
 ```
 
-Oppgi et nytt passord i terminalen. Passordreglene krever minst 12 tegn og avviser blant annet vanlige passord og rent numeriske passord. Åpne http://127.0.0.1:8770/reports/ og logg inn. Kontoen er en vanlig bruker, ikke administrator. Den får ReportGrant til rapportene som finnes når kontoen opprettes; nye rapporter må tildeles eksplisitt.
+PDF-kildeplott valideres før de lagres og krever i tillegg Poppler med pdfinfo og pdftoppm tilgjengelig i PATH for Python-prosessen. Python-pakken pdf2image installerer ikke disse programmene. PDF-rapportene PRONTO selv produserer bruker ReportLab. Installer Poppler i godkjent område, legg bin-mappen i PATH og start Python FELLES eller appen på nytt etter endring. Kontroller verktøyene under Diagnostikk og med Get-Command pdfinfo, pdftoppm i PowerShell. Import med PDF-plott avvises før rapporten lagres hvis verktøyene mangler. Et program som har vært åpent mens PATH ble endret kan fortsatt bruke gammelt miljø.
 
-### Senere oppstart
+### Første oppstart og eksisterende data
+
+Appen gjenbruker .local-web/config.json, database og nøkkel ved første oppstart uten valgt datarot. Dette gjør at rapporter fra det eldre lokale oppsettet kan beholdes. Databasemigreringer som mangler kjøres ved oppstart; en eksisterende database sikkerhetskopieres før nødvendige migreringer. Oppstartsvalget --check er derfor ikke en rent lesende kontroll.
+
+Innstillinger viser hvilken database, hvilket kildearkiv og hvilken port som faktisk brukes. En husket datamappe med utilgjengelig database skal gi oppstartsfeil. Gjenopprett tilgang til den riktige plasseringen før videre bruk; ikke erstatt en arbeidsdatabase med en ny tom fil for å få programmet til å starte.
+
+For en ny, separat arbeidsplass eller testdatabase brukes et eksplisitt valg én gang:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\start_web.py
+.\.venv\Scripts\python.exe -m pronto_desktop --data-root 'C:\PRONTO-test' --port 8772
 ```
 
-Oppstarten gjenbruker nøkkel, database og port. Den oppretter ikke nye prøver og nullstiller ikke vurderinger. Hold terminalen åpen; Ctrl+C stopper serveren. En tom database gir en tom rapportoversikt. Første oppstart importerer ikke automatisk tidligere analysefiler.
+Det nye oppsettet får database/pronto.sqlite3, raw_imports, backups og secret.key under den valgte dataroten. En annen port er nødvendig hvis en eksisterende rapportserver allerede bruker 8770. Datarot og port huskes for neste oppstart. Appen flytter ingen gamle data automatisk.
 
-### Eksisterende database og kontroll
+### De fem sidene i kontrollsenteret
 
-```powershell
-.\.venv\Scripts\python.exe scripts\start_web.py --database 'C:\PRONTO-data\pronto.sqlite3' --check
-.\.venv\Scripts\python.exe scripts\start_web.py --port 8771
-```
+| Side | Daglig bruk |
+| Oversikt | Viser antall rapporter i aktiv database, prøver i importplanen og prøver klare for import. Åpner importflyten. |
+| Importer | Fem mappefelt, filkontroll, prøver og kildefiler, avvik, manuell kobling, prosessering og avbryt. |
+| Rapporter | Viser importresultater fra økten og egen lagret importhistorikk etter innlogging. Åpner HTML-oversikten. |
+| Innstillinger | Viser aktiv database og kildearkiv, tar sikkerhetskopi, håndterer appinnlogging og lagrer datamappe og port for neste oppstart. |
+| Diagnostikk | Viser fremdrift, meldinger og feil fra økten. Loggen kan kopieres og må håndteres som annet analysegrunnlag. |
 
---database må vise til en eksisterende fil. --check kjører kontroll og nødvendige migreringer uten å starte serveren; den er derfor ikke en rent lesende databasekontroll. Ta backup først. Valgt port og database huskes i config.json. Ikke slett .local-web for å løse et oppstartsproblem.
+Ctrl+1 til Ctrl+5 bytter side. Ctrl+R starter filkontroll. Knapper og felter kan nås med tastatur. Filkontroll, import, innlogging, backup og serverstart utføres i bakgrunnsarbeid slik at appen kan vise status underveis.
 
-På Linux brukes python3.14 -m venv .venv og .venv/bin/python i de tilsvarende kommandoene. Lokal oppstart binder bare til 127.0.0.1. Oppsett for en ekstern server er beskrevet i kapittel 15. requirements-browser.txt trengs for nettlesertester, ikke vanlig rapportbruk.
+### Importere en kjøring
+
+1. Velg de fem mappene fra samme kjøring i Importer. De må være forskjellige og ikke ligge inne i hverandre. De fem mappene trenger ikke bestemte navn og er ikke det samme som fem prøver.
+2. Trykk Kontroller filer. Appen undersøker undermappene og viser en plan per prøve og kjøring. Utvid prøven i tabellen for å se kildene. Ingenting legges i rapportdatabasen ved denne kontrollen.
+3. Avklar manglende eller tvetydige filer. Koble kildefil lar deg velge prøve, filtype og en fil som allerede ble funnet. Ingen vilkårlig ekstern fil legges til gjennom denne dialogen. Generell CNV uten prøve-ID må kobles eksplisitt. Kontroller alltid kildeinnholdet mot prøven.
+4. Trykk Prosesser og importer. Logg inn med personlig PRONTO-konto. En helt tom brukertabell kan få sin første konto i appen. Passord lagres ikke i appinnstillingene, og kontoen blir ikke administrator.
+5. Les resultatet for hver prøve. Importert, Allerede importert, Feilet og Avbrutt betyr forskjellige ting. Prøver med avvik blir ikke kliniske rapporter bare fordi andre prøver i samme jobb lykkes.
+6. Trykk Åpne rapporter og logg inn i HTML-arbeidsflaten. Kontroller prøve, run, kilder, CNV, RNA og plott før du begynner vurderingen.
+
+Endres et mappevalg, må filkontrollen kjøres på nytt. Endres en kildefil etter kontrollen eller under kopiering, skal importen avvise det berørte grunnlaget. Slik blir det synlig at filene ikke lenger er de som ble kontrollert.
+
+Avbryt er en samarbeidsbasert stopp ved trygge kontrollpunkter. Allerede fullførte prøver beholdes. En prøve som ikke har fullført sin databaseinnlegging skal ikke stå igjen som en halv rapport. Lukkes appen mens en jobb pågår, venter den til jobben kan avsluttes trygt. Det er ikke en tvungen prosessavslutning av et eksternt analyseprogram.
+
+### Starte stoppe og åpne rapportserveren
+
+Start server starter den lokale rapportserveren på 127.0.0.1. Åpne rapporter starter den ved behov og åpner adressen i nettleseren. Start av serveren importerer ingen data. Stopp stanser bare en server som denne appen eier. Ved avslutning stanser appen sin egen server etter at pågående HTTP-arbeid er ferdig.
+
+En allerede kjørende desktopserver kan gjenbrukes når den beviser samme database, hemmelige nøkkel og programidentitet. Den vises som kjørende, men appen tar ikke eierskap til å stoppe den andre prosessens server. En annen tjeneste eller database på samme port gir portkonflikt. Den eldre start_web-serveren har ikke desktopserverens helseprotokoll; stopp den kontrollert eller velg en annen port.
+
+Innstillinger kan lagre en eksisterende PRONTO-datamappe og port for neste oppstart. Dette endrer ikke databasen midt i økten. Opprettelse av en ny tom datarot gjøres eksplisitt med --data-root. Logg ut av appen avslutter appens importidentitet; nettleserens rapportinnlogging styres separat.
+
+### Den eldre oppstarten
+
+scripts/start_web.py kan fortsatt starte bare webdelen. Den bruker utviklingsserver, krever åpen terminal og støtter --database, --port, --check og --setup-user. --database må peke på en eksisterende fil. Brukeropprettelse med --setup-user gir den nye kontoen tilgang til alle rapporter som finnes akkurat da. Dette gjelder den eldre kommandoen; første bruker opprettet i desktopappen får ingen generell tilgang til eksisterende rapporter.
 
 ## 8 Daglig bruk av arbeidsflaten
 
@@ -238,35 +288,60 @@ Ved feil skal siden holdes åpen. Bruk tilbudet om lokal JSON-kopi for å sikre 
 
 FINAL kan ikke redigeres direkte. Start en ny revisjon for videre arbeid. Historikk åpnes med ?revision=N og skal beholde det opprinnelige innholdet. I den ordinære arbeidsflaten kommer identitet fra innlogget konto. Gamle demo eller revisjonsposter kan ha egenregistrerte initialer; disse beholder opprinnelig attribusjon.
 
-## 10 Nye rapporter og innhenting av data
+## 10 Filgjenkjenning import og datainnhenting
 
-### Tilgjengelig import og dagens grense
+### Fra fem mapper til en kontrollert plan
 
-adapt_pronto_output kan bygge et validert rapportgrunnlag fra en eksplisitt kilderot og prøveidentifikator. CLI-kommandoen export er derimot avgrenset til det godkjente OUS-testgrunnlaget. Den er en reproduserbar testinngang, ikke en generell produksjonsimportør for vilkårlige prøver.
+pronto_ingest/discovery.py går gjennom de fem valgte mappene uten å følge symbolske lenker eller Windows-junctions. Søk er begrenset til 50 000 filer og 30 undermappenivåer. Kjente kildetyper er CSV, TSV, TXT, XLSX, PNG og PDF. BAM, CRAM, FASTQ og VCF brukes ikke som innlesing til varianttabellen og kopieres ikke av denne importflyten.
 
-Det finnes ingen ferdig brukerknapp for ordinær pasientimport, ingen automatisk mappeovervåking og ingen komplett, automatisk pasientkoblet CNV og RNA-import. Innføring av nye kliniske datastrømmer må derfor eies av en utvikler og valideres mot aktuelle filer. Dette er et konkret innføringspunkt ved videre overtakelse.
+Metadata bestemmer de mulige kombinasjonene av Sample_id og Sequencing_run_id. Finnes Create_report, tas bare rader med et støttet positivt valg videre. Rene RNA-identiteter fra prøvelisten opprettes ikke som egne DNA-rapporter. Påkrevde roller er metadata, summary, variants og sample_list, med nøyaktig én kilde i hver rolle per rapport. Klinisk metadata krever også Study_id. Prøvelisten må være avgrenset til én eksakt DNA-tumorprøve; RNA-tumor-ID-er brukes som tillatte tilleggskoblinger.
 
-### Reproduserbart testgrunnlag og HTML
+DiscoveryPlan inneholder mapper, ReportPlan per prøve, ufordelte kandidater, advarsler og filsignaturer. ReportPlan er klar bare når påkrevde roller er entydige og ingen blokkerende avvik gjenstår. Ukjente filer velges ikke automatisk. Et funn på disk er ikke en beslutning om at filen tilhører en pasient.
 
-Fra prosjektroten kan utvikleren lage rapportgrunnlag og en skrivebeskyttet HTML-arbeidsflate uten å bruke den private databasen:
+| Rolle | Gjenkjenning og kobling |
+| metadata | Kolonnene Sample_id, Sequencing_run_id og Study_id. Eksakt prøve og run må finnes entydig. |
+| summary | Kolonnene sample_id, TMB og MSI. Eksakt prøve eller prøvens _P-suffiks. |
+| variants | Gene_symbol, Genomic_location og DNA_change. Eksakt prøvemappe eller støttet prøvesuffiks. forQC foretrekkes fremfor den alternative tabellen. |
+| sample_list | sample_type og sample_ID, inkludert støttet kommentarheader. Eksakt DNA-tumoridentitet og deklarerte RNA-koblinger. |
+| cnv_table | Gene_Symbol og de støttede CNV-kolonnene. Eksakt prøve-ID når den finnes, ellers eksplisitt valg av generisk tabell. |
+| rna_table | Provisional_Event_Type og de støttede RNA-kolonnene. Rader begrenses til DNA-prøven og tillatte RNA-ID-er. |
+| cnv_plot og qc_plot | Kjente filnavn og eksakt prøvekobling. Generisk filnavn blir ikke automatisk riktig prøve. |
+| other_plot | Kjente domeneplott i et bekreftet prøvescope eller gjennom eksplisitt kobling. |
+
+De faktiske fem arbeidsmappene fra jobb-PC-en er ikke undersøkt. Nye filnavn, prøveprefikser, kolonner, ark eller katalogmønstre må legges inn som en kontrollert profil og testes på representative filer før de kan brukes uten manuell avklaring. Ikke løs ukjent prøvekobling med omtrentlige navnetreff.
+
+### Hva prosesseringen utfører
+
+importer.import_plan krever en aktiv eksisterende bruker. Den oppretter én ImportBatch og behandler prøvene hver for seg. For hver prøve kontrolleres kildeplassering under de valgte mappene, lenker, størrelser og endring siden mappekontrollen. Kildearkivet må ligge utenfor analysemapper og kan ikke være en lenke.
+
+Kildefiler kopieres til en ny privat katalog under raw_imports. Filenes størrelse og SHA-256 kontrolleres før og etter kopiering. Adapterens kanoniske prøvemappe bygges midlertidig fra kopiene og fjernes etter at rapportgrunnlaget er validert. Arkivet beholder kildebytes med genererte navn; ImportSource bevarer opprinnelig navn og rolle. Rapportsider skal ikke få eksponert arbeidsstasjonens absolutte kildestier.
+
+TMB og MSI leses fra sammendraget; importen gjør ikke en ny analyseberegning. Småvariantene kommer fra den annoterte tabellen. CNV og RNA leses som komplette støttede kildetabeller, og identitetskolonner filtreres på bekreftet prøve. Et manuelt valg av fil overstyrer ikke en motstridende prøve-ID i tabellradene. Generiske tabeller uten prøveidentitet krever at brukeren faktisk har kontrollert sammenhengen.
+
+Plott valideres før innlegging. Rapporten tillater høyst 100 plott og samlet 64 MiB vedleggsbytes; hvert vedlegg har grense på 12 MiB. PNG-plott kontrolleres for gyldig bildeinnhold og høyst 64 millioner piksler. Et PDF-plott kan ha høyst 20 sider og må kunne rasteriseres med de tilgjengelige PDF-verktøyene.
+
+Et kildefingerprint beregnes av prøve, run, kilderoller og filhashene. Deretter opprettes ReportRecord, første DRAFT ReviewRevision, ReportAsset, importørens ReportGrant, ImportItem og ImportSource i én databasetransaksjon. Første kladd oppgraderes av den eksisterende kontraktflyten når arbeidsflaten åpner den. Importen gir ikke ReportWriteGrant for BAM eller CRAM.
+
+### Dubletter konflikter og delvise kjøringer
+
+Samme rapportidentitet med samme kjente fingerprint og tilgang for importøren gir Allerede importert. Det opprettes ikke en ny rapport, og manuelle vurderinger erstattes ikke. Samme prøve og run med annet grunnlag eller uten dokumentert tidligere importfingerprint avvises som konflikt. Hvis rapporten finnes uten at importøren har tilgang, gir ikke en ny import automatisk tilgang.
+
+Feil eller avbrudd før prøveinnleggingen er ferdig ruller tilbake den prøven og rydder det nye, uferdige kildearkivet. Fullførte prøver i samme jobb beholdes. Jobben får COMPLETED, PARTIAL eller CANCELLED og et resultat per prøve. Ved en brå avslutning av hele PC-en kan en RUNNING-post eller en foreldreløs kildekatalog kreve teknisk undersøkelse. Ingen automatisk omstart eller vilkårlig sletting av slike kataloger skal antas.
+
+Filgjenkjenning og import er en lokal prosess for ferdige analyseresultater. Den kjører ikke variant calling, CNV-analyse eller en Archer-pipeline. MolStat, Solide og Archer er brukt som referanser for arbeidsflyt og appstruktur; de startes ikke som skjulte avhengigheter når PRONTO importerer.
+
+### Utviklerens isolerte testinnganger
+
+scripts/create_desktop_example.py lager fem mapper fra det godkjente OUS-fixturegrunnlaget. Bruk en separat testdatabase. Eksemplet dokumenterer kjent struktur og er ikke bevis på at jobb-PC-ens mapper er identiske.
 
 ```powershell
-.\.venv\Scripts\python.exe -m pronto_report.cli export --fixture ous --output Out\handover-report.json
-.\.venv\Scripts\python.exe -m pronto_report.cli render-html Out\handover-report.json --asset-root test_data\ous\251114_A02134_0115_BHCJCKDRX7_TSO_500_LocalApp_postprocessing_results --output Out\handover-report.html
+.\.venv\Scripts\python.exe scripts\create_desktop_example.py --output Out\desktop-example
+.\.venv\Scripts\python.exe -m pronto_desktop --data-root 'C:\PRONTO-test' --port 8772
 ```
 
-Den lange asset-root-stien er én sammenhengende sti. --review kan brukes med en tilhørende validert ReviewState JSON. Bruk --generated-at med en fast UTC-tid hvis byteidentisk gjengenerering av JSON er nødvendig. Uten dette varierer genereringstiden.
+Den eksisterende CLI-kommandoen export --fixture ous kan fortsatt produsere et reproduserbart ReportData-grunnlag. render-html kan bygge en frittstående skrivebeskyttet HTML med --asset-root. --review kan koble en validert vurdering til eksporten. CLI-fixtureinngangen er avgrenset teststøtte; desktopimporten er den ordinære brukerinngangen for støttet kjøringsstruktur.
 
-### Slik må en kontrollert databaseimport bygges
-
-1. Velg kilderot, sample_id, genereringstid og generatorversjon eksplisitt. Kontroller prøve, run og referansebygg mot laboratoriets prøveoversikt.
-2. Kjør adapt_pronto_output. Avklar diagnostikk og manglende data før rapporten tas i bruk. Valider alle vedlegg med load_plot_images og de deklarerte hashene.
-3. Opprett en ny ReportRecord med serialize_report_data. Avvis ID-kollisjon; ikke oppdater en allerede vurdert rapport med nye rådata under samme ID.
-4. Opprett en gyldig innledende DRAFT ReviewRevision med riktig reportId, revision, reviewer, tidsstempler, tomme vurderinger, QC, notes og korreksjoner. Oppgrader til gjeldende kontrakt med upgrade_review ved behov.
-5. Opprett ett ReportAsset per deklarert vedlegg og eksplisitte ReportGrant til aktuelle brukere. Utfør databaseinnleggingen samlet i transaction.atomic().
-6. Åpne rapporten som riktig bruker, lagre en vurdering og kontroller begge PDF-formatene og historikk. En ReportRecord uten innledende vurdering har ikke et komplett redigeringsløp.
-
-Dette importmønsteret er gjennomkjørt på godkjent testgrunnlag i en separat database ved overleveringen. Det gir ikke automatisk validering av andre laboratorieformater. enrich_demo_report er en eksplisitt demonstrasjonsfunksjon med blandede eksempelprøver og syntetisk HRD. Den skal ikke brukes som klinisk pasientimport.
+enrich_demo_report blander eksempelprøver og syntetisk HRD med eksplisitt demoformål. Den brukes ikke av desktopimporten og skal ikke aktiveres for klinisk grunnlag.
 
 ## 11 HTML PDF og rapportmaler
 
@@ -278,9 +353,11 @@ CLI render-html lager en frittstående, skrivebeskyttet rapportflate med innebyg
 
 HTML-eksportendepunktet er en kompatibilitetsflyt med deklarerte initialer og lagret ReviewRevision. Det fryser ikke automatisk en aktiv WorkingDraft slik PDF-endepunktet gjør. Ved bruk av dette API-et må klienten velge en faktisk bevart revisjon. Oppgi ikke en uspart kladderevisjon og forvent at den eksporteres.
 
-Ved overleveringen ble summary_html.py rettet slik at gjeldende ReviewState v4 kan eksporteres. Tidligere ble den avvist selv om den var gyldig og ferdigstilt. Regresjonstesten kontrollerer blant annet lagret tekst, escaping, manuell CNV og eksportspor.
+I leveransen fra 23. oktober 2026 ble summary_html.py rettet slik at gjeldende ReviewState v4 kan eksporteres. Tidligere ble den avvist selv om den var gyldig og ferdigstilt. Regresjonstesten kontrollerer blant annet lagret tekst, escaping, manuell CNV og eksportspor.
 
-### De to PDF-formatene
+Importerte generelle CNV-plott, inkludert Cancan, og RNA-domeneplott vises i de respektive fanene med forstørring. Den bekreftede kilderollen brukes ved plassering; et misvisende filnavn skal ikke flytte et eksplisitt RNA-plott til CNV. Den eldre nisiders CNV-visningen med navngitte panelgrupper er beholdt for det kjente overview-formatet.
+
+### De to PDF oppsettene
 
 Presentation er liggende A4 med pasientfelt, Key relevant findings og kompakte funntabeller. ESMO er stående A4 med sammendrag, resultater og kliniske tekstseksjoner. Malnavnet ESMO beskriver rapportoppsettet og er ikke dokumentasjon på ekstern godkjenning. Lange tabeller og tekster fortsetter på flere sider.
 
@@ -300,7 +377,7 @@ Permanent bevaring er et eget løp med eksplisitt bekreftelse, rettigheter, stø
 
 ### Referansegenomer
 
-Lokal oppstart oppdager komplette filpar i .local-web/references/: GRCh37.fa med GRCh37.fa.fai, og GRCh38.fa med GRCh38.fa.fai. Start appen på nytt etter at filpar legges til. Appen laster ikke referansefiler ned automatisk. I den kontrollerte lokale installasjonen finnes begge parene; innholdets biologiske korrekthet må forvaltes av laboratoriet.
+Ved det eldre lokale oppsettet oppdages komplette filpar i .local-web/references/. Med valgt datarot brukes i stedet references/ under den dataroten. Filene heter GRCh37.fa med GRCh37.fa.fai, og GRCh38.fa med GRCh38.fa.fai. Start appen på nytt etter at filpar legges til. Appen laster ikke referansefiler ned automatisk. Den eldre lokale kontrollen 23. oktober fant begge parene. Dette bekrefter ikke at de følger en ny installasjon; innholdets biologiske korrekthet må forvaltes av laboratoriet.
 
 Rapport, BAM eller CRAM og referanse må bruke samme bygg. Innloggede referanseruter støtter nødvendige byteområder. FASTA-innhold krever ett gyldig byteområde ved GET; FAI kan leses samlet opp til 8 MiB. igv.js versjon 3.7.0 følger prosjektet lokalt. Standard genomliste og offentlig CDN brukes ikke.
 
@@ -315,6 +392,8 @@ Hele filparet valideres, hashes og publiseres først etter vellykket kopiering. 
 ### Viktige innstillinger
 
 | Innstilling | Betydning |
+| PRONTO/desktop.json i lokal brukerprofil | Desktopappens huskede datarot og port. Inneholder ikke passord. Visning av aktiv database finnes under Innstillinger. |
+| .local-web/config.json | Eldre oppstartsvalg for eksisterende database og port. Gjenbrukes ved første desktopoppstart uten ny datarot. |
 | PRONTO_DJANGO_SECRET_KEY | Obligatorisk nøkkel ved direkte Django-oppstart. Lokal launcher bruker secret.key. |
 | PRONTO_DJANGO_DB | Eksplisitt SQLite-sti for Django. Launcher setter den fra valgt konfigurasjon. |
 | DJANGO_SETTINGS_MODULE | Velger settings, local_settings eller test_settings. Testoppsett skal bare brukes til tester. |
@@ -344,9 +423,13 @@ Arbeidskommandoen bruker schemaVersion 2.0, reportId, action, baseRevision og ex
 
 ### Hva backup må omfatte
 
-Ta backup av den aktive databasen, .local-web/config.json og secret.key gjennom et beskyttet internt område. Ta separat vare på referansegenomer og indekser, analysegrunnlag, eventuelt alignment-register, bevarte filpar, rapporteksporter og driftens settings. Installer .venv på nytt fra requirements fremfor å kopiere miljøet til en annen maskin.
+Ta backup av den aktive databasen, brukerprofilens PRONTO/desktop.json, relevant oppstartskonfigurasjon og secret.key gjennom et beskyttet internt område. Ved eldre oppsett må .local-web/config.json bevares. Ved ny datarot følger database/pronto.sqlite3, raw_imports, references og secret.key dataroten; innstillingene i lokal brukerprofil ligger utenfor den. Ta separat vare på referansegenomer og indekser, analysegrunnlag, eventuelt alignment-register, bevarte filpar, rapporteksporter og driftens settings. Installer .venv på nytt fra requirements fremfor å kopiere miljøet til en annen maskin.
 
 Bruk SQLite backup API for en konsistent kopi når databasen er åpen. En tilfeldig filkopi mens noen skriver kan mangle transaksjoner eller kreve WAL-filer. Ved en helt stoppet tjeneste kan en kontrollert filkopi brukes. Stopp også eventuelle opplastinger hvis backup skal samordnes med et privat alignment-lager.
+
+### Backup fra appen og teknisk reservekommando
+
+Ta sikkerhetskopi under Innstillinger bruker SQLite backup API og kontrollerer integrity_check. Kopien ligger i datarotens backups. Knappen tar ikke en komplett kopi av råarkiv, referanser eller bevarte alignments. Planlegg samlet backup og en verifisert gjenoppretting av disse delene.
 
 ### Eksempel med SQLite backup API
 
@@ -357,7 +440,7 @@ from pathlib import Path
 import sqlite3
 
 source = Path(r'C:\PRONTO-data\pronto.sqlite3').resolve()
-target = Path(r'C:\PRONTO-backup\pronto-2026-10-23.sqlite3')
+target = Path(r'C:\PRONTO-backup\pronto-2026-10-24.sqlite3')
 target.touch(exist_ok=False)
 with sqlite3.connect(source.as_uri() + '?mode=ro', uri=True) as src:
     with sqlite3.connect(target) as dst:
@@ -372,7 +455,7 @@ with sqlite3.connect(target) as restored:
 1. Stopp den gamle serveren og sikre eventuelle ulagrede nettleserendringer. Ta en siste backup. Dokumenter kodeversjon og migreringsnivå sammen med backupen.
 2. Installer samme kodeversjon på ny maskin. Kopier backup til en ny privat driftssti; behold originalbackupen urørt.
 3. Overfør nøkkel og nødvendige filer via godkjent intern kanal. Ikke legg secret.key, innloggingstekster eller databasen i kildekodearkivet.
-4. Start launcheren med --database som peker til den nye kopien. Dette lagrer riktig absolutt sti og unngår at gammel config peker tilbake til den gamle maskinen. Kjør --check etter backup.
+4. For en ny datarot legges databasen i database/pronto.sqlite3 og de tilhørende mappene og nøkkelen på riktig plass. Start desktopappen med --data-root som peker på denne dataroten, og kontrollér aktiv fil under Innstillinger. Ved beholdt eldre oppsett brukes scripts/start_web.py --database for å oppdatere den eksisterende filstien. Kjør --check etter backup; dette kan migrere databasen.
 5. Kontroller innlogging, tilgang, rapportantall, siste FINAL, aktiv kladd, rapportbilder, figurer og begge PDF-formatene. Kontroller IGV separat.
 6. Avtal når den nye installasjonen blir skrivende hovedinstallasjon. Hold den gamle avslått for å hindre to divergerende databaser.
 
@@ -382,13 +465,13 @@ Ved en mislykket oppgradering gjenopprettes både tidligere kode og den tilhøre
 
 ### Kontoer og rapporttilgang
 
-Bruk personlige kontoer i ordinær drift. Nye rapporter krever eksplisitt ReportGrant. Kontoopprettelse i launcheren gir tilgang til alle rapporter som finnes på opprettelsestidspunktet; vurder derfor om dette passer den lokale arbeidsdelingen før kontoen opprettes. Det finnes ikke et ferdig administratorgrensesnitt for all rapporttildeling.
+Bruk personlige kontoer i ordinær drift. Desktopimporten gir ReportGrant til den aktive importøren for nyopprettede rapporter. Andre brukere trenger eksplisitt tildeling. Desktopappens første konto gir ingen generell tilgang til eksisterende rapporter. Den eldre scripts/start_web.py --setup-user gir derimot tilgang til alle rapporter som finnes på opprettelsestidspunktet; vurder derfor om dette passer den lokale arbeidsdelingen før kontoen opprettes. Det finnes ikke et ferdig administratorgrensesnitt for all rapporttildeling.
 
 En teknisk forvalter kan bruke Django shell med korrekt database og settings. get_or_create på ReportGrant kan gi tilgang til en bestemt eksisterende rapport og bruker; sletting av den samme koblingen trekker tilgangen tilbake. Ikke gi ReportWriteGrant som standard. Den gjelder genomfilbevaring, ikke det vanlige rapportarbeidet. For å sperre en konto settes is_active til false.
 
 ### Lokalt produkt og delt tjeneste
 
-start_web.py bruker Djangos utviklingsserver og er laget for lokal bruk på 127.0.0.1. Å endre adressen til 0.0.0.0 er ikke en ferdig produksjonsinstallasjon. Delt drift trenger en valgt produksjonsserver, HTTPS, vertsliste, riktig proxy-oppsett, sikker nøkkelforvaltning, statiske filer, logger, backup, overvåking og en test av samtidige brukere.
+Desktopappen bruker en egen, begrenset WSGI-server med binding til 127.0.0.1 og kontrollert eierskap. Den eldre start_web.py bruker Djangos utviklingsserver. Begge er laget for lokal arbeidsstasjon. Å endre adressen til 0.0.0.0 er ikke en ferdig produksjonsinstallasjon. Delt drift trenger en valgt produksjonsserver, HTTPS, vertsliste, riktig proxy-oppsett, sikker nøkkelforvaltning, statiske filer, logger, backup, overvåking og en test av samtidige brukere.
 
 Grunninnstillingene mangler HTTPS-redirect og HSTS. check --deploy varsler om dette. Et eget produksjonsoppsett må håndtere HTTPS på riktig sted og kontrollere proxy-innstillingene. Ikke aktiver HSTS ukritisk før domenets HTTPS-drift er verifisert. SQLite støtter ikke Djangos select_for_update; flerkontobruk og eventuelt annet databasevalg må derfor vurderes og testes i det faktiske driftsmiljøet.
 
@@ -407,9 +490,13 @@ Ta en konsistent backup og noter nåværende kodeversjon før endring. Installer
 ### Vanlige problemer
 
 | Symptom | Første kontroll og tiltak |
-| Ingen rapporter i oversikten | Kontroller valgt database i config.json og ReportGrant. En ny installasjon er tom til data importeres. |
+| Ingen rapporter i oversikten | Kontroller aktiv database under Innstillinger og ReportGrant for HTML-brukeren. En ny installasjon er tom til data importeres. |
+| Importplanen har ingen prøver | Kontroller metadataheaders, eksakte prøve-ID-er og kjørings-ID-er. Faktisk jobbstruktur kan kreve en ny profil. |
+| Ingen import etter mappevalg | Velg alle fem forskjellige mapper og trykk Kontroller filer. Les avvik, kildeliste og prøveidentitet før Prosesser og importer. |
+| Samme prøve avvises | Kontroller fingerprint og opprinnelig import. Endret eller ukjent rågrunnlag skal ikke overskrive vurderte rapporter. |
+| Husket database er utilgjengelig | Gjenopprett tilgang til riktig datarot. Ikke slett desktop.json eller lag en tom erstatning uten bevisst nyinstallasjon. |
 | Innlogging virker ikke | Kontroller konto, passord, is_active, korrekt port og korrekt local_settings ved lokal HTTP. |
-| Porten er opptatt | Stopp den aktuelle serveren eller bruk --port 8771. Ikke avslutt andre prosesser uten å identifisere dem. |
+| Porten er opptatt | Identifiser den aktuelle tjenesten eller velg ny port for neste oppstart. Appen gjenbruker bare en server med riktig privat identitet og stopper ikke andres prosesser. |
 | Manglende SECRET_KEY | Bruk launcheren eller sett en privat nøkkel ved direkte Django-oppstart. Ikke bruk testnøkkelen i drift. |
 | Lagre gir konflikt | Sikre lokal JSON, last siste tilstand og avstem manuelt. 409 skal ikke løses ved å overskrive databaseraden. |
 | Feil ved PDF eller HTML | Behold kladden. Kontroller serverlogg, lagret revisjon, kontrakt og tilgjengelige vedlegg eller figurer. |
@@ -426,37 +513,41 @@ På et konfigurert Linux-oppsett kan clean_alignment_staging --dry-run vise utl�
 
 Utfyllende driftstekst finnes i docs/igv-alignment-operations.md. Regler for fixtures og lokaldata finnes i docs/fixture-and-privacy-policy.md. Hold nye skjermbilder, databaser, kildearbeidsbøker og rapporteksporter utenfor Git.
 
-## 17 Kontrollresultater ved overlevering
+## 17 Kontrollresultater og verifiseringsgrenser
 
-Kontrollene gjelder den identifiserte kildeversjonen og miljøet på denne Windows-maskinen. Automatiske tester bruker godkjente fixtures eller syntetisk grunnlag. De endrer ikke vurderingsinnholdet i den aktive databasen. En separat backup ble laget med SQLite backup API.
+### Kontroll av den nye appen
 
-| Kontroll | Resultat |
-| Python og avhengigheter | Python 3.14.0. pip check fant ingen brutte avhengighetskrav. Dette er ikke en CVE-revisjon. |
-| pytest før rettelsen | 420 bestått og 18 utelatt. |
-| Nettlesertester | 76 bestått i ekte headless Chromium gjennom Playwright. |
-| Django før rettelsen | 107 tester kjørt, OK, én utelatt. |
-| HTML regresjon | Reprodusert avvisning av gyldig v4, deretter bestått test for ferdigstilt v4 med manuell CNV og lagret tekst. |
-| Sluttkjøring etter rettelsen | pytest: 420 bestått, 18 utelatt. Django: 108 kjørt, OK, én utelatt. Nettlesertestene inngår i pytest. |
-| Systemkontroll | Ingen ordinære systemfeil. Ingen uregistrerte modellendringer. |
-| Deploymentkontroll | To varsler med en egnet midlertidig nøkkel: HSTS og HTTPS-redirect mangler i grunnoppsettet. |
-| Aktiv database | integrity_check er ok. Ingen brudd på fremmednøkler. |
-| Datakontrakter | 31 rapporter og 85 vurderinger eller arbeidskladder validerte. |
-| Rapportvedlegg | 45 vedlegg samsvarte med deklarerte SHA-256 og forventet vedleggssett. |
-| Sikkerhetskopi | Separat backup kan åpnes og har samme tabellantall og gyldig integritet. |
-| Gjennomkjøring i ny database | Import, CSRF-beskyttet Save, 409 ved foreldet Save, Finalize og historikk bestått. |
-| Eksporter i gjennomkjøring | ESMO PDF med fire sider, Presentation PDF med én side og frittstående HTML bestått. Lagret tekst finnes i eksportene. |
-| Tilgang i gjennomkjøring | Uinnlogget oversikt omdirigeres til innlogging. Bruker uten rapporttilgang får 404. |
-| Lokale referansefiler | Begge forventede FASTA og FAI-par finnes for GRCh37 og GRCh38. |
+Kontrollene gjelder programgrunnlaget som identifiseres i pakkens manifest. App- og importtestene bruker midlertidige databaser, syntetiske filer eller godkjente fixtures. Resultatene gir teknisk kontroll av den støttede filstrukturen; de erstatter ikke verifisering av den reelle kjøringen fra jobb-PC-en.
 
-17 Linux-avhengige tester for pysam og privat alignment-bevaring ble utelatt på native Windows. Én test av symbolske lenker ble utelatt fordi Windows ikke tillot opprettelse av lenker. Django-kjøringen utelot den samme lenketesten. Utelatt betyr ikke bestått.
+| Kontroll | Resultat ved denne leveransen |
+| Målrettede app og importtester | 54 bestått som del av pytest: 30 import, 11 runtime, 12 GUI og én faktisk HTTP-gjennomkjøring. |
+| Samlet pytest | 478 bestått og 18 utelatt på Windows. Kjøretid 319,56 sekunder. |
+| Django requesttester | 108 tester, OK, én utelatt. Kjøretid 104,274 sekunder. |
+| System og modellkontroll | Django system check uten feil. Ingen uregistrerte modellendringer. pip check uten brutte avhengighetskrav. |
+| Native grensesnitt | Bakgrunnsjobber, fem mapper, kildekobling, kontoopprettelse, importøridentitet, historikk, avbryt, backup, serverstyring og tastaturnavigasjon kontrollert. Fem sider gjennomgått visuelt med syntetisk eksempel. |
+| Import og sikkerhet | Prøvegrenser, RNA-kobling, generisk CNV-valg, endrede kilder, dubletter, konflikter, arkiv og transaksjon per prøve kontrollert i tester. |
+| Databasemigrering og backup | Tom og eksisterende syntetisk database, backup før migrering, WAL-innhold, kontogjenbruk og utilgjengelig husket datarot kontrollert. |
+| Serverlivsløp | Oppstart, stopp, privat helseidentitet, portkonflikt, gjenbruk uten eierskap og fullføring av pågående HTTP-kall kontrollert. |
 
-Docker-klienten finnes, men Docker Linux-tjenesten var ikke tilgjengelig under kontrollen. Docker-bygg og hele OUS og HUS-fixtureflyten ble derfor ikke kjørt på nytt. Prosjektets Dockerfile pakker den eldre kommandolinjeflyten; den inneholder ikke en ferdig distribusjon av webappen. Det er heller ikke gjennomført ekstern produksjonsdrift, klinisk godkjenning, belastningstest eller en full sårbarhetsrevisjon av avhengighetene.
+Den nye appen er også startet synlig mot det eksisterende lokale oppsettet. Rapportserveren svarte på port 8772. Innholdshash før og etter viste bevarte rapporter, vurderinger, vedlegg, tilganger og kontoer. Nøkkelen ble beholdt, databaseintegritet og fremmednøkler var gyldige, og sikkerhetskopien før migrering 0011 ble kontrollert. Dette er en bevaringskontroll av eksisterende innhold, ikke en klinisk godkjenning.
+
+### Tidligere databasestatus fra 23 oktober
+
+Ved den tidligere overleveringen 23. oktober 2026 ble den daværende lokale databasen kontrollert med integrity_check, foreign_key_check, kontraktvalidering og vedleggshash. Den kontrollen omfattet 31 rapporter, 85 vurderinger eller arbeidskladder og 45 vedlegg. Tallene er en datert historisk kontroll, ikke nye opptellinger for denne appversjonen eller et løfte om innholdet i en tom installasjon.
+
+Den tidligere gjennomkjøringen på separat database kontrollerte import, CSRF-beskyttet Save, 409 ved foreldet lagring, Finalize, historikk og både PDF og HTML. Rettingen av HTML-eksport for gyldig ReviewState v4 følger fortsatt koden. Resultater og rålogger må leses sammen med dato og nøyaktig versjon i den aktuelle pakken.
+
+### Gjenstående miljøkontroller
+
+Den faktiske femmappestrukturen og filene på jobb-PC-en er ikke kontrollert. Python FELLES og Ivanti, tilgangsrettigheter, Poppler og nettleser må prøves på den maskinen. Native Windows dekker ikke de Linux-avhengige funksjonene for permanent BAM eller CRAM-bevaring. Utelatte tester er ikke beståtte tester.
+
+Docker Linux-tjenesten var ikke tilgjengelig ved den tidligere kontrollen og Docker-fixtureløpet ble da ikke kjørt på nytt. Dockerfile beskriver den eldre kommandolinjeflyten, ikke en ferdig desktop- eller webdistribusjon. Det foreligger heller ikke ekstern produksjonsdrift, klinisk godkjenning, generell belastningstest eller full sårbarhetsrevisjon av avhengighetene i denne overleveringen.
 
 ## 18 Sjekkliste for formell overtakelse
 
 ### Det som følger med
 
-Kildekodepakken omfatter et fast programgrunnlag med HTML-rettelsen og tilhørende regresjonstest. Kontrollnotatet oppgir nøyaktig commit, filnavn, testresultater og eventuelle begrensninger. Denne manualen forklarer komponenter, dataflyt, kontrakter, database, oppstart, vurdering, eksport og drift. Den lokale databasen er ikke en del av kildekodepakken.
+Kildekodepakken omfatter desktopappen, femmappe-importen, databaseendringen 0011, rapportarbeidsflaten og tilhørende tester. Den tidligere HTML-rettelsen og regresjonstesten er beholdt. Kontrollnotatet oppgir nøyaktig commit, filnavn, testresultater og eventuelle begrensninger. Denne manualen forklarer komponenter, dataflyt, kontrakter, database, oppstart, vurdering, eksport og drift. Den lokale databasen er ikke en del av kildekodepakken.
 
 ### Avklar og kvitter ved overtakelsen
 
@@ -468,14 +559,14 @@ Kildekodepakken omfatter et fast programgrunnlag med HTML-rettelsen og tilhøren
 | Backup, beskyttet lagringssted og gjenoppretting er overtatt. | Driftsansvarlig |
 | Kildegrunnlag og referansegenomer er lokalisert og faglig verifisert. | Faglig eier |
 | Rapporten er gjennomgått fra lagring til FINAL og begge PDF-formatene. | Mottaker |
-| Import av nye kliniske prøver har en navngitt eier og validert rutine. | Teknisk og faglig eier |
+| De faktiske fem kjøringsmappene er prøvd, og prøvekobling og innhold er faglig validert. | Teknisk og faglig eier |
 | Omfanget lokal bruk eller delt serverdrift er besluttet. | Systemeier |
 | Linux-bevaring av alignments forblir av eller er særskilt validert og godkjent. | Data og driftsansvarlig |
 | Tidspunkt for å ta gammel skrivende installasjon ut av bruk er avtalt. | Avgiver og mottaker |
 
 ### Videre arbeid som ikke skal skjules
 
-For ordinær klinisk innføring må mottakeren etablere en pasientkoblet import av de faktiske laboratoriefilene, validere alle beregninger og presentasjoner faglig og velge et godkjent driftsmiljø. Delt serverdrift trenger produksjonsserver og HTTPS. Eventuell BAM eller CRAM bevaring trenger Linux-kontroll, lagerpolicy og backup med filsystemet. Dette er innføringsansvar, ikke funksjoner som aktiveres av å overta Word-filen.
+For ordinær klinisk innføring må mottakeren kontrollere den implementerte pasientkoblingen mot de faktiske laboratoriefilene, supplere filprofilen ved avvik, validere alle beregninger og presentasjoner faglig og velge et godkjent driftsmiljø. Delt serverdrift trenger produksjonsserver og HTTPS. Eventuell BAM eller CRAM bevaring trenger Linux-kontroll, lagerpolicy og backup med filsystemet. Dette er innføringsansvar, ikke funksjoner som aktiveres av å overta Word-filen.
 
 Ingen automatisk sammenslåing av samtidige kladder, journalsystemkobling, kontinuerlig ekstern annotering eller full historikk av hver Save inngår i den beskrevne flyten. Ved videreutvikling skal kontrakter, innhold og lagringsregler holdes konsistente mellom arbeidsflate, historikk, HTML og PDF.
 
@@ -484,6 +575,7 @@ Ingen automatisk sammenslåing av samtidige kladder, journalsystemkobling, konti
 Følgende filer i leveransen er de konkrete tekniske referansene. De eldre arkitekturskissene utenfor den aktive prosjektmappen beskriver tidligere idéer og skal ikke behandles som en presis beskrivelse av dagens implementasjon.
 
 | Referanse i prosjektet | Når den brukes |
+| docs/desktop-app.md | Praktisk bruk av desktopappen, fem mapper, import, dataflyt, lagring og driftsgrense. |
 | docs/oppstart-nb.md | Vanlig lokal oppstart, konto og databasevalg. |
 | docs/report-review-workspace.md | Kladder, revisjoner, konflikter og manuelle tabellvalg. |
 | docs/integrated-review.md | CNV, RNA, QC, figurer og PDF. |
@@ -498,7 +590,10 @@ Følgende filer i leveransen er de konkrete tekniske referansene. De eldre arkit
 ### Testkommandoer fra prosjektroten
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-test.txt -r requirements-browser.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements-desktop-test.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements-browser.txt
+$env:QT_QPA_PLATFORM='offscreen'
+.\.venv\Scripts\python.exe -m pytest pronto/tests/ingest pronto/tests/desktop -q
 .\.venv\Scripts\python.exe -m pytest -q -rs
 $env:DJANGO_SETTINGS_MODULE='pronto_web.test_settings'
 .\.venv\Scripts\python.exe manage.py test pronto_web.reports
@@ -512,4 +607,4 @@ test_settings bruker isolerte testinnstillinger og en offentlig testnøkkel. Ikk
 
 Den samlede løsningen som ble kontrollert, ligger under repos/PRONTO/.worktrees/igv-django-integration i Inpred-arbeidsområdet. Roten repos/PRONTO er en eldre arbeidskopi. Mappenavnet er beholdt ved feilrettingen, selv om Git-branchen kan ha fått et nytt navn. Et navn på en worktree er ikke bevis på hvilken kodeversjon den inneholder; kontroller commit i kontrollnotatet.
 
-Den beskyttede databasebackupen ligger under .local-web/backups i den aktive arbeidskopien. Den konkrete backupfilen er registrert i det lokale kontrollgrunnlaget. Ved overtakelse flyttes denne og den private konfigurasjonen separat, slik kapittel 14 beskriver.
+Backup fra den nye desktopappen ligger under backups i den aktive dataroten. Den tidligere beskyttede databasebackupen ligger under .local-web/backups i den eldre aktive arbeidskopien. Den konkrete backupfilen er registrert i det lokale kontrollgrunnlaget. Ved overtakelse flyttes denne og den private konfigurasjonen separat, slik kapittel 14 beskriver.
