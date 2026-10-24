@@ -52,6 +52,18 @@ def read_source_table(path: Path, *, kind: str, demo: bool = False, sheet_name: 
             book.close()
     elif path.suffix.lower() in {'.csv', '.tsv', '.txt'}:
         delimiter = ';' if path.suffix.lower() == '.csv' else '\t'
+        if path.suffix.lower() == '.csv':
+            # Pick only a delimiter which exposes the exact expected header.
+            # Do not guess from data cells, whose quoted values may contain both.
+            with path.open(encoding='utf-8-sig', newline='') as stream:
+                for index, line in enumerate(stream):
+                    if index >= 500:
+                        break
+                    matches = [candidate for candidate in (';', ',', '\t')
+                               if HEADERS[kind] in next(csv.reader([line], delimiter=candidate))]
+                    if len(matches) == 1:
+                        delimiter = matches[0]
+                        break
         with path.open(encoding='utf-8-sig', newline='') as stream:
             source_rows = []
             for row in csv.reader(stream, delimiter=delimiter):

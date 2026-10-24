@@ -226,3 +226,34 @@ class AlignmentEvent(models.Model):
     saved_id = models.UUIDField()
     action = models.CharField(max_length=6, choices=[("SAVE", "SAVE"), ("COPY", "COPY"), ("DELETE", "DELETE")])
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class ImportBatch(models.Model):
+    """Local import lifecycle; folder paths and file content stay out of logs."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    folder_count = models.PositiveSmallIntegerField(default=5)
+    status = models.CharField(max_length=16, default='RUNNING')
+    created_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True)
+
+
+class ImportItem(models.Model):
+    batch = models.ForeignKey(ImportBatch, on_delete=models.PROTECT, related_name='items')
+    report = models.ForeignKey(ReportRecord, on_delete=models.PROTECT, null=True, related_name='imports')
+    sample_id = models.CharField(max_length=128)
+    run_id = models.CharField(max_length=128)
+    fingerprint = models.CharField(max_length=64, blank=True)
+    status = models.CharField(max_length=24)
+    message = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class ImportSource(models.Model):
+    """Immutable private source snapshot, relative to the configured raw root."""
+    item = models.ForeignKey(ImportItem, on_delete=models.PROTECT, related_name='sources')
+    role = models.CharField(max_length=24)
+    original_name = models.CharField(max_length=255)
+    archive_key = models.CharField(max_length=250, unique=True)
+    sha256 = models.CharField(max_length=64)
+    size_bytes = models.PositiveBigIntegerField()
