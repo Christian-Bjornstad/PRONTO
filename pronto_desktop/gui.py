@@ -23,6 +23,9 @@ ROLE_LABELS = {
     "variants": "Småvarianter", "sample_list": "Prøveliste",
     "cnv_table": "CNV-tabell", "rna_table": "RNA-tabell",
     "cnv_plot": "CNV-plott", "qc_plot": "QC-plott", "other_plot": "Andre plott",
+    "linkage": "Prøvekobling", "cancan_table": "Cancan-tabell",
+    "signature_plot": "Mutasjonssignatur", "rna_profile_plot": "RNA-profil",
+    "supporting": "Tilleggsgrunnlag",
 }
 STATUS_LABELS = {"imported": "Importert", "already_imported": "Allerede importert", "failed": "Feilet", "cancelled": "Avbrutt"}
 
@@ -222,7 +225,7 @@ class MainWindow(QMainWindow):
         self._persisted_history: list[tuple[str, str, str, str]] = []
         self._pool = QThreadPool(self)
         self._pool.setMaxThreadCount(1)
-        self.setWindowTitle("PRONTO · Kontrollsenter")
+        self.setWindowTitle("PRONTO")
         self.setMinimumSize(1100, 760)
         self.resize(1280, 850)
         self.setStyleSheet(build_stylesheet())
@@ -235,7 +238,7 @@ class MainWindow(QMainWindow):
         content = QWidget()
         content.setObjectName("content")
         body = QVBoxLayout(content)
-        body.setContentsMargins(26, 22, 26, 18)
+        body.setContentsMargins(24, 24, 24, 16)
         body.setSpacing(16)
         body.addWidget(self._server_bar())
         self.stack = QStackedWidget()
@@ -251,7 +254,7 @@ class MainWindow(QMainWindow):
         body.addWidget(self.progress)
         root.addWidget(content, 1)
         self.setCentralWidget(shell)
-        self.statusBar().showMessage("Klar. Velg fem mapper fra samme kjøring for å starte.")
+        self.statusBar().showMessage("Klar")
         for index in range(5):
             action = QAction(self)
             action.setShortcut(QKeySequence(f"Ctrl+{index + 1}"))
@@ -272,14 +275,14 @@ class MainWindow(QMainWindow):
     def _sidebar(self) -> QFrame:
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(204)
+        sidebar.setFixedWidth(184)
         layout = QVBoxLayout(sidebar)
-        layout.setContentsMargins(18, 28, 18, 22)
+        layout.setContentsMargins(16, 28, 16, 24)
         layout.setSpacing(8)
         brand = label("PRONTO")
         brand.setObjectName("brand")
         layout.addWidget(brand)
-        detail = label("Rapportarbeidsplass")
+        detail = label("Analyse og rapport")
         detail.setObjectName("brand-detail")
         layout.addWidget(detail)
         layout.addSpacing(30)
@@ -293,7 +296,7 @@ class MainWindow(QMainWindow):
             self.nav_buttons.append(nav)
             layout.addWidget(nav)
         layout.addStretch()
-        caption = label("LOKAL ARBEIDSPLASS")
+        caption = label("LOKAL SERVER")
         caption.setObjectName("sidebar-caption")
         layout.addWidget(caption)
         self.side_status = label("Server stoppet")
@@ -316,7 +319,7 @@ class MainWindow(QMainWindow):
         row.addWidget(self.server_status)
         self.start_button = button("Start server", "start-server")
         self.start_button.clicked.connect(self.start_server)
-        self.open_button = button("Åpne rapporter", "open-reports", primary=True)
+        self.open_button = button("Åpne rapporter", "open-reports")
         self.open_button.clicked.connect(self.open_reports)
         self.stop_button = button("Stopp", "stop-server")
         self.stop_button.setAccessibleName("Stopp rapportserveren")
@@ -335,14 +338,15 @@ class MainWindow(QMainWindow):
         heading = label(title)
         heading.setObjectName("page-title")
         layout.addWidget(heading)
-        layout.addWidget(label(intro, muted=True))
+        if intro:
+            layout.addWidget(label(intro, muted=True))
         return widget, layout
 
     def _overview(self) -> QWidget:
-        page, layout = self._page("Fra kjøring til ferdig rapport", "Samle resultatene, kontroller prøvekoblingen og fortsett arbeidet i HTML-rapporten.")
+        page, layout = self._page("Oversikt", "")
         row = QHBoxLayout()
         self.metrics: dict[str, QLabel] = {}
-        for key, title in (("reports", "Rapporter i databasen"), ("samples", "Prøver i importplanen"), ("ready", "Klare for import")):
+        for key, title in (("reports", "Rapporter"), ("samples", "Prøver funnet"), ("ready", "Valgt for import")):
             frame, contents = card()
             contents.addWidget(label(title, muted=True))
             value = label("—" if key == "reports" else "0")
@@ -352,63 +356,108 @@ class MainWindow(QMainWindow):
             row.addWidget(frame, 1)
         layout.addLayout(row)
         frame, contents = card()
-        contents.addWidget(label("Én kjøring. Fem mapper. Ett samlet grunnlag.", section=True))
-        contents.addWidget(label("1    Velg de fem mappene fra samme kjøring.\n\n2    Kontroller filene og koblingen til hver prøve.\n\n3    Prosesser data og åpne rapportene for vurdering."))
+        contents.addWidget(label("Ny kjøring", section=True))
+        contents.addWidget(label("Velg kildemappen, kontroller prøvene og importer til databasen."))
         actionrow = QHBoxLayout()
-        self.begin_button = button("Velg mapper og importer", "begin-import", primary=True)
+        self.begin_button = button("Importer kjøring", "begin-import", primary=True)
         self.begin_button.clicked.connect(lambda: self.navigate(1))
         actionrow.addWidget(self.begin_button)
         actionrow.addStretch()
         contents.addLayout(actionrow)
         layout.addWidget(frame)
-        layout.addWidget(label("Originalfilene beholdes. Importerte kilder arkiveres, og rapporter og vurderinger lagres i den valgte databasen.", muted=True))
+        layout.addWidget(label("Fortsett med vurdering og redigering i rapportoversikten.", muted=True))
         layout.addStretch()
         return page
 
     def _import_page(self) -> QWidget:
-        page, layout = self._page("Importer kjøring", "Velg fem mapper. PRONTO søker i undermapper og lager en importplan før noe lagres.")
+        page, layout = self._page("Importer kjøring", "Velg PRONTO-mappen eller resultatmappene fra én kjøring.")
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         inner = QWidget()
+        inner.setObjectName("page")
         inner_layout = QVBoxLayout(inner)
-        inner_layout.setContentsMargins(0, 0, 3, 0)
-        inner_layout.setSpacing(10)
+        inner_layout.setContentsMargins(0, 0, 4, 0)
+        inner_layout.setSpacing(12)
         foldercard, contents = card()
+        heading = QHBoxLayout()
+        heading.addWidget(label("Kilder", section=True))
+        heading.addStretch()
+        self.more_folders_button = button("Flere mapper", "more-folders")
+        self.more_folders_button.setCheckable(True)
+        self.more_folders_button.toggled.connect(self._toggle_folders)
+        heading.addWidget(self.more_folders_button)
+        contents.addLayout(heading)
         grid = QGridLayout()
         grid.setHorizontalSpacing(9)
         grid.setVerticalSpacing(7)
         self.folder_fields: list[QLineEdit] = []
         self.folder_buttons: list[QPushButton] = []
+        self.folder_labels: list[QLabel] = []
         for index in range(5):
             field = QLineEdit()
             field.setAccessibleName(f"Mappe {index + 1}")
             field.setObjectName(f"folder-{index + 1}")
-            field.setPlaceholderText("Velg mappe fra kjøringen …")
+            field.setPlaceholderText("Mappe med kjøring og analyseresultater" if index == 0 else "Valgfri resultatmappe")
             field.textChanged.connect(self._folders_changed)
             browse = button("Velg …", f"choose-folder-{index + 1}")
             browse.setAccessibleName(f"Velg mappe {index + 1}")
             browse.clicked.connect(lambda checked=False, slot=index: self._choose_folder(slot))
-            title = label(f"Mappe {index + 1}")
+            title = label("&Mappe" if index == 0 else f"Mappe {index + 1}")
             title.setBuddy(field)
             grid.addWidget(title, index, 0)
             grid.addWidget(field, index, 1)
             grid.addWidget(browse, index, 2)
             self.folder_fields.append(field)
             self.folder_buttons.append(browse)
+            self.folder_labels.append(title)
+            if index:
+                for widget in (field, browse, title):
+                    widget.hide()
         grid.setColumnStretch(1, 1)
         contents.addLayout(grid)
+        options = QGridLayout()
+        options.setHorizontalSpacing(12)
+        self.report_version = QComboBox()
+        self.report_version.setObjectName("report-version")
+        self.report_version.setAccessibleName("Rapportgrunnlag")
+        self.report_version.setToolTip("Nyeste tilgjengelige prioriterer report_preQC_newPRONTO_version, deretter report_preQC og rådata.")
+        for text, value in (("Nyeste tilgjengelige", "auto"), ("Ny PRONTO-versjon", "new"), ("Tidligere PRONTO-versjon", "legacy"), ("Rådata", "raw")):
+            self.report_version.addItem(text, value)
+        self.cnv_source = QComboBox()
+        self.cnv_source.setObjectName("cnv-source")
+        self.cnv_source.setAccessibleName("CNV-grunnlag")
+        self.cnv_source.addItem("Sammenslått CNV-tabell", "merged")
+        self.cnv_source.addItem("Cancan", "cancan")
+        self.cnv_solution = QComboBox()
+        self.cnv_solution.setObjectName("cnv-solution")
+        self.cnv_solution.setAccessibleName("Cancan-løsning")
+        for text, value in (("Main", "main"), ("Alternativ 01", "alt01"), ("Alternativ 02", "alt02")):
+            self.cnv_solution.addItem(text, value)
+        self.cnv_solution.setEnabled(False)
+        for column, (title, widget) in enumerate((("Rapportgrunnlag", self.report_version), ("CNV-grunnlag", self.cnv_source), ("Cancan-løsning", self.cnv_solution))):
+            caption = label(title)
+            caption.setBuddy(widget)
+            options.addWidget(caption, 0, column)
+            options.addWidget(widget, 1, column)
+            options.setColumnStretch(column, 1)
+            widget.currentIndexChanged.connect(self._import_options_changed)
+        contents.addLayout(options)
         inner_layout.addWidget(foldercard)
-        self.plan_summary = label("Ingen importplan ennå. Velg mapper og trykk Kontroller filer.", muted=True)
+        self.plan_summary = label("Velg mappe og kontroller filene.", muted=True)
         inner_layout.addWidget(self.plan_summary)
         self.plan_tree = QTreeWidget()
         self.plan_tree.setObjectName("import-plan")
         self.plan_tree.setAccessibleName("Importplan med prøver, kildefiler og avvik")
-        self.plan_tree.setHeaderLabels(["Prøve / filtype", "Kjøring / kildefil", "Status"])
+        self.plan_tree.setHeaderLabels(["Prøve / kilde", "Kjøring / fil", "Metadata", "Status"])
         self.plan_tree.setAlternatingRowColors(True)
-        self.plan_tree.setMinimumHeight(170)
-        self.plan_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.plan_tree.setMinimumHeight(210)
+        self.plan_tree.setUniformRowHeights(True)
+        self.plan_tree.itemChanged.connect(self._selection_changed)
+        self.plan_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        self.plan_tree.setColumnWidth(0, 230)
         self.plan_tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.plan_tree.header().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.plan_tree.header().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         inner_layout.addWidget(self.plan_tree, 1)
         scroll.setWidget(inner)
         layout.addWidget(scroll, 1)
@@ -422,7 +471,7 @@ class MainWindow(QMainWindow):
         self.cancel_button = button("Avbryt", "cancel-job")
         self.cancel_button.clicked.connect(self.cancel_job)
         self.cancel_button.hide()
-        self.import_button = button("Prosesser og importer", "import-data", primary=True)
+        self.import_button = button("Importer valgte", "import-data", primary=True)
         self.import_button.clicked.connect(self.prepare_import)
         self.import_button.setEnabled(False)
         actions.addWidget(self.scan_button)
@@ -434,14 +483,16 @@ class MainWindow(QMainWindow):
         return page
 
     def _reports_page(self) -> QWidget:
-        page, layout = self._page("Rapporter og importhistorikk", "Åpne rapportserveren for vurderinger, kildefiler, HTML og PDF. Tidligere importjobber beholdes i databasen.")
+        page, layout = self._page("Rapporter", "Importhistorikk for innlogget bruker.")
         self.report_state = label("Henter rapportstatus …", section=True)
         layout.addWidget(self.report_state)
         self.history_table = table(["Tidspunkt", "Prøve", "Resultat", "Melding"])
         self.history_table.setObjectName("import-history")
         self.history_table.setAccessibleName("Resultater og historikk for importjobber")
+        for column in range(3):
+            self.history_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         layout.addWidget(self.history_table, 1)
-        self.history_note = label("Logg inn under Innstillinger for å vise din lagrede importhistorikk.", muted=True)
+        self.history_note = label("Logg inn under Innstillinger for å se historikken.", muted=True)
         layout.addWidget(self.history_note)
         actions = QHBoxLayout()
         refresh = button("Oppdater oversikt", "refresh-reports")
@@ -455,7 +506,7 @@ class MainWindow(QMainWindow):
         return page
 
     def _settings_page(self) -> QWidget:
-        page, layout = self._page("Innstillinger", "Lagringsplassene brukes av både appen og rapportserveren.")
+        page, layout = self._page("Innstillinger", "")
         frame, contents = card()
         form = QFormLayout()
         form.setVerticalSpacing(14)
@@ -474,12 +525,12 @@ class MainWindow(QMainWindow):
         form.addRow("Kildearkiv", self.raw_field)
         form.addRow("Serverport", self.port_field)
         contents.addLayout(form)
-        contents.addWidget(label("Databasevalg og kildearkiv settes ved oppstart. Endring krever omstart, slik at samme database brukes i hele økten.", muted=True))
+        contents.addWidget(label("Aktiv lagringsplass for denne økten.", muted=True))
         storage_row = QHBoxLayout()
         storage_row.addWidget(frame, 1)
         selection, selection_contents = card()
-        selection_contents.addWidget(label("Lagringsplass ved neste oppstart", section=True))
-        selection_contents.addWidget(label("Velg en eksisterende PRONTO-datamappe. Appen kontrollerer at databasen finnes før valget lagres. Eksisterende data flyttes ikke.", muted=True))
+        selection_contents.addWidget(label("Neste oppstart", section=True))
+        selection_contents.addWidget(label("Velg en eksisterende PRONTO-datamappe. Endringen gjelder etter omstart.", muted=True))
         selection_row = QHBoxLayout()
         self.next_root = QLineEdit(str(getattr(self.runtime, "data_root", self.runtime.database_path.parent)))
         self.next_root.setAccessibleName("Datamappe ved neste oppstart")
@@ -507,7 +558,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(storage_row)
         frame, contents = card()
         contents.addWidget(label("Sikkerhetskopi", section=True))
-        contents.addWidget(label("Opprett en konsistent kopi av databasen før overlevering eller større import. Kildearkivet må også inngå i virksomhetens sikkerhetskopiering."))
+        contents.addWidget(label("Lag en kopi av databasen. Kildearkiv og nøkkel må sikkerhetskopieres separat."))
         row = QHBoxLayout()
         self.backup_button = button("Ta sikkerhetskopi", "backup-database")
         self.backup_button.clicked.connect(self.backup)
@@ -518,9 +569,9 @@ class MainWindow(QMainWindow):
         self.backup_result.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         contents.addWidget(self.backup_result)
         layout.addWidget(frame)
-        self.account_state = label("Import krever innlogging med en PRONTO-bruker.", muted=True)
+        self.account_state = label("Ikke innlogget", muted=True)
         layout.addWidget(self.account_state)
-        self.account_button = button("Logg inn / opprett første bruker", "manage-account")
+        self.account_button = button("Logg inn", "manage-account")
         self.account_button.clicked.connect(lambda: self._request_credentials(False))
         account_actions = QHBoxLayout()
         account_actions.addWidget(self.account_button)
@@ -543,7 +594,7 @@ class MainWindow(QMainWindow):
         self._job("Lagrer oppstartsinnstillinger …", lambda progress, cancel: self.runtime.save_next_launch(root, port), lambda result: self._log("Innstillingene er lagret. Lukk og åpne appen for å bruke den valgte datamappen."))
 
     def _diagnostics_page(self) -> QWidget:
-        page, layout = self._page("Diagnostikk", "Status, fremdrift og feil fra denne økten. Tidligere resultater beholdes ved avbrudd.")
+        page, layout = self._page("Diagnostikk", "Hendelser fra denne økten.")
         self.pdf_tools_status = label("PDF-kildeplott: kontrollerer verktøy …", muted=True)
         self.pdf_tools_status.setAccessibleName("Status for PDF-verktøy")
         layout.addWidget(self.pdf_tools_status)
@@ -556,7 +607,7 @@ class MainWindow(QMainWindow):
         copy = button("Kopier logg", "copy-log")
         copy.clicked.connect(lambda: QApplication.clipboard().setText(self.diagnostic_log.toPlainText()))
         layout.addWidget(copy, alignment=Qt.AlignmentFlag.AlignLeft)
-        layout.addWidget(label("Loggen kan inneholde prøve-ID og filstier. Håndter den som annet analysegrunnlag.", muted=True))
+        layout.addWidget(label("Loggen kan inneholde prøve-ID og filstier.", muted=True))
         return page
 
     def navigate(self, index: int) -> None:
@@ -599,7 +650,7 @@ class MainWindow(QMainWindow):
         self._worker = None
         self._set_busy(False)
         self._log(f"{operation}: {message}")
-        self.plan_summary.setText(f"{message} Tidligere importplan er beholdt.")
+        self.plan_summary.setText(f"{message}" + (" Forrige importplan er beholdt." if self.plan is not None else ""))
         if self._closing:
             self.close()
 
@@ -610,13 +661,18 @@ class MainWindow(QMainWindow):
         self.cancel_button.setEnabled(busy)
         self.scan_button.setEnabled(not busy)
         self.mapping_button.setEnabled(not busy and self.plan is not None and bool(self.plan.reports))
-        self.import_button.setEnabled(not busy and self.plan is not None and any(r.ready for r in self.plan.reports))
+        self.import_button.setEnabled(not busy and self.plan is not None and any(r.ready and getattr(r, "selected", True) for r in self.plan.reports))
         self.backup_button.setEnabled(not busy)
         self.account_button.setEnabled(not busy)
         self.logout_button.setEnabled(not busy and self.actor is not None)
         self.save_settings_button.setEnabled(not busy and hasattr(self.runtime, "save_next_launch"))
         for widget in (*self.folder_fields, *self.folder_buttons):
             widget.setEnabled(not busy)
+        self.more_folders_button.setEnabled(not busy)
+        self.report_version.setEnabled(not busy)
+        self.cnv_source.setEnabled(not busy)
+        self.cnv_solution.setEnabled(not busy and self.cnv_source.currentData() == "cancan")
+        self.plan_tree.setEnabled(not busy)
         self._refresh_server()
 
     def cancel_job(self) -> None:
@@ -631,11 +687,29 @@ class MainWindow(QMainWindow):
         if directory:
             self.folder_fields[index].setText(directory)
 
+    def _toggle_folders(self, expanded: bool) -> None:
+        for index in range(1, len(self.folder_fields)):
+            for widget in (self.folder_fields[index], self.folder_buttons[index], self.folder_labels[index]):
+                widget.setVisible(expanded)
+        self._folder_button_text()
+
+    def _folder_button_text(self) -> None:
+        count = sum(bool(field.text().strip()) for field in self.folder_fields[1:])
+        text = "Færre mapper" if self.more_folders_button.isChecked() else "Flere mapper"
+        if count:
+            text += f" ({count})"
+        self.more_folders_button.setText(text)
+
+    def _import_options_changed(self) -> None:
+        self.cnv_solution.setEnabled(self.cnv_source.currentData() == "cancan" and self._worker is None)
+        self._folders_changed()
+
     def _folders_changed(self) -> None:
+        self._folder_button_text()
         if self.plan is not None:
             self.plan = None
             self.plan_tree.clear()
-            self.plan_summary.setText("Mappevalget er endret. Kontroller filene på nytt før import.")
+            self.plan_summary.setText("Kildene er endret. Kontroller filene på nytt.")
             self.import_button.setEnabled(False)
             self.mapping_button.setEnabled(False)
             self.metrics["samples"].setText("0")
@@ -646,45 +720,95 @@ class MainWindow(QMainWindow):
             return
         self.navigate(1)
         folders = tuple(Path(field.text().strip()) for field in self.folder_fields if field.text().strip())
-        if len(folders) != 5:
-            self._log("Velg alle fem mappene før filkontroll.")
+        if not folders:
+            self.plan_summary.setText("Velg minst én mappe før filkontroll.")
+            self._log("Velg minst én mappe før filkontroll.")
+            self.folder_fields[0].setFocus()
             return
         from pronto_ingest.discovery import discover_folders
-        self._job("Kontrollerer filer i de fem mappene …", lambda progress, cancel: discover_folders(folders, progress=progress, cancel=cancel), self.show_plan)
+        options = {"report_version": self.report_version.currentData(), "cnv_source": self.cnv_source.currentData(), "cnv_solution": self.cnv_solution.currentData()}
+        self._job("Kontrollerer filer …", lambda progress, cancel: discover_folders(folders, progress=progress, cancel=cancel, **options), self.show_plan)
 
     def show_plan(self, plan: Any) -> None:
         self.plan = plan
+        self.plan_tree.blockSignals(True)
         self.plan_tree.clear()
-        ready = sum(bool(report.ready) for report in plan.reports)
-        self.metrics["samples"].setText(str(len(plan.reports)))
-        self.metrics["ready"].setText(str(ready))
-        summary = f"{len(plan.reports)} prøver funnet · {ready} klare · {len(plan.unassigned)} kilder uten kobling"
-        if ready != len(plan.reports):
-            summary += ". Prøver med avvik blir ikke importert."
-        self.plan_summary.setText(summary)
         for report in plan.reports:
-            root = QTreeWidgetItem([str(report.sample_id), str(report.run_id), "Klar" if report.ready else "Må avklares"])
+            root = QTreeWidgetItem([str(report.sample_id), str(report.run_id), getattr(report, "metadata_flag", "") or "—", self._report_status(report)])
+            root.setData(0, Qt.ItemDataRole.UserRole, report.key)
+            root.setToolTip(0, str(report.sample_id))
+            root.setToolTip(1, str(report.run_id))
+            flag = getattr(report, "metadata_flag", "").strip().upper()
+            if flag not in {"N", "NO", "NEI", "FALSE", "0"}:
+                root.setFlags(root.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                root.setCheckState(0, Qt.CheckState.Checked if getattr(report, "selected", True) else Qt.CheckState.Unchecked)
+            else:
+                root.setFlags(root.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
+            root.setToolTip(2, "Create_report i metadata. Tomt felt eller «-» krever at du velger prøven for import.")
             self.plan_tree.addTopLevelItem(root)
             for role, paths in report.files.items():
                 for path in paths:
-                    child = QTreeWidgetItem([ROLE_LABELS.get(role, role), Path(path).name, "Funnet"])
+                    child = QTreeWidgetItem([ROLE_LABELS.get(role, role), Path(path).name, "", "Funnet"])
                     child.setToolTip(1, str(path))
                     root.addChild(child)
             for issue in report.issues:
-                child = QTreeWidgetItem(["Avvik", str(issue), "Kontroller"])
+                child = QTreeWidgetItem(["Avvik", str(issue), "", "Kontroller"])
                 child.setToolTip(1, str(issue))
                 root.addChild(child)
         if plan.unassigned:
-            group = QTreeWidgetItem(["Kilder uten kobling", "Velg Koble kildefil for å tilordne", "Ikke inkludert"])
+            group = QTreeWidgetItem(["Kilder uten kobling", "", "", "Ikke inkludert"])
             self.plan_tree.addTopLevelItem(group)
             for candidate in plan.unassigned:
-                item = QTreeWidgetItem([ROLE_LABELS.get(candidate.role, candidate.role), Path(candidate.path).name, "Uavklart"])
+                item = QTreeWidgetItem([ROLE_LABELS.get(candidate.role, candidate.role), Path(candidate.path).name, "", "Uavklart"])
                 item.setToolTip(1, str(candidate.path))
                 group.addChild(item)
         for warning in plan.warnings:
-            self.plan_tree.addTopLevelItem(QTreeWidgetItem(["Merknad", str(warning), "Kontroller"]))
+            item = QTreeWidgetItem(["Merknad", str(warning), "", "Kontroller"])
+            item.setToolTip(1, str(warning))
+            self.plan_tree.addTopLevelItem(item)
+        self.plan_tree.blockSignals(False)
+        self._update_plan_summary()
         self._set_busy(False)
-        self._log(summary)
+        self._log(self.plan_summary.text())
+
+    @staticmethod
+    def _report_status(report: Any) -> str:
+        if not report.ready:
+            return "Må avklares"
+        return "Klar" if getattr(report, "selected", True) else "Ikke valgt"
+
+    def _update_plan_summary(self) -> None:
+        if self.plan is None:
+            return
+        ready = sum(bool(report.ready) for report in self.plan.reports)
+        selected = sum(bool(report.ready and getattr(report, "selected", True)) for report in self.plan.reports)
+        self.metrics["samples"].setText(str(len(self.plan.reports)))
+        self.metrics["ready"].setText(str(selected))
+        summary = f"{len(self.plan.reports)} prøver · {ready} klare · {selected} valgt for import"
+        if self.plan.unassigned:
+            summary += f" · {len(self.plan.unassigned)} kilder uten kobling"
+        self.plan_summary.setText(summary)
+
+    def _selection_changed(self, item: QTreeWidgetItem, column: int) -> None:
+        if column != 0 or self.plan is None or self._worker is not None:
+            return
+        key = item.data(0, Qt.ItemDataRole.UserRole)
+        if not key:
+            return
+        from pronto_ingest.discovery import set_report_selected
+        try:
+            self.plan = set_report_selected(self.plan, key, item.checkState(0) == Qt.CheckState.Checked)
+        except ValueError as exc:
+            self._log(str(exc))
+            self.show_plan(self.plan)
+            return
+        report = next(report for report in self.plan.reports if report.key == key)
+        self.plan_tree.blockSignals(True)
+        item.setText(3, self._report_status(report))
+        self.plan_tree.blockSignals(False)
+        self._update_plan_summary()
+        self.statusBar().showMessage(self.plan_summary.text())
+        self._set_busy(False)
 
     def map_source(self) -> None:
         if self.plan is None or self._worker is not None:
@@ -701,6 +825,10 @@ class MainWindow(QMainWindow):
 
     def prepare_import(self) -> None:
         if self.plan is None or self._worker is not None:
+            return
+        if not any(report.ready and getattr(report, "selected", True) for report in self.plan.reports):
+            self.plan_summary.setText("Velg minst én prøve uten avvik for import.")
+            self.plan_tree.setFocus()
             return
         if self.actor is None:
             self._request_credentials(True)
@@ -739,7 +867,7 @@ class MainWindow(QMainWindow):
             self._render_history()
         self.actor = actor
         self.logout_button.setEnabled(True)
-        self.account_state.setText(f"Innlogget for import: {getattr(actor, 'username', str(actor))}")
+        self.account_state.setText(f"Innlogget: {getattr(actor, 'username', str(actor))}")
         self._log("Innlogging fullført.")
         if import_after:
             self._import_authenticated()
@@ -752,8 +880,8 @@ class MainWindow(QMainWindow):
         self._persisted_history.clear()
         self._render_history()
         self.logout_button.setEnabled(False)
-        self.account_state.setText("Import krever innlogging med en PRONTO-bruker.")
-        self.history_note.setText("Logg inn under Innstillinger for å vise din lagrede importhistorikk.")
+        self.account_state.setText("Ikke innlogget")
+        self.history_note.setText("Logg inn under Innstillinger for å se historikken.")
         self._log("Du er logget ut av appen. Nettleserens innlogging styres i rapportserveren.")
 
     def _import_authenticated(self) -> None:
@@ -815,7 +943,7 @@ class MainWindow(QMainWindow):
                     pass
                 self._persisted_history.append((timestamp, str(entry.get("sample_id", "")), STATUS_LABELS.get(entry.get("status"), str(entry.get("status", ""))), str(entry.get("message", ""))))
             self._render_history()
-            self.history_note.setText("Din lagrede importhistorikk og resultatene fra denne økten vises her.")
+            self.history_note.setText("Lagret importhistorikk og resultater fra denne økten.")
         self._log("Databaseoversikten er oppdatert.")
 
     def _refresh_server(self) -> None:

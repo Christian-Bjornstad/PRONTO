@@ -1,6 +1,7 @@
 """Native GUI interaction checks using synthetic sources and an isolated runtime."""
 from __future__ import annotations
 
+from dataclasses import replace
 import os
 from pathlib import Path
 from threading import Event, get_ident
@@ -113,22 +114,26 @@ def test_missing_pdf_tools_are_reported_without_blocking_gui(window, qtbot):
     assert window.scan_button.isEnabled()
 
 
-def test_scan_requires_five_folders_and_rejects_stale_plan(window, plan):
+def test_changed_sources_invalidate_plan_and_empty_scan_focuses_folder(window, plan):
     window.show_plan(plan)
     assert window.import_button.isEnabled()
     window.folder_fields[0].setText(str(plan.folders[0]))
     assert window.plan is None
     assert not window.import_button.isEnabled()
+    window.folder_fields[0].clear()
     window.start_scan()
-    assert "alle fem" in window.statusBar().currentMessage()
+    assert "minst én" in window.statusBar().currentMessage()
+    assert "minst én" in window.plan_summary.text()
+    assert window._worker is None
 
 
 def test_scan_and_failure_preserve_review_plan(window, plan, qtbot, monkeypatch):
     import pronto_ingest.discovery as discovery
     for field, folder in zip(window.folder_fields, plan.folders):
         field.setText(str(folder))
-    def discover(folders, progress, cancel):
+    def discover(folders, progress, cancel, **options):
         assert len(folders) == 5
+        assert options == {"report_version": "auto", "cnv_source": "merged", "cnv_solution": "main"}
         assert get_ident() != gui_thread
         progress("Syntetisk filkontroll")
         return plan
@@ -146,6 +151,64 @@ def test_scan_and_failure_preserve_review_plan(window, plan, qtbot, monkeypatch)
     qtbot.waitUntil(lambda: window._worker is None)
     assert window.plan == plan
     assert "Syntetisk lesefeil" in window.plan_summary.text()
+
+
+def test_parent_folder_and_explicit_source_options_run_in_worker(window, plan, qtbot, monkeypatch):
+    import pronto_ingest.discovery as discovery
+    window.navigate(1)
+    assert window.folder_fields[0].isVisible()
+    assert not window.folder_fields[1].isVisible()
+    window.more_folders_button.click()
+    assert window.folder_fields[4].isVisible()
+    window.more_folders_button.click()
+    assert not window.folder_fields[4].isVisible()
+    window.folder_fields[0].setText(str(plan.folders[0].parent))
+    window.report_version.setCurrentIndex(window.report_version.findData("new"))
+    window.cnv_source.setCurrentIndex(window.cnv_source.findData("cancan"))
+    assert window.cnv_solution.isEnabled()
+    window.cnv_solution.setCurrentIndex(window.cnv_solution.findData("alt01"))
+    calls = []
+    def discover(folders, progress, cancel, **options):
+        calls.append((folders, options, get_ident()))
+        return plan
+    monkeypatch.setattr(discovery, "discover_folders", discover)
+    window.start_scan()
+    qtbot.waitUntil(lambda: window._worker is None)
+    assert len(calls) == 1
+    assert calls[0][:2] == ((plan.folders[0].parent,), {"report_version": "new", "cnv_source": "cancan", "cnv_solution": "alt01"})
+    assert calls[0][2] != get_ident()
+    window.cnv_source.setCurrentIndex(window.cnv_source.findData("merged"))
+    assert not window.cnv_solution.isEnabled()
+    assert window.plan is None
+
+
+def test_unset_metadata_requires_explicit_sample_selection(window, plan, qtbot):
+    report = replace(plan.reports[0], metadata_flag="-", selected=False, selection_confirmed=False)
+    selected_plan = replace(plan, reports=(report,))
+    window.show_plan(selected_plan)
+    item = window.plan_tree.topLevelItem(0)
+    assert item.checkState(0) == Qt.CheckState.Unchecked
+    assert item.text(2) == "-"
+    assert item.text(3) == "Ikke valgt"
+    assert window.metrics["ready"].text() == "0"
+    assert not window.import_button.isEnabled()
+    item.setCheckState(0, Qt.CheckState.Checked)
+    assert window.plan.reports[0].selected
+    assert window.plan.reports[0].selection_confirmed
+    assert window.metrics["ready"].text() == "1"
+    assert window.import_button.isEnabled()
+    item.setCheckState(0, Qt.CheckState.Unchecked)
+    assert not window.plan.reports[0].selected
+    assert not window.import_button.isEnabled()
+
+
+def test_negative_metadata_has_no_selectable_checkbox(window, plan):
+    report = replace(plan.reports[0], metadata_flag="N", selected=False,
+                     issues=("Metadata angir at rapport ikke skal opprettes.",))
+    window.show_plan(replace(plan, reports=(report,)))
+    item = window.plan_tree.topLevelItem(0)
+    assert not item.flags() & Qt.ItemFlag.ItemIsUserCheckable
+    assert not window.import_button.isEnabled()
 
 
 def test_mapping_shows_only_discovered_sources_for_role(window, plan):
@@ -290,7 +353,36 @@ def test_native_layout_and_synthetic_screenshots(window, plan, qtbot, tmp_path):
                 assert window.rect().contains(bottom_right), widget.objectName()
         assert window.grab().save(str(output / f"pronto-{name}.png"))
     window.resize(1100, 760)
+    for width, height in ((1100, 760), (1400, 900)):
+        window.resize(width, height)
+        for page, name in ((0, "overview"), (1, "import"), (2, "reports"), (3, "settings"), (4, "diagnostics")):
+            window.navigate(page)
+            qtbot.wait(30)
+            assert window.width() == width
+            for widget in window.findChildren(QPushButton):
+                if widget.isVisible():
+                    assert window.rect().contains(widget.mapTo(window, widget.rect().bottomRight())), widget.objectName()
+            assert window.grab().save(str(output / f"pronto-{name}-{width}.png"))
+
+
+def test_actual_profile_sample_list_preview(window, plan, qtbot, tmp_path):
+    sources = plan.reports[0].files
+    reports = tuple(ReportPlan(f"SYNTHETIC_DNA_{i:02d}", "SYNTHETIC_RUN_01", sources,
+                              profile="tsoppi-run-v1", metadata_flag="-", selected=False,
+                              report_version="new") for i in range(1, 14))
+    window.show_plan(replace(plan, folders=(tmp_path / "Pronto",), reports=reports,
+                             unassigned=(), profile="tsoppi-run-v1", report_version="auto"))
+    window.folder_fields[0].setText(str(tmp_path / "Pronto"))
+    window.show_plan(replace(plan, reports=reports, unassigned=(), profile="tsoppi-run-v1"))
     window.navigate(1)
-    qtbot.wait(30)
-    for widget in (window.scan_button, window.mapping_button, window.import_button, window.start_button, window.open_button):
-        assert window.rect().contains(widget.mapTo(window, widget.rect().bottomRight()))
+    assert window.plan_tree.topLevelItemCount() == 13
+    assert "0 valgt" in window.plan_summary.text()
+    window.plan_tree.topLevelItem(0).setCheckState(0, Qt.CheckState.Checked)
+    window.plan_tree.topLevelItem(1).setCheckState(0, Qt.CheckState.Checked)
+    assert "2 valgt" in window.plan_summary.text()
+    assert not window.plan.reports[2].selection_confirmed
+    output = Path(os.environ.get("PRONTO_UI_CAPTURE", tmp_path))
+    for width, height in ((1100, 760), (1400, 900)):
+        window.resize(width, height)
+        qtbot.wait(30)
+        assert window.grab().save(str(output / f"pronto-run-import-{width}.png"))

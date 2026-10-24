@@ -5,59 +5,73 @@ COLORS = {
     "surface": "#FFFFFF", "text": "#182D3D", "muted": "#4B6172",
     "border": "#CED9E0", "focus": "#007C91", "success": "#146442",
     "warning": "#865400", "danger": "#A32735",
+    "nav_muted": "#BFD3DF", "nav_text": "#DFEAF1", "nav_hover": "#213E54",
+    "nav_selected": "#244B5C", "nav_border": "#6EA9AD", "nav_focus": "#84D0D0",
+    "hover": "#E9F3F4", "pressed": "#D5E9E9", "primary_hover": "#005452",
+    "control_border": "#A7BAC7", "disabled": "#EDF1F4", "disabled_text": "#647583",
+    "primary_disabled": "#DFE9E9", "primary_disabled_text": "#556F70",
+    "primary_disabled_border": "#C4D6D6", "subtle": "#F5F8FA",
+    "selection": "#D7EBED", "header": "#EAF0F4", "header_text": "#314B5C",
+    "grid": "#E6EDF1", "success_bg": "#E4F2EB", "warning_bg": "#FFF1DA",
+    "danger_bg": "#FDEBED",
 }
 
 
 def build_stylesheet() -> str:
-    return """
-    * { font-family: 'Segoe UI', sans-serif; font-size: 14px; color: #182D3D; }
+    stylesheet = """
+    * { font-family: 'Segoe UI', sans-serif; font-size: 14px; color: @text; }
     QMainWindow, QWidget#shell, QWidget#content, QScrollArea, QWidget#page {
-        background: #F3F6F8; }
+        background: @background; }
     QScrollArea { border: none; }
-    QFrame#sidebar { background: #12293D; border: none; }
-    QLabel#brand { color: white; font-size: 29px; font-weight: 750; }
-    QLabel#brand-detail { color: #BFD3DF; font-size: 14px; }
-    QLabel#sidebar-caption { color: #BFD3DF; font-size: 14px; }
-    QLabel#sidebar-status { color: white; font-size: 14px; }
-    QLabel#page-title { font-size: 25px; font-weight: 700; }
-    QLabel[muted='true'] { color: #4B6172; }
-    QLabel[section='true'] { font-size: 17px; font-weight: 650; }
-    QLabel[metric='true'] { font-size: 31px; font-weight: 700; color: #006A68; }
-    QFrame[card='true'] { background: white; border: 1px solid #CED9E0; border-radius: 8px; }
-    QLabel[status='true'] { background: #EAF0F4; border-radius: 5px; padding: 5px 9px; font-weight: 600; }
-    QLabel[status='true'][tone='success'] { background: #E4F2EB; color: #146442; }
-    QLabel[status='true'][tone='warning'] { background: #FFF1DA; color: #865400; }
-    QLabel[status='true'][tone='danger'] { background: #FDEBED; color: #A32735; }
-    QLabel[tone='danger'] { color: #A32735; }
-    QPushButton { background: #FFFFFF; border: 1px solid #A7BAC7; border-radius: 6px;
+    QFrame#sidebar { background: @navy; border: none; }
+    QLabel#brand { color: @surface; font-size: 28px; font-weight: 700; }
+    QLabel#brand-detail { color: @nav_muted; font-size: 14px; }
+    QLabel#sidebar-caption { color: @nav_muted; font-size: 12px; font-weight: 600; }
+    QLabel#sidebar-status { color: @surface; font-size: 14px; }
+    QLabel#page-title { font-size: 26px; font-weight: 650; }
+    QLabel[muted='true'] { color: @muted; }
+    QLabel[section='true'] { font-size: 17px; font-weight: 600; }
+    QLabel[metric='true'] { font-size: 32px; font-weight: 600; color: @text; }
+    QFrame[card='true'] { background: @surface; border: 1px solid @border; border-radius: 6px; }
+    QLabel[status='true'] { background: @header; border-radius: 4px; padding: 5px 9px; font-weight: 600; }
+    QLabel[status='true'][tone='success'] { background: @success_bg; color: @success; }
+    QLabel[status='true'][tone='warning'] { background: @warning_bg; color: @warning; }
+    QLabel[status='true'][tone='danger'] { background: @danger_bg; color: @danger; }
+    QLabel[tone='danger'] { color: @danger; }
+    QPushButton { background: @surface; border: 1px solid @control_border; border-radius: 5px;
         min-height: 40px; padding: 0 13px; font-weight: 600; }
-    QPushButton:hover { background: #E9F3F4; border-color: #006A68; }
-    QPushButton:pressed { background: #D5E9E9; }
-    QPushButton:focus { border: 3px solid #007C91; }
-    QPushButton:disabled { background: #EDF1F4; color: #647583; border-color: #CED9E0; }
-    QPushButton[primary='true'] { background: #006A68; color: white; border-color: #006A68; }
-    QPushButton[primary='true']:hover { background: #005452; }
-    QPushButton[primary='true']:disabled { background: #DFE9E9; color: #556F70; border-color: #C4D6D6; }
-    QPushButton[nav='true'] { text-align: left; color: #DFEAF1; background: transparent;
+    QPushButton:hover { background: @hover; border-color: @teal; }
+    QPushButton:pressed { background: @pressed; }
+    QPushButton:focus { border: 3px solid @focus; }
+    QPushButton:disabled { background: @disabled; color: @disabled_text; border-color: @border; }
+    QPushButton[primary='true'] { background: @teal; color: @surface; border-color: @teal; }
+    QPushButton[primary='true']:hover { background: @primary_hover; }
+    QPushButton[primary='true']:disabled { background: @primary_disabled; color: @primary_disabled_text; border-color: @primary_disabled_border; }
+    QPushButton[nav='true'] { text-align: left; color: @nav_text; background: transparent;
         border: 1px solid transparent; min-height: 44px; }
-    QPushButton[nav='true']:hover { background: #213E54; }
-    QPushButton[nav='true']:checked { color: white; background: #244B5C; border-color: #6EA9AD; }
-    QPushButton[nav='true']:focus { border: 3px solid #84D0D0; }
-    QLineEdit, QSpinBox, QComboBox { background: white; border: 1px solid #A7BAC7;
-        border-radius: 5px; padding: 7px 9px; min-height: 23px; selection-background-color: #006A68; }
+    QPushButton[nav='true']:hover { background: @nav_hover; }
+    QPushButton[nav='true']:checked { color: @surface; background: @nav_selected; border-color: @nav_border; }
+    QPushButton[nav='true']:focus { border: 3px solid @nav_focus; }
+    QLineEdit, QSpinBox, QComboBox { background: @surface; border: 1px solid @control_border;
+        border-radius: 4px; padding: 7px 9px; min-height: 23px; selection-background-color: @teal; }
     QLineEdit:focus, QSpinBox:focus, QComboBox:focus, QTreeWidget:focus, QTableWidget:focus {
-        border: 2px solid #007C91; }
-    QLineEdit:read-only { background: #F5F8FA; color: #405867; }
-    QPlainTextEdit { background: white; border: 1px solid #CED9E0; padding: 9px; }
-    QTreeWidget, QTableWidget { background: white; alternate-background-color: #F5F8FA;
-        border: 1px solid #CED9E0; border-radius: 5px; gridline-color: #E6EDF1;
-        selection-background-color: #D7EBED; selection-color: #182D3D; }
-    QTreeWidget::item { min-height: 29px; }
-    QHeaderView::section { background: #EAF0F4; color: #314B5C; border: none;
-        border-bottom: 1px solid #CED9E0; padding: 8px; font-weight: 600; }
-    QProgressBar { background: #E6EDF0; border: none; border-radius: 3px; min-height: 5px; }
-    QProgressBar::chunk { background: #007C7A; border-radius: 3px; }
-    QStatusBar { background: white; border-top: 1px solid #CED9E0; }
-    QToolTip { background: #12293D; color: white; border: none; padding: 7px; }
-    QDialog { background: #F3F6F8; }
+        border: 2px solid @focus; }
+    QLineEdit:read-only { background: @subtle; color: @muted; }
+    QComboBox:disabled { background: @disabled; color: @disabled_text; }
+    QPlainTextEdit { background: @surface; border: 1px solid @border; padding: 8px; }
+    QTreeWidget, QTableWidget { background: @surface; alternate-background-color: @subtle;
+        border: 1px solid @border; border-radius: 4px; gridline-color: @grid;
+        selection-background-color: @selection; selection-color: @text; }
+    QTreeWidget::item { min-height: 30px; }
+    QTreeWidget::indicator { width: 16px; height: 16px; }
+    QHeaderView::section { background: @header; color: @header_text; border: none;
+        border-bottom: 1px solid @border; padding: 8px; font-weight: 600; }
+    QProgressBar { background: @grid; border: none; border-radius: 2px; min-height: 5px; }
+    QProgressBar::chunk { background: @teal; border-radius: 2px; }
+    QStatusBar { background: @surface; border-top: 1px solid @border; }
+    QToolTip { background: @navy; color: @surface; border: none; padding: 8px; }
+    QDialog { background: @background; }
     """
+    for name, color in sorted(COLORS.items(), key=lambda item: -len(item[0])):
+        stylesheet = stylesheet.replace("@" + name, color)
+    return stylesheet
