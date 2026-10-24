@@ -8,9 +8,9 @@ Teknisk og praktisk overlevering til ny forvalter
 
 Programversjon og eksakte kontrollresultater identifiseres i pakkens manifest.
 
-Denne manualen forklarer hvordan den nye PRONTO-appen installeres, brukes, vedlikeholdes og videreføres. Appen samler valg av fem kjøringsmapper, kontrollert import, database og serverstyring. Den eksisterende HTML-arbeidsflaten brukes videre til vurdering og rapportering. Den dekker hele kjeden fra TSOPPI og kliniske metadata til database, vurderingsarbeid, HTML, PDF og IGV. Målgruppen er både fagbrukeren som skal overta rapportarbeidet, og utvikleren eller driftsansvarlig som skal kunne forvalte løsningen uten muntlig forklaring fra den opprinnelige utvikleren.
+Denne manualen forklarer hvordan den nye PRONTO-appen installeres, brukes, vedlikeholdes og videreføres. Appen samler valg av kjøringsmapper, kontrollert import, database og serverstyring. Den eksisterende HTML-arbeidsflaten brukes videre til vurdering og rapportering. Den dekker hele kjeden fra TSOPPI og kliniske metadata til database, vurderingsarbeid, HTML, PDF og IGV. Målgruppen er både fagbrukeren som skal overta rapportarbeidet, og utvikleren eller driftsansvarlig som skal kunne forvalte løsningen uten muntlig forklaring fra den opprinnelige utvikleren.
 
-Lokal rapportbehandling og appens importløp er kontrollert på godkjent testgrunnlag og syntetiske filer. Den faktiske femmappestrukturen på jobb-PC-en er ennå ikke tilgjengelig for kontroll. Før reelle kjøringer tas i bruk må filgjenkjenning, prøvekobling og rapportinnhold verifiseres mot disse filene. Kontroller og begrensninger er samlet i kapittel 17. Innføring med reelle pasientdata, flerbrukerdrift og permanent BAM eller CRAM lagring krever de lokale driftsbeslutningene og kontrollene beskrevet i kapittel 15 og 18.
+Lokal rapportbehandling og appens importløp er kontrollert på godkjent testgrunnlag og syntetiske filer. Jobb-PC-ens fire kjøringsmapper, utvalgte filoverskrifter og DNA/RNA-kommentarer er kartlagt ved visning uten endring av kildefilene. Den komplette kjøringen er ennå ikke importert i appen. Før reelle kjøringer tas i bruk må filgjenkjenning, prøvekobling og rapportinnhold verifiseres mot disse filene. Kontroller og begrensninger er samlet i kapittel 17. Innføring med reelle pasientdata, flerbrukerdrift og permanent BAM eller CRAM lagring krever de lokale driftsbeslutningene og kontrollene beskrevet i kapittel 15 og 18.
 
 Leveransen består av denne manualen, et eget kildekodearkiv og et kontrollnotat med versjon og testresultater. Kildekodearkivet inneholder den konkrete programversjonen og godkjente testfiler. Den lokale databasen, passord, nøkler, referansegenomer og genererte pasientrapporter overføres separat gjennom godkjent intern lagring.
 
@@ -27,7 +27,7 @@ Den nye forvalteren må overta tre forskjellige ting: programkoden, det private 
 1. Pakk ut kildekoden til en ny prosjektmappe. Kontroller versjonen mot kontrollnotatet. Ikke arbeid videre i den eldre PRONTO-hovedmappen ved en feil.
 2. Installer Python-miljøet og Poppler som beskrevet i kapittel 7. Bruk en isolert database ved første kontroll.
 3. Avtal om overtakelsen gjelder en tom installasjon eller eksisterende rapporter og historikk. Flytt eksisterende privat tilstand etter fremgangsmåten i kapittel 14.
-4. Opprett første personlige konto i en tom database, eller logg inn med eksisterende konto. Kontroller riktig datamappe i Innstillinger, prøv de fem mappene i Importer og avklar alle kilder før import. Kontroller rapporttilgang med både riktig konto og en annen konto uten tilgang.
+4. Opprett første personlige konto i en tom database, eller logg inn med eksisterende konto. Kontroller riktig datamappe i Innstillinger, prøv kjøringsmappene i Importer og avklar alle kilder før import. Kontroller rapporttilgang med både riktig konto og en annen konto uten tilgang.
 5. Gjennomfør en rapport på godkjent testgrunnlag: åpne, rediger, lagre, last siden på nytt, ferdigstill og last ned begge PDF-formatene. Bruk en testkopi ved øving.
 6. Gjenopprett en backup til en annen filsti. Kontroller rapporter, vedlegg, siste FINAL og aktiv kladd før den gamle installasjonen tas ut av bruk.
 
@@ -48,7 +48,7 @@ PRONTO omfatter en ny lokal app for import og serverstyring, en nettbasert rappo
 | Trinn | Hva skjer | Ansvarlig del |
 | 1 Analysegrunnlag | TSO500 og TSOPPI produserer annoterte varianttabeller, sammendrag, prøveoversikt og plott. | Ekstern analysepipeline |
 | 2 Kliniske metadata | Prøve, run, pseudonym og kliniske opplysninger knyttes til analysen. | InPreD metadatafil og laboratoriets rutine |
-| 3 Filer og importplan | Brukeren velger fem mapper. Filgjenkjenningen kobler kilder til prøve og kjøring og viser mangler før import. | pronto_desktop og pronto_ingest/discovery.py |
+| 3 Filer og importplan | Brukeren velger PRONTO-mappen eller én til fem separate kildemapper. Filgjenkjenningen kobler kilder til prøve og kjøring og viser mangler før import. | pronto_desktop og pronto_ingest/discovery.py |
 | 4 Rapportgrunnlag | Importen validerer filer, arkiverer kildekopier, beregner hash og oppretter rapport og første DRAFT samlet per prøve. | pronto_ingest/importer.py og adapterne |
 | 5 Privat lagring | Rapport, bilder, vurderinger og tilganger lagres gjennom Django ORM. | pronto_web/reports/ |
 | 6 Arbeidsflate | Python bygger HTML; JavaScript håndterer tabeller, redigering, dialoger og kommandoer. | renderers, templates og static |
@@ -75,7 +75,7 @@ Alle stier i tabellen er relative til den prosjektmappen som inneholder manage.p
 | pronto_desktop/gui.py og theme.py | Appens fem sider, filvalg, bakgrunnsjobber, fremdrift, innlogging og visuell utforming. |
 | pronto_desktop/runtime.py | Datarot, databasevalg, migrering, kontoer, historikk, sikkerhetskopi og oppstartsinnstillinger. |
 | pronto_desktop/server.py | Lokal WSGI-server, helseidentitet, portkonflikter, gjenbruk og trygg stopp. |
-| pronto_ingest/contracts.py og discovery.py | Importkontrakter, femmappe-søk, kilderoller og eksplisitt kobling av funnet fil til prøve. |
+| pronto_ingest/contracts.py og discovery.py | Importkontrakter, kjøringsprofiler, kilderoller og eksplisitt kobling av funnet fil til prøve. |
 | pronto_ingest/importer.py | Prøvevalidering, kildearkiv, hash, dublettvern, databaseinnlegging og importstatus. |
 | Script/PRONTO.py | Eldre hovedprogram for TSOPPI-behandling, filtrering og PowerPoint eller remisse. |
 | pronto/pronto.py | Hjelpefunksjoner brukt av den eldre analyse og rapportflyten. |
@@ -102,7 +102,7 @@ Alle stier i tabellen er relative til den prosjektmappen som inneholder manage.p
 
 ### Filene appen finner og adapteren bruker
 
-Appen søker i fem valgte mapper og deres undermapper. Den identifiserer kjente tabeller fra kolonneoverskrifter og kjente plott fra filnavn; kildeidentitet krever eksakt prøvekobling. Ved import lager appen en midlertidig, kanonisk kilderot som passer den eksisterende adapteren. Ved direkte bruk av denne adapteren inneholder kilderoten InPreD_PRONTO_metadata.txt og nøyaktig én fil som matcher *_variant_summary.tsv. Under mappen med aktuell sample_id skal sample_list.tsv og én småvarianttabell finnes. Adapteren foretrekker *_small_variant_table_forQC.tsv; hvis ingen finnes, brukes *_small_variant_table.tsv. Flere treff gir feil fremfor et tilfeldig filvalg.
+Appen søker i én til fem valgte mapper og deres undermapper. TSOPPI-profilen kjenner igjen råkjøringen, _CNVs, _report_preQC og _report_preQC_newPRONTO_version med samme kjørings-ID. Den identifiserer kjente tabeller fra kolonneoverskrifter og kjente plott fra filnavn; kildeidentitet krever eksakt prøvekobling. Ved import lager appen en midlertidig, kanonisk kilderot som passer den eksisterende adapteren. Ved direkte bruk av denne adapteren inneholder kilderoten InPreD_PRONTO_metadata.txt og nøyaktig én fil som matcher *_variant_summary.tsv. Under mappen med aktuell sample_id skal sample_list.tsv og én småvarianttabell finnes. Adapteren foretrekker *_small_variant_table_forQC.tsv; hvis ingen finnes, brukes *_small_variant_table.tsv. Flere treff gir feil fremfor et tilfeldig filvalg.
 
 Metadatafilen må inneholde aktuell Sample_id. Sequencing_run_id og Study_id brukes som obligatoriske identitetsopplysninger. Sammendraget må ha den aktuelle prøven, med støtte for prøvens _P-suffiks. Manglende kildefiler, manglende identitet eller manglende sammendragsrad avbryter importen.
 
@@ -110,12 +110,20 @@ Metadatafilen må inneholde aktuell Sample_id. Sequencing_run_id og Study_id bru
 | Metadata TSV | Prøve, run, pasientpseudonym og tilgjengelig klinisk diagnose. |
 | Variant summary TSV | TMB og MSI med rå kildeverdi og kildeposisjon. |
 | Small variant table TSV | Gen, koordinat, alleler, transkript, proteinendring, frekvens, dybde og annoteringer. |
-| Sample list TSV | Eksakt kobling til én DNA-tumorprøve og eventuelle RNA-tumor-ID-er. Kildespor og validering før tabellrader tas inn. |
+| Prøveliste eller TSOPPI koblingskommentar | Eksakt kobling til én DNA-tumorprøve og eventuelle RNA-tumor-ID-er. Kildespor og validering før tabellrader tas inn. |
 | CNV overview PDF | Deklarert CNV-plott for aktuell prøve. |
 | Sample QC PNG | Deklarerte QC-bilder i prøvemappen. |
 | CNV og RNA tabeller | Importeres som sourceTables i ReportData v2. Rader med prøve-ID filtreres på bekreftet prøve og tillatte RNA-koblinger. Generisk tabell uten identitet krever eksplisitt kobling. |
 
 Kjente tilleggsnavn er CNV_summary_table.csv, fusion_and_splice_variant_candidates_withQC.xlsx, <sampleID>_CNV_overview_plots.pdf og <sampleID>_sample_QC_plot.png. Eksempler på RNA-domeneplott er MET-splice-variant_domain_plot.pdf og TMPRSS2-ERG_2000_domain_plot.pdf. Navnet alene bekrefter ikke prøvetilhørighet.
+
+### Valg mellom rapportversjoner og CNV løsninger
+
+TSOPPI-profilen bruker samme kjørings-ID i de fire mappenavnene. Automatisk versjon velger den nye rapportmappen når den finnes, ellers den gamle eller råvarianten. Velges en bestemt versjon, vises manglende kilder som avvik fremfor å hente en annen versjon for den enkelte prøven. Bare én småvarianttabell går inn i rapportgrunnlaget. Gamle Word- og PowerPoint-utkast leses ikke som nye funn.
+
+For sammenslått CNV velges merged_CNV_summary_FC_sorted.tsv foran fraction_sorted. Eksakt DNA-prøvemappe er et definert koblingsgrunnlag bare i denne navngitte profilen. For Cancan velges main, alt01 eller alt02 uttrykkelig. Tabell og bilde skal ha samme løsningsnavn. Cancan bevarer kolonnene gene.name, minor.cn, major.cn, total.cn og øvrige råkolonner i en egen CNV-kildetabell. Purity og ploidy skal forstås med metode og valgt løsning, og settes ikke automatisk som en felles klinisk tumorprosent.
+
+Mutasjonssignatur og RNA-profiler er egne plottkilder. For QC brukes PNG foran tilsvarende PDF for samme prøve, slik at begge formatene ikke vises som to forskjellige resultater. Prøvekoblede støttefiler fra extra_files under valgt rapportversjon arkiveres som kildespor; de blir ikke automatisk klassifiserte funn. RNA med Event_Type lik punktum forblir uvurdert.
 
 ### Beregning og visning
 
@@ -169,7 +177,7 @@ Lokal oppstart bruker SQLite. Appens datamappe og port huskes i brukerprofilens 
 | SavedAlignment | Metadata, hash og private lagringsnøkler for bevarte BAM eller CRAM-par. Filbytes ligger på filsystemet. |
 | AlignmentUploadSession | Eier, forventet størrelse, mottatt byteantall, utløp og tilstand under opplasting. |
 | AlignmentEvent | Minimalt spor for SAVE, COPY og DELETE av alignments. |
-| ImportBatch | Én importjobb med bruker, fem mapper som antall, start, slutt og samlet status. Inneholder ikke kildemappenes absolutte stier. |
+| ImportBatch | Én importjobb med bruker, faktisk antall valgte mapper, start, slutt og samlet status. Inneholder ikke kildemappenes absolutte stier. |
 | ImportItem | Én prøves resultat i jobben, med prøve, kjøring, fingerprint, status og eventuell rapportkobling. |
 | ImportSource | Hver arkivert kilde med rolle, opprinnelig filnavn, relativ arkivnøkkel, SHA-256 og størrelse. Bytes ligger i raw_imports. |
 | Django auth og session | Brukere, passordhasher, grupper, tillatelser og innloggingssesjoner. |
@@ -214,7 +222,7 @@ Det nye oppsettet får database/pronto.sqlite3, raw_imports, backups og secret.k
 
 | Side | Daglig bruk |
 | Oversikt | Viser antall rapporter i aktiv database, prøver i importplanen og prøver klare for import. Åpner importflyten. |
-| Importer | Fem mappefelt, filkontroll, prøver og kildefiler, avvik, manuell kobling, prosessering og avbryt. |
+| Importer | Valg av overordnet mappe og ekstra kildemapper, rapportversjon, CNV-kilde, filkontroll, avkryssing av prøver, kildefiler, avvik, import og avbryt. |
 | Rapporter | Viser importresultater fra økten og egen lagret importhistorikk etter innlogging. Åpner HTML-oversikten. |
 | Innstillinger | Viser aktiv database og kildearkiv, tar sikkerhetskopi, håndterer appinnlogging og lagrer datamappe og port for neste oppstart. |
 | Diagnostikk | Viser fremdrift, meldinger og feil fra økten. Loggen kan kopieres og må håndteres som annet analysegrunnlag. |
@@ -223,14 +231,14 @@ Ctrl+1 til Ctrl+5 bytter side. Ctrl+R starter filkontroll. Knapper og felter kan
 
 ### Importere en kjøring
 
-1. Velg de fem mappene fra samme kjøring i Importer. De må være forskjellige og ikke ligge inne i hverandre. De fem mappene trenger ikke bestemte navn og er ikke det samme som fem prøver.
+1. Velg PRONTO-mappen som inneholder de fire kjøringsmappene. Alternativt velger du én til fem separate kildemapper; de må være forskjellige og ikke ligge inne i hverandre. Velg rapportversjon og CNV-kilde før filkontrollen. Cancan krever også valg av løsning.
 2. Trykk Kontroller filer. Appen undersøker undermappene og viser en plan per prøve og kjøring. Utvid prøven i tabellen for å se kildene. Ingenting legges i rapportdatabasen ved denne kontrollen.
 3. Avklar manglende eller tvetydige filer. Koble kildefil lar deg velge prøve, filtype og en fil som allerede ble funnet. Ingen vilkårlig ekstern fil legges til gjennom denne dialogen. Generell CNV uten prøve-ID må kobles eksplisitt. Kontroller alltid kildeinnholdet mot prøven.
-4. Trykk Prosesser og importer. Logg inn med personlig PRONTO-konto. En helt tom brukertabell kan få sin første konto i appen. Passord lagres ikke i appinnstillingene, og kontoen blir ikke administrator.
+4. Merk prøvene du vil importere. Prøver med Create_report satt til bindestrek eller tomt felt krever et uttrykkelig valg. Et negativt metadataflagg kan ikke overstyres. Trykk Importer valgte. Logg inn med personlig PRONTO-konto. En helt tom brukertabell kan få sin første konto i appen. Passord lagres ikke i appinnstillingene, og kontoen blir ikke administrator.
 5. Les resultatet for hver prøve. Importert, Allerede importert, Feilet og Avbrutt betyr forskjellige ting. Prøver med avvik blir ikke kliniske rapporter bare fordi andre prøver i samme jobb lykkes.
 6. Trykk Åpne rapporter og logg inn i HTML-arbeidsflaten. Kontroller prøve, run, kilder, CNV, RNA og plott før du begynner vurderingen.
 
-Endres et mappevalg, må filkontrollen kjøres på nytt. Endres en kildefil etter kontrollen eller under kopiering, skal importen avvise det berørte grunnlaget. Slik blir det synlig at filene ikke lenger er de som ble kontrollert.
+Endres mappevalg, rapportversjon eller CNV-kilde og løsning, må filkontrollen kjøres på nytt. Endres en kildefil etter kontrollen eller under kopiering, skal importen avvise det berørte grunnlaget. Slik blir det synlig at filene ikke lenger er de som ble kontrollert.
 
 Avbryt er en samarbeidsbasert stopp ved trygge kontrollpunkter. Allerede fullførte prøver beholdes. En prøve som ikke har fullført sin databaseinnlegging skal ikke stå igjen som en halv rapport. Lukkes appen mens en jobb pågår, venter den til jobben kan avsluttes trygt. Det er ikke en tvungen prosessavslutning av et eksternt analyseprogram.
 
@@ -290,11 +298,13 @@ FINAL kan ikke redigeres direkte. Start en ny revisjon for videre arbeid. Histor
 
 ## 10 Filgjenkjenning import og datainnhenting
 
-### Fra fem mapper til en kontrollert plan
+### Fra kjøringsmapper til en kontrollert plan
 
-pronto_ingest/discovery.py går gjennom de fem valgte mappene uten å følge symbolske lenker eller Windows-junctions. Søk er begrenset til 50 000 filer og 30 undermappenivåer. Kjente kildetyper er CSV, TSV, TXT, XLSX, PNG og PDF. BAM, CRAM, FASTQ og VCF brukes ikke som innlesing til varianttabellen og kopieres ikke av denne importflyten.
+pronto_ingest/discovery.py går gjennom de valgte mappene uten å følge symbolske lenker eller Windows-junctions. Søk er begrenset til 50 000 filer og 30 undermappenivåer. Kjente kildetyper er CSV, TSV, TXT, XLSX, PNG og PDF. BAM, CRAM, FASTQ og VCF brukes ikke som innlesing til varianttabellen og kopieres ikke av denne importflyten.
 
-Metadata bestemmer de mulige kombinasjonene av Sample_id og Sequencing_run_id. Finnes Create_report, tas bare rader med et støttet positivt valg videre. Rene RNA-identiteter fra prøvelisten opprettes ikke som egne DNA-rapporter. Påkrevde roller er metadata, summary, variants og sample_list, med nøyaktig én kilde i hver rolle per rapport. Klinisk metadata krever også Study_id. Prøvelisten må være avgrenset til én eksakt DNA-tumorprøve; RNA-tumor-ID-er brukes som tillatte tilleggskoblinger.
+Metadata bestemmer kombinasjonene av Sample_id og Sequencing_run_id. I TSOPPI-profilen avgrenses radene til den aktuelle kjøringen og DNA-prøvemappene; historiske metadata blir ikke egne rapporter. Et positivt Create_report-flagg gir et forhåndsvalgt prøvevalg. Bindestrek eller tomt felt krever uttrykkelig avkryssing, mens negative eller ukjente verdier ikke kan overstyres. Den eldre generelle profilen beholder kravet om positivt metadataflagg. Study_id kreves fortsatt for rapportidentiteten.
+
+Påkrevde datakilder er metadata, summary og variants samt en eksplisitt DNA/RNA-kobling. I den generelle profilen kommer denne fra sample_list.tsv med én DNA-tumorprøve. TSOPPI-profilen kan bruke entydige kommentarer i concordance- og variantfiler i stedet. Alle tilgjengelige koblingspåstander må være samstemte, inkludert eventuell sample_list. RNA utledes aldri fra et lignende prøveprefiks. En intern sample_list-representasjon opprettes bare i det midlertidige adapterområdet, og originalfilene bevares i kildearkivet.
 
 DiscoveryPlan inneholder mapper, ReportPlan per prøve, ufordelte kandidater, advarsler og filsignaturer. ReportPlan er klar bare når påkrevde roller er entydige og ingen blokkerende avvik gjenstår. Ukjente filer velges ikke automatisk. Et funn på disk er ikke en beslutning om at filen tilhører en pasient.
 
@@ -308,7 +318,7 @@ DiscoveryPlan inneholder mapper, ReportPlan per prøve, ufordelte kandidater, ad
 | cnv_plot og qc_plot | Kjente filnavn og eksakt prøvekobling. Generisk filnavn blir ikke automatisk riktig prøve. |
 | other_plot | Kjente domeneplott i et bekreftet prøvescope eller gjennom eksplisitt kobling. |
 
-De faktiske fem arbeidsmappene fra jobb-PC-en er ikke undersøkt. Nye filnavn, prøveprefikser, kolonner, ark eller katalogmønstre må legges inn som en kontrollert profil og testes på representative filer før de kan brukes uten manuell avklaring. Ikke løs ukjent prøvekobling med omtrentlige navnetreff.
+De fire arbeidsmappene fra jobb-PC-en er kartlagt ved visning. Det støttede katalogmønsteret og koblingskommentarene er prøvd med syntetiske filer; full import av den faktiske kjøringen gjenstår. Nye filnavn, prøveprefikser, kolonner, ark eller katalogmønstre må legges inn som en kontrollert profil og testes på representative filer før de kan brukes uten manuell avklaring. Ikke løs ukjent prøvekobling med omtrentlige navnetreff.
 
 ### Hva prosesseringen utfører
 
@@ -332,7 +342,7 @@ Filgjenkjenning og import er en lokal prosess for ferdige analyseresultater. Den
 
 ### Utviklerens isolerte testinnganger
 
-scripts/create_desktop_example.py lager fem mapper fra det godkjente OUS-fixturegrunnlaget. Bruk en separat testdatabase. Eksemplet dokumenterer kjent struktur og er ikke bevis på at jobb-PC-ens mapper er identiske.
+scripts/create_desktop_example.py lager fire mapper med syntetiske prøver, historiske metadata, DNA/RNA-kommentarer, to rapportversjoner, sammenslått CNV, Cancan-løsninger og plott. Programmet leser ingen pasientfiler. Bruk en separat testdatabase. Eksemplet dokumenterer kjent struktur og er ikke bevis på at jobb-PC-ens mapper er identiske.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\create_desktop_example.py --output Out\desktop-example
@@ -492,7 +502,7 @@ Ta en konsistent backup og noter nåværende kodeversjon før endring. Installer
 | Symptom | Første kontroll og tiltak |
 | Ingen rapporter i oversikten | Kontroller aktiv database under Innstillinger og ReportGrant for HTML-brukeren. En ny installasjon er tom til data importeres. |
 | Importplanen har ingen prøver | Kontroller metadataheaders, eksakte prøve-ID-er og kjørings-ID-er. Faktisk jobbstruktur kan kreve en ny profil. |
-| Ingen import etter mappevalg | Velg alle fem forskjellige mapper og trykk Kontroller filer. Les avvik, kildeliste og prøveidentitet før Prosesser og importer. |
+| Ingen import etter mappevalg | Velg PRONTO-mappen eller separate kildemapper, velg versjon og trykk Kontroller filer. Merk prøvene før import. Les avvik, kildeliste og prøveidentitet før Importer valgte. |
 | Samme prøve avvises | Kontroller fingerprint og opprinnelig import. Endret eller ukjent rågrunnlag skal ikke overskrive vurderte rapporter. |
 | Husket database er utilgjengelig | Gjenopprett tilgang til riktig datarot. Ikke slett desktop.json eller lag en tom erstatning uten bevisst nyinstallasjon. |
 | Innlogging virker ikke | Kontroller konto, passord, is_active, korrekt port og korrekt local_settings ved lokal HTTP. |
@@ -520,11 +530,11 @@ Utfyllende driftstekst finnes i docs/igv-alignment-operations.md. Regler for fix
 Kontrollene gjelder programgrunnlaget som identifiseres i pakkens manifest. App- og importtestene bruker midlertidige databaser, syntetiske filer eller godkjente fixtures. Resultatene gir teknisk kontroll av den støttede filstrukturen; de erstatter ikke verifisering av den reelle kjøringen fra jobb-PC-en.
 
 | Kontroll | Resultat ved denne leveransen |
-| Målrettede app og importtester | 54 bestått som del av pytest: 30 import, 11 runtime, 12 GUI og én faktisk HTTP-gjennomkjøring. |
-| Samlet pytest | 478 bestått og 18 utelatt på Windows. Kjøretid 319,56 sekunder. |
+| Målrettede app og importtester | Se leveransemanifestet for endelig antall. Omfatter firemapperprofil, eldre oppsett, eksplisitt prøvevalg, Cancan, DNA/RNA-kobling, GUI og faktisk HTTP-gjennomkjøring. |
+| Samlet pytest | Endelig resultat og kjøretid står i leveransemanifestet og kontrollnotatet. |
 | Django requesttester | 108 tester, OK, én utelatt. Kjøretid 104,274 sekunder. |
 | System og modellkontroll | Django system check uten feil. Ingen uregistrerte modellendringer. pip check uten brutte avhengighetskrav. |
-| Native grensesnitt | Bakgrunnsjobber, fem mapper, kildekobling, kontoopprettelse, importøridentitet, historikk, avbryt, backup, serverstyring og tastaturnavigasjon kontrollert. Fem sider gjennomgått visuelt med syntetisk eksempel. |
+| Native grensesnitt | Bakgrunnsjobber, kjøringsmapper, versjonsvalg, prøvevalg, kildekobling, kontoopprettelse, importøridentitet, historikk, avbryt, backup, serverstyring og tastaturnavigasjon kontrollert. Fem sider gjennomgått visuelt med syntetisk eksempel. |
 | Import og sikkerhet | Prøvegrenser, RNA-kobling, generisk CNV-valg, endrede kilder, dubletter, konflikter, arkiv og transaksjon per prøve kontrollert i tester. |
 | Databasemigrering og backup | Tom og eksisterende syntetisk database, backup før migrering, WAL-innhold, kontogjenbruk og utilgjengelig husket datarot kontrollert. |
 | Serverlivsløp | Oppstart, stopp, privat helseidentitet, portkonflikt, gjenbruk uten eierskap og fullføring av pågående HTTP-kall kontrollert. |
@@ -539,7 +549,7 @@ Den tidligere gjennomkjøringen på separat database kontrollerte import, CSRF-b
 
 ### Gjenstående miljøkontroller
 
-Den faktiske femmappestrukturen og filene på jobb-PC-en er ikke kontrollert. Python FELLES og Ivanti, tilgangsrettigheter, Poppler og nettleser må prøves på den maskinen. Native Windows dekker ikke de Linux-avhengige funksjonene for permanent BAM eller CRAM-bevaring. Utelatte tester er ikke beståtte tester.
+Jobb-PC-ens firemapperstruktur og utvalgte kildekommentarer og overskrifter er kartlagt. Den komplette jobbkjøringen er ikke importert, og alle kildekolonner er ennå ikke kontrollert mot rapportadapteren. Python FELLES og Ivanti, tilgangsrettigheter, Poppler og nettleser må prøves på den maskinen. Native Windows dekker ikke de Linux-avhengige funksjonene for permanent BAM eller CRAM-bevaring. Utelatte tester er ikke beståtte tester.
 
 Docker Linux-tjenesten var ikke tilgjengelig ved den tidligere kontrollen og Docker-fixtureløpet ble da ikke kjørt på nytt. Dockerfile beskriver den eldre kommandolinjeflyten, ikke en ferdig desktop- eller webdistribusjon. Det foreligger heller ikke ekstern produksjonsdrift, klinisk godkjenning, generell belastningstest eller full sårbarhetsrevisjon av avhengighetene i denne overleveringen.
 
@@ -547,7 +557,7 @@ Docker Linux-tjenesten var ikke tilgjengelig ved den tidligere kontrollen og Doc
 
 ### Det som følger med
 
-Kildekodepakken omfatter desktopappen, femmappe-importen, databaseendringen 0011, rapportarbeidsflaten og tilhørende tester. Den tidligere HTML-rettelsen og regresjonstesten er beholdt. Kontrollnotatet oppgir nøyaktig commit, filnavn, testresultater og eventuelle begrensninger. Denne manualen forklarer komponenter, dataflyt, kontrakter, database, oppstart, vurdering, eksport og drift. Den lokale databasen er ikke en del av kildekodepakken.
+Kildekodepakken omfatter desktopappen, importen av kjøringsmapper, databaseendringen 0011, rapportarbeidsflaten og tilhørende tester. Den tidligere HTML-rettelsen og regresjonstesten er beholdt. Kontrollnotatet oppgir nøyaktig commit, filnavn, testresultater og eventuelle begrensninger. Denne manualen forklarer komponenter, dataflyt, kontrakter, database, oppstart, vurdering, eksport og drift. Den lokale databasen er ikke en del av kildekodepakken.
 
 ### Avklar og kvitter ved overtakelsen
 
@@ -559,7 +569,7 @@ Kildekodepakken omfatter desktopappen, femmappe-importen, databaseendringen 0011
 | Backup, beskyttet lagringssted og gjenoppretting er overtatt. | Driftsansvarlig |
 | Kildegrunnlag og referansegenomer er lokalisert og faglig verifisert. | Faglig eier |
 | Rapporten er gjennomgått fra lagring til FINAL og begge PDF-formatene. | Mottaker |
-| De faktiske fem kjøringsmappene er prøvd, og prøvekobling og innhold er faglig validert. | Teknisk og faglig eier |
+| De faktiske fire kjøringsmappene er importert i testmiljø, og prøvekobling og innhold er faglig validert. | Teknisk og faglig eier |
 | Omfanget lokal bruk eller delt serverdrift er besluttet. | Systemeier |
 | Linux-bevaring av alignments forblir av eller er særskilt validert og godkjent. | Data og driftsansvarlig |
 | Tidspunkt for å ta gammel skrivende installasjon ut av bruk er avtalt. | Avgiver og mottaker |
@@ -575,7 +585,7 @@ Ingen automatisk sammenslåing av samtidige kladder, journalsystemkobling, konti
 Følgende filer i leveransen er de konkrete tekniske referansene. De eldre arkitekturskissene utenfor den aktive prosjektmappen beskriver tidligere idéer og skal ikke behandles som en presis beskrivelse av dagens implementasjon.
 
 | Referanse i prosjektet | Når den brukes |
-| docs/desktop-app.md | Praktisk bruk av desktopappen, fem mapper, import, dataflyt, lagring og driftsgrense. |
+| docs/desktop-app.md | Praktisk bruk av desktopappen, kjøringsmapper, import, dataflyt, lagring og driftsgrense. |
 | docs/oppstart-nb.md | Vanlig lokal oppstart, konto og databasevalg. |
 | docs/report-review-workspace.md | Kladder, revisjoner, konflikter og manuelle tabellvalg. |
 | docs/integrated-review.md | CNV, RNA, QC, figurer og PDF. |

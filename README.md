@@ -1,5 +1,5 @@
 # PRONTO 
-For the native five-folder import app and local report server, see
+For the native run import app and local report server, see
 [PRONTO desktop](docs/desktop-app.md).
 For the patient report web app, see [the startup guide](docs/oppstart-nb.md).
 For ownership transfer, architecture, database, operations and validation, see

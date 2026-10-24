@@ -1,6 +1,6 @@
 # PRONTO desktop
 
-PRONTO desktop samler filinnlasting, import til databasen, serverstart og åpning av HTML-rapportene i ett lokalt program. Appen bruker dagens rapportmotor, innlogging, vurderinger og historikk. Velg fem mapper fra én kjøring, kontroller filkoblingene, og trykk Prosesser og importer.
+PRONTO desktop samler filinnlasting, import til databasen, serverstart og åpning av HTML-rapportene i ett lokalt program. Velg PRONTO-mappen med kjøringsmappene, kontroller versjon og prøver, og importer. Appen bruker dagens rapportmotor, innlogging, vurderinger og historikk.
 
 ## Installere og starte
 
@@ -25,31 +25,47 @@ For en ny, separat installasjon eller testdatabase:
 
 Velg en ny mappe for et tomt oppsett. Port 8772 er nyttig når den eldre rapportserveren allerede kjører på 8770. Valgt datarot huskes for neste oppstart. Bytte av database krever at appen startes på nytt. Appen flytter ikke den gamle databasen automatisk.
 
-## De fem mappene
+## Kjøringsmappene
 
-Velg fem forskjellige mapper i Importer. Appen undersøker undermappene; de fem mappene skal ikke ligge inne i hverandre. De trenger ikke ha bestemte navn. Filgjenkjenningen bruker kjente filnavn og kolonneoverskrifter.
+Velg én overordnet PRONTO-mappe, eller legg til opptil fem forskjellige kildemapper. Flere valgte mapper må ikke ligge inne i hverandre. Appen undersøker undermappene uten å flytte eller endre kildene. Den kartlagte TSOPPI-profilen gjenkjenner disse fire mappene med samme kjørings-ID:
 
-Nåværende TSOPPI-profil trenger metadata, analysesammendrag, småvarianttabell og prøveoversikt. CNV, RNA og plott er tillegg som kobles til en bestemt prøve. Hver prøve vises med mangler eller tvetydige treff før den importeres. De ekte jobb-PC-mappene er ikke testet ennå, så andre filformater kan kreve en ny innlesingsprofil.
+```text
+PRONTO/
+  <run>/
+  <run>_CNVs/
+  <run>_report_preQC/
+  <run>_report_preQC_newPRONTO_version/
+```
+
+Velg rapportversjon før filkontrollen. Automatisk bruker ny rapportversjon når den finnes, ellers gammel eller råvarianttabell. Et uttrykkelig versjonsvalg skal ikke hente manglende prøver fra en annen rapportversjon. Endring av mappe, versjon eller CNV-kilde krever ny filkontroll.
+
+CNV-kilden kan være sammenslått CNV-tabell eller Cancan. Sammenslått bruker `FC_sorted` foran `fraction_sorted`. Cancan krever valg av `main`, `alt01` eller `alt02` og kobler tabell og bilde fra samme løsning. Et løsningsnavn er ingen faglig godkjenning. Purity og ploidy fra forskjellige metoder må vurderes i sitt eget kildegrunnlag.
 
 | Filrolle | Kjent grunnlag |
 |---|---|
-| Metadata | InPreD_PRONTO_metadata.txt med Sample_id, Sequencing_run_id og Study_id |
+| Metadata | InPreD_PRONTO_metadata_tsoppi.txt eller InPreD_PRONTO_metadata.txt med Sample_id, Sequencing_run_id og Study_id |
 | Sammendrag | *_variant_summary.tsv med sample_id, TMB og MSI |
 | Småvarianter | *_small_variant_table_forQC.tsv, ellers *_small_variant_table.tsv |
-| Prøveliste | sample_list.tsv med prøve-ID og prøvetype |
-| CNV | CNV_summary_table.csv eller tabell med de tilsvarende kolonnene |
-| RNA | fusion_and_splice_variant_candidates_withQC.xlsx eller tilsvarende tabell |
-| Plott | Prøvekoblede CNV/QC PDF eller PNG og eksplisitte RNA-domeneplott |
+| Prøvekobling | sample_list.tsv, eller eksplisitte DNA/RNA-kommentarer i concordance- og variantfilene i TSOPPI-profilen |
+| Sammenslått CNV | <DNA>_merged_CNV_summary_FC_sorted.tsv, ellers fraction_sorted; Gene_Symbol og eksakt DNA-mappe |
+| Cancan | <DNA>_<løsning>_gene_table.tsv med gene.name og kopitallskolonner i prøvens Cancan-mappe |
+| RNA | <RNA>_fusion_and_splice_variant_candidates.tsv, eller eldre støttet XLSX-tabell |
+| Plott | CNV, DNA/RNA-QC, joint_mutational_signature og RNA_profiles; PNG foretrekkes fremfor tilsvarende QC-PDF |
+| Støttefiler | Kjente prøvefiler under valgt rapportversjons extra_files arkiveres som kildegrunnlag |
 
-Kontroller filene før du starter importen. En generell CNV-fil uten prøveidentitet må velges eksplisitt for riktig prøve. RNA-rader med Sample_ID begrenses til den bekreftede prøven og RNA-koblingene i prøvelisten. Appen skal ikke bruke andre pasienters rader som funn bare fordi en fil er valgt manuelt. Ukjente filer gir ikke automatisk kliniske data.
+Metadata kan inneholde historiske kjøringer. Appen bruker én entydig rad for valgt prøve og kjøring. Prøver med `Create_report = -` eller tomt felt står uten avkrysning: merk prøven uttrykkelig for å importere den. Et negativt valg i metadata kan ikke overstyres av avkrysningen. Originalmetadata endres ikke.
+
+DNA/RNA-koblingen må være eksplisitt og samstemt i alle tilgjengelige koblingskilder. RNA utledes ikke fra lignende filnavn. Når sample_list mangler, lager importen bare en intern adapterrepresentasjon fra de kontrollerte kommentarene; den skriver ingen ny fil i analysemappene. RNA-rader begrenses til bekreftede ID-er.
+
+Kontroller filene før import. En generell CNV-fil uten prøveidentitet krever eksplisitt kobling utenfor den navngitte TSOPPI-profilen. Støttefiler, gamle DOCX/PPTX-rapporter og ukjente filer blir ikke automatisk nye kliniske funn. `Event_Type = .` i RNA-tabellen blir ikke en godkjent vurdering.
 
 BAM/CRAM-filer leses ikke som varianttabeller og kopieres ikke ukritisk inn i databasen. Lokal IGV-visning brukes fortsatt separat med riktig indeks og referansebygg.
 
 ## Prosessering og rapportarbeid
 
-Logg inn med en aktiv personlig PRONTO-konto før import. En tom database kan få sin første konto i appen. Brukerkontoen får tilgang til rapportene den selv importerer. Ingen konto blir administrator av denne handlingen. HTML-rapportene har fortsatt egen innlogging og vanlig rapporttilgang.
+Trykk Kontroller filer, utvid prøvene for å se kildefilene, og merk prøvene som skal importeres. Logg inn med en aktiv personlig PRONTO-konto før import. En tom database kan få sin første konto i appen. Brukerkontoen får tilgang til rapportene den selv importerer. Ingen konto blir administrator av denne handlingen. HTML-rapportene har fortsatt egen innlogging og vanlig rapporttilgang.
 
-Prosesser og importer validerer kildene, bevarer private kildekopier med SHA-256, oppretter rapportgrunnlag, første DRAFT og vedlegg, og registrerer importhistorikk. Én prøve lagres samlet; andre prøver kan fullføres selv om ett element feiler. Kjøringen viser hva som ble importert, var importert fra før, feilet eller ble avbrutt.
+Importer valgte validerer kildene, bevarer private kildekopier med SHA-256, oppretter rapportgrunnlag, første DRAFT og vedlegg, og registrerer importhistorikk. Én prøve lagres samlet; andre prøver kan fullføres selv om ett element feiler. Kjøringen viser hva som ble importert, var importert fra før, feilet eller ble avbrutt.
 
 Samme uendrede kildegrunnlag skal ikke gi dubletter. Endret rågrunnlag under en eksisterende prøve og kjøring avvises som konflikt; gamle vurderinger skal ikke overskrives. En rapport opprettet før importhistorikken ble innført kan heller ikke gjenimporteres blindt som om kildegrunnlaget var kjent.
 
@@ -69,18 +85,20 @@ Avslutt eller stopp jobben ved et trygt punkt og sikre ulagrede endringer i nett
 
 Den innebygde serveren er for lokal arbeidsstasjon på 127.0.0.1. Den er ikke et ferdig oppsett for flere PC-er, offentlig nettverk eller klinisk produksjonsgodkjenning. Windows-versjonen beholder visning av alignments; permanent BAM/CRAM-bevaring har fortsatt de separate Linux- og lagringskravene beskrevet i IGV-guiden.
 
-Prosesser-knappen behandler ferdige analysefiler. Den kjører ikke sekvensering, variant calling eller et nytt TSO500/TSOPPI-analyseforløp.
+Importen behandler ferdige analysefiler. Den kjører ikke sekvensering, variant calling eller et nytt TSO500/TSOPPI-analyseforløp.
 
 ## Prøve appen uten jobbdata
 
-Lag et femmappesett fra det allerede godkjente offentlige OUS-testgrunnlaget:
+Lag et syntetisk eksempel med fire kjøringsmapper, historiske metadata, eksplisitte DNA/RNA-koblinger, CNV, Cancan og plott:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\create_desktop_example.py --output Out\desktop-example
 .\.venv\Scripts\python.exe -m pronto_desktop --data-root 'C:\PRONTO-test' --port 8772
 ```
 
-Velg de fem mappene under Out/desktop-example. Den femte mappen er tom i eksempelet; antall mapper er ikke antall prøver. Bruk en separat testdatabase. Eksempelet tester kjent grunnstruktur og plott, og bekrefter ikke at den faktiske jobbkjøringen har samme format.
+Velg Out/desktop-example i Importer. Kjør filkontroll og merk SYN0001-D01-P01-A01 før import. Prøven er bevisst satt til `Create_report = -` for å teste dette valget. Bruk en separat testdatabase. Eksempelet leser ingen pasientfiler og oppretter ingen egen sample_list i kildemappene.
+
+Jobbmappenes navn, tabelloverskrifter og utvalgte kommentarer er kartlagt ved skrivebeskyttet visning. Den komplette jobbkjøringen er ennå ikke importert i appen. Kontroller derfor prøveidentitet, alle kolonner, valgte kilder og rapportinnhold ved første lokale test. Python FELLES, Ivanti og Poppler må også prøves i det faktiske jobbmiljøet.
 
 ## Utviklerkontroll
 
