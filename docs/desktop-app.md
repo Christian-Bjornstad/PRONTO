@@ -6,6 +6,8 @@ PRONTO desktop samler filinnlasting, import til databasen, serverstart og åpnin
 
 Pakk ut hele programmappen til en fast plass. Bruk PRONTO_INSTALL.cmd første gang og PRONTO_START.cmd ved senere oppstart. Startfilene støtter lokal Python og Python FELLES gjennom Ivanti. Faktisk Ivanti og tilgang på jobb-PC må kontrolleres der. Ikke flytt bare startfilene ut av programmappen.
 
+Lukk den gamle appen før du starter en oppdatert versjon. Versjon 0.2 har automatisk filkobling og felles PRONTO-ikon i app, oppgavelinje, nettleser og rapport. Kjør `PRONTO_SNARVEI.cmd` hvis du vil lage en Windows-snarvei med dette ikonet. Snarveien peker på den utpakkede programmappen, som derfor må bli liggende på samme plass.
+
 Installer også Poppler slik at `pdfinfo` og `pdftoppm` finnes i PATH for den samme brukeren og Python-økten. Dette gjøres normalt gjennom lokal IT. Kontroller med `Get-Command pdfinfo, pdftoppm` i PowerShell, og start Python FELLES eller appen på nytt etter endring av PATH. Python-pakkene alene installerer ikke disse programmene. Diagnostikk viser status; import med PDF-plott avvises før rapporten lagres hvis verktøyene mangler.
 
 Med prosjektets Python 3.14-miljø kan du også bruke:
@@ -37,6 +39,10 @@ PRONTO/
   <run>_report_preQC_newPRONTO_version/
 ```
 
+Filsøket starter automatisk etter mappevalget. Innlimte stier og endrede importvalg undersøkes etter en kort pause. `Kontroller filer` kjører søket på nytt ved behov. Appen kobler kjente kilder til prøvene; du skal normalt bare velge hvilke prøver som skal importeres.
+
+Filtypen gjenkjennes fra kolonnene og kjente navnemønstre. Rolleord i navn kan variere i store og små bokstaver, bindestrek, understrek og versjonssuffiks som `_v2`. Råmappen kan også ende med `_TSO_500_LocalApp_postprocessing_results`. Metadata trenger ikke et bestemt filnavn, og analysesammendrag kan for eksempel hete `analysis_variant_summary.tsv`. Prøve-ID og kjørings-ID må fortsatt stemme nøyaktig. Et annet prøvenavn blir aldri et omtrentlig treff.
+
 Velg rapportversjon før filkontrollen. Automatisk bruker ny rapportversjon når den finnes, ellers gammel eller råvarianttabell. Et uttrykkelig versjonsvalg skal ikke hente manglende prøver fra en annen rapportversjon. Endring av mappe, versjon eller CNV-kilde krever ny filkontroll.
 
 CNV-kilden kan være sammenslått CNV-tabell eller Cancan. Sammenslått bruker `FC_sorted` foran `fraction_sorted`. Cancan krever valg av `main`, `alt01` eller `alt02` og kobler tabell og bilde fra samme løsning. Et løsningsnavn er ingen faglig godkjenning. Purity og ploidy fra forskjellige metoder må vurderes i sitt eget kildegrunnlag.
@@ -63,7 +69,11 @@ BAM/CRAM-filer leses ikke som varianttabeller og kopieres ikke ukritisk inn i da
 
 ## Prosessering og rapportarbeid
 
-Trykk Kontroller filer, utvid prøvene for å se kildefilene, og merk prøvene som skal importeres. Logg inn med en aktiv personlig PRONTO-konto før import. En tom database kan få sin første konto i appen. Brukerkontoen får tilgang til rapportene den selv importerer. Ingen konto blir administrator av denne handlingen. HTML-rapportene har fortsatt egen innlogging og vanlig rapporttilgang.
+Velg mappe og vent på filsøket. Utvid prøvene for å se de automatisk koblede kildene. Merk prøvene som skal importeres, eller bruk `Velg klare prøver`. Dette er et prøvevalg, ikke et krav om å velge hver fil. Negative metadataflagg kan ikke overstyres.
+
+`Andre filer` samler ubrukte alternativer, som gamle rapportversjoner, QC i et annet filformat og CNV-løsninger som ikke er valgt. Disse må ikke kobles manuelt. Bare reelle mangler eller konkurrerende kilder under en prøve krever avklaring. Manuell kildekobling ligger under `Filvalg` og brukes ved slike avvik.
+
+Logg inn med en aktiv personlig PRONTO-konto før import. En tom database kan få sin første konto i appen. Brukerkontoen får tilgang til rapportene den selv importerer. Ingen konto blir administrator av denne handlingen. HTML-rapportene har fortsatt egen innlogging og vanlig rapporttilgang.
 
 Importer valgte validerer kildene, bevarer private kildekopier med SHA-256, oppretter rapportgrunnlag, første DRAFT og vedlegg, og registrerer importhistorikk. Én prøve lagres samlet; andre prøver kan fullføres selv om ett element feiler. Kjøringen viser hva som ble importert, var importert fra før, feilet eller ble avbrutt.
 

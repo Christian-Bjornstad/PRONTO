@@ -71,6 +71,7 @@ Alle stier i tabellen er relative til den prosjektmappen som inneholder manage.p
 
 | Fil eller mappe | Rolle ved vedlikehold |
 | PRONTO_INSTALL.cmd og PRONTO_START.cmd | Inngang for installasjon og oppstart med lokal Python eller Python FELLES gjennom Ivanti. |
+| PRONTO_SNARVEI.cmd og scripts/create_desktop_shortcut.ps1 | Valgfri Windows-snarvei med PRONTO-ikon. Opprettes bare når brukeren kjører kommandoen. |
 | install_python_felles.py og start_python_felles.py | Installerer og starter i aktiv Python 3.14 uten krav om et separat child-interpreter-løp. |
 | pronto_desktop/gui.py og theme.py | Appens fem sider, filvalg, bakgrunnsjobber, fremdrift, innlogging og visuell utforming. |
 | pronto_desktop/runtime.py | Datarot, databasevalg, migrering, kontoer, historikk, sikkerhetskopi og oppstartsinnstillinger. |
@@ -232,13 +233,15 @@ Ctrl+1 til Ctrl+5 bytter side. Ctrl+R starter filkontroll. Knapper og felter kan
 ### Importere en kjøring
 
 1. Velg PRONTO-mappen som inneholder de fire kjøringsmappene. Alternativt velger du én til fem separate kildemapper; de må være forskjellige og ikke ligge inne i hverandre. Velg rapportversjon og CNV-kilde før filkontrollen. Cancan krever også valg av løsning.
-2. Trykk Kontroller filer. Appen undersøker undermappene og viser en plan per prøve og kjøring. Utvid prøven i tabellen for å se kildene. Ingenting legges i rapportdatabasen ved denne kontrollen.
-3. Avklar manglende eller tvetydige filer. Koble kildefil lar deg velge prøve, filtype og en fil som allerede ble funnet. Ingen vilkårlig ekstern fil legges til gjennom denne dialogen. Generell CNV uten prøve-ID må kobles eksplisitt. Kontroller alltid kildeinnholdet mot prøven.
-4. Merk prøvene du vil importere. Prøver med Create_report satt til bindestrek eller tomt felt krever et uttrykkelig valg. Et negativt metadataflagg kan ikke overstyres. Trykk Importer valgte. Logg inn med personlig PRONTO-konto. En helt tom brukertabell kan få sin første konto i appen. Passord lagres ikke i appinnstillingene, og kontoen blir ikke administrator.
+2. Filsøket starter automatisk når mappen er valgt. Appen undersøker undermappene og kobler kjente kilder per prøve og kjøring. Kontroller filer kan brukes til et nytt søk. Utvid prøven for å se kildene. Ingenting legges i rapportdatabasen ved denne kontrollen.
+3. Avklar bare reelle mangler eller konkurrerende kilder under en prøve. Andre filer samler ubrukte alternativer og trenger ingen manuell kobling. Ved avvik gir Filvalg tilgang til Koble kildefil, hvor bare allerede funnet materiale kan velges. Kontroller alltid kildeinnholdet mot prøven.
+4. Merk prøvene du vil importere, eller bruk Velg klare prøver. Prøver med Create_report satt til bindestrek eller tomt felt krever dette uttrykkelige prøvevalget. Det er ikke nødvendig å velge hver fil. Et negativt metadataflagg kan ikke overstyres. Trykk Importer valgte og logg inn med personlig PRONTO-konto. En tom brukertabell kan få sin første konto; passord lagres ikke i innstillingene, og kontoen blir ikke administrator.
 5. Les resultatet for hver prøve. Importert, Allerede importert, Feilet og Avbrutt betyr forskjellige ting. Prøver med avvik blir ikke kliniske rapporter bare fordi andre prøver i samme jobb lykkes.
 6. Trykk Åpne rapporter og logg inn i HTML-arbeidsflaten. Kontroller prøve, run, kilder, CNV, RNA og plott før du begynner vurderingen.
 
-Endres mappevalg, rapportversjon eller CNV-kilde og løsning, må filkontrollen kjøres på nytt. Endres en kildefil etter kontrollen eller under kopiering, skal importen avvise det berørte grunnlaget. Slik blir det synlig at filene ikke lenger er de som ble kontrollert.
+Endres mappevalg, rapportversjon eller CNV-kilde og løsning, starter et nytt filsøk etter en kort pause. Den gamle planen kan ikke brukes til import. Endres en kildefil etter kontrollen eller under kopiering, skal importen avvise det berørte grunnlaget. Slik blir det synlig at filene ikke lenger er de som ble kontrollert.
+
+Versjon 0.2 bruker samme PRONTO-ikon i appvindu, oppgavelinje, nettleser og HTML-rapport. Lukk eldre appvinduer før oppdateringen startes. PRONTO_SNARVEI.cmd kan lage en snarvei med riktig ikon etter at hele programmappen er pakket ut på sin faste plass.
 
 Avbryt er en samarbeidsbasert stopp ved trygge kontrollpunkter. Allerede fullførte prøver beholdes. En prøve som ikke har fullført sin databaseinnlegging skal ikke stå igjen som en halv rapport. Lukkes appen mens en jobb pågår, venter den til jobben kan avsluttes trygt. Det er ikke en tvungen prosessavslutning av et eksternt analyseprogram.
 
@@ -308,6 +311,8 @@ Påkrevde datakilder er metadata, summary og variants samt en eksplisitt DNA/RNA
 
 DiscoveryPlan inneholder mapper, ReportPlan per prøve, ufordelte kandidater, advarsler og filsignaturer. ReportPlan er klar bare når påkrevde roller er entydige og ingen blokkerende avvik gjenstår. Ukjente filer velges ikke automatisk. Et funn på disk er ikke en beslutning om at filen tilhører en pasient.
 
+pronto_ingest/naming.py gjenkjenner navnefamilier uten å normalisere prøve- eller kjøringsidentiteten. Store og små bokstaver, vanlige skilletegn og versjonssuffiks som v2 kan variere i rolleordene. Metadata gjenkjennes fra kolonner og eksakt kjøring. Analysesammendrag kan ha et generelt navn når innhold og kjøringsmappe stemmer. Råmappen kan ha det kjente TSO_500_LocalApp_postprocessing_results-suffikset. Flere konkurrerende kandidater for samme rolle blir fortsatt et avvik; appen velger ikke vilkårlig den første filen.
+
 | Rolle | Gjenkjenning og kobling |
 | metadata | Kolonnene Sample_id, Sequencing_run_id og Study_id. Eksakt prøve og run må finnes entydig. |
 | summary | Kolonnene sample_id, TMB og MSI. Eksakt prøve eller prøvens _P-suffiks. |
@@ -325,6 +330,8 @@ De fire arbeidsmappene fra jobb-PC-en er kartlagt ved visning. Det støttede kat
 importer.import_plan krever en aktiv eksisterende bruker. Den oppretter én ImportBatch og behandler prøvene hver for seg. For hver prøve kontrolleres kildeplassering under de valgte mappene, lenker, størrelser og endring siden mappekontrollen. Kildearkivet må ligge utenfor analysemapper og kan ikke være en lenke.
 
 Kildefiler kopieres til en ny privat katalog under raw_imports. Filenes størrelse og SHA-256 kontrolleres før og etter kopiering. Adapterens kanoniske prøvemappe bygges midlertidig fra kopiene og fjernes etter at rapportgrunnlaget er validert. Arkivet beholder kildebytes med genererte navn; ImportSource bevarer opprinnelig navn og rolle. Rapportsider skal ikke få eksponert arbeidsstasjonens absolutte kildestier.
+
+Interne adaptertabeller bruker tabulator som skilletegn, også når originalen er CSV. Originalkolonner, råverdier, flerlinjede felt og kontrollsum bevares i kildetabellen og arkivet. En kommentar som står inne i et sitert datafelt skal ikke fjernes som en filkommentar.
 
 TMB og MSI leses fra sammendraget; importen gjør ikke en ny analyseberegning. Småvariantene kommer fra den annoterte tabellen. CNV og RNA leses som komplette støttede kildetabeller, og identitetskolonner filtreres på bekreftet prøve. Et manuelt valg av fil overstyrer ikke en motstridende prøve-ID i tabellradene. Generiske tabeller uten prøveidentitet krever at brukeren faktisk har kontrollert sammenhengen.
 
