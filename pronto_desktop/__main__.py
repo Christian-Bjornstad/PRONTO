@@ -21,9 +21,11 @@ def main(argv=None) -> int:
             return 0
         from PyQt6.QtWidgets import QApplication
         from .gui import MainWindow
+        from .branding import apply_application_branding
         app = QApplication.instance() or QApplication(["PRONTO"])
         app.setApplicationName("PRONTO")
         app.setOrganizationName("InPreD")
+        apply_application_branding(app)
         window = MainWindow(runtime)
         window.show()
         return app.exec()

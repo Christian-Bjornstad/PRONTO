@@ -2,6 +2,7 @@
 
 from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeView, PasswordChangeDoneView
 from django.urls import path
+from pronto_web.branding import favicon
 from pronto_web.reports.print_audit import print_request
 from pronto_web.reports.html_export_audit import html_export_request
 from pronto_web.reports.pdf_export import pdf_export_request
@@ -19,6 +20,7 @@ from pronto_web.reports.views import (
 from pronto_web.reports.working_drafts import working_command
 
 urlpatterns = [
+    path('favicon.ico', favicon, name='pronto-favicon'),
     path('reports/<str:report_id>/working/', working_command, name='working-command'),
     path('igv/references/<str:build>/<str:component>/', reference_component, name='igv-reference'),
     path('', report_index, name='home'),

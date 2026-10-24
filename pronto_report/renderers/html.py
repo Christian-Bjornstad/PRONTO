@@ -12,6 +12,7 @@ from decimal import Decimal
 from typing import Any, Mapping
 
 from pronto_report.models import ReportData, ReviewState
+from pronto_report.branding import favicon_data_uri
 from pronto_report.review.gene_registry import gene_in_list
 from pronto_report.renderers import review_v3
 from pronto_report.igv.locus import locus_for_variant
@@ -939,6 +940,7 @@ def render_html(
     if needs_upgrade:
         topbar_actions += '<span id="review-needs-upgrade" hidden></span>'
     context = {
+        "brand_icon_uri": favicon_data_uri(),
         "sample_id": str(report.sample["sampleId"]),
         "report_id": report.report_id,
         "status_code": status.lower(),
