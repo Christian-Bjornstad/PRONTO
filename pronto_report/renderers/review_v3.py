@@ -84,10 +84,28 @@ def figure(identifier, media, payload, caption):
     return f'<figure class="plot-figure" id="{identifier}"><img src="{uri}" alt="{shown(caption)}"><figcaption>{shown(caption)}</figcaption><button type="button" data-enlarge="{identifier}">Enlarge plot</button></figure>'
 
 
+def plot_kind(asset):
+    """Prefer the importer's explicit role, with established filename fallbacks."""
+    description = str(asset.get('description', '')).strip().casefold()
+    roles = {'cnv': 'cnv', 'qc': 'qc', 'rna / domene': 'rna'}
+    if description in roles:
+        return roles[description]
+    name = str(asset['name']).casefold()
+    if 'domain_plot' in name:
+        return 'rna'
+    if 'cnv' in name or 'cancan' in name:
+        return 'cnv'
+    if 'qc' in name:
+        return 'qc'
+    return ''
+
+
 def cnv_plots(report, images):
     groups=[]
     panel_names=('A1','A2','B2','B3','C1','C2','C3','C4','C6')
     for asset in report.attachments:
+        if plot_kind(asset) != 'cnv':
+            continue
         pages=images.get(str(asset['assetId']),())
         if str(asset['name']).endswith('_CNV_overview_plots.pdf') and len(pages)==9:
             pair=''.join(figure(f'cnv-panel-{name}',*pages[panel_names.index(name)],f'CNV {name}') for name in ('B3','C1'))
@@ -95,7 +113,7 @@ def cnv_plots(report, images):
             for name in panel_names:
                 if name not in {'B3','C1'}:
                     groups.append((name,figure(f'cnv-panel-{name}',*pages[panel_names.index(name)],f'CNV {name}')))
-        elif 'cnv' in str(asset['name']).lower() or 'cancan' in str(asset['name']).lower():
+        else:
             for page,(media,payload) in enumerate(pages):
                 groups.append((str(asset['name']),figure(f'cnv-extra-{len(groups)}-{page}',media,payload,str(asset['name']))))
     if not groups:
@@ -108,7 +126,7 @@ def cnv_plots(report, images):
 def rna_plots(report, images):
     results=[]
     for asset in report.attachments:
-        if 'domain_plot' not in str(asset['name']):
+        if plot_kind(asset) != 'rna':
             continue
         for page,(media,payload) in enumerate(images.get(str(asset['assetId']),())):
             results.append(figure(f'rna-plot-{len(results)}-{page}',media,payload,str(asset['name'])))

@@ -1,5 +1,6 @@
 from base64 import b64decode
 from dataclasses import replace
+import pytest
 
 from pronto.tests.reporting.test_html_review_state import draft_review
 from pronto.tests.reporting.test_pronto_output_adapter import build_report
@@ -61,6 +62,53 @@ def test_missing_plots_and_qc_are_explicit():
     assert "CNV plot is not available for this report" in html
     assert "No structured QC metrics in source data" in html
     assert "QC plot is not available for this report" in html
+
+
+@pytest.mark.parametrize("modern_review", [False, True])
+def test_imported_cnv_and_rna_plots_are_visible_in_their_own_tabs(modern_review):
+    report = replace(build_report(), attachments=(
+        {"assetId": "desktop-cnv", "name": "main_cancan_result.png",
+         "mediaType": "image/png", "sha256": "a" * 64, "description": "CNV"},
+        {"assetId": "desktop-rna", "name": "MET & <fusion>_domain_plot.pdf",
+         "mediaType": "application/pdf", "sha256": "b" * 64, "description": "RNA / domene"},
+        {"assetId": "desktop-qc", "name": "RNA_sample_QC_plot.png",
+         "mediaType": "image/png", "sha256": "c" * 64, "description": "QC"},
+    ))
+    review = None
+    if modern_review:
+        from pronto_report.migration import migrate_review_state_to_v3
+        review = migrate_review_state_to_v3(draft_review(report))
+    images = {item["assetId"]: (("image/png", ONE_PIXEL_PNG),) for item in report.attachments}
+    html = render_html(report, review, plot_images=images)
+    panels = {name: html.split(f'id="panel-{name}"', 1)[1].split('<section class="report-panel"', 1)[0]
+              for name in ("cnv-plots", "rna-review", "sequencing-qc")}
+    assert 'id="cnv-' in panels["cnv-plots"]
+    assert 'data-enlarge="cnv-' in panels["cnv-plots"]
+    assert 'id="rna-' in panels["rna-review"]
+    assert 'data-enlarge="rna-' in panels["rna-review"]
+    assert "MET &amp; &lt;fusion&gt;_domain_plot.pdf" in panels["rna-review"]
+    assert "MET & <fusion>" not in html
+    assert 'id="qc-1"' in panels["sequencing-qc"]
+    assert 'id="rna-' not in panels["cnv-plots"] + panels["sequencing-qc"]
+    assert "MET &amp; &lt;fusion&gt;" not in panels["cnv-plots"] + panels["sequencing-qc"]
+    assert 'id="cnv-' not in panels["rna-review"] + panels["sequencing-qc"]
+
+
+@pytest.mark.parametrize("modern_review", [False, True])
+def test_explicit_imported_plot_role_takes_precedence_over_filename(modern_review):
+    report = replace(build_report(), attachments=(
+        {"assetId": "rna-with-legacy-cnv-name", "name": "sample_CNV_domain_plot.pdf",
+         "mediaType": "application/pdf", "sha256": "d" * 64, "description": "RNA / domene"},
+    ))
+    review = None
+    if modern_review:
+        from pronto_report.migration import migrate_review_state_to_v3
+        review = migrate_review_state_to_v3(draft_review(report))
+    html = render_html(report, review, plot_images={"rna-with-legacy-cnv-name": (("image/png", ONE_PIXEL_PNG),)})
+    cnv_panel = html.split('id="panel-cnv-plots"', 1)[1].split('<section class="report-panel"', 1)[0]
+    rna_panel = html.split('id="panel-rna-review"', 1)[1].split('<section class="report-panel"', 1)[0]
+    assert 'class="plot-figure"' not in cnv_panel
+    assert 'class="plot-figure"' in rna_panel
 
 
 def test_qc_cards_show_source_status_and_declared_threshold():
