@@ -33,17 +33,18 @@ def record_and_render(record,actor,data,request_id,initials):
             raise ReviewCommandError('FORBIDDEN','Report access denied',403)
         existing=ReportPdfExportAudit.objects.filter(report=locked,request_id=request_id).first()
         identity=(actor.pk,data['revision'],initials,actor_label if method=='AUTHENTICATED' else None,method,data['layout'],TEMPLATE_VERSION)
-        if existing and (existing.actor_id,existing.revision,existing.declared_initials,existing.actor_label,existing.attribution_method,existing.layout,existing.template_version)!=identity:
+        if existing and (existing.actor_id,existing.requested_revision or existing.revision,existing.declared_initials,existing.actor_label,existing.attribution_method,existing.layout,existing.template_version)!=identity:
             raise ReviewCommandError('EXPORT_CONFLICT','Request ID already used',409)
         if settings.PRONTO_WORKING_DRAFTS and not existing:
             working=WorkingDraft.objects.filter(report=locked).first()
             if working and working.revision==data['revision']:
                 from .working_drafts import freeze_draft
                 advanced=freeze_draft(locked,data['revision'],data.get('workingVersion'))
+        effective_revision = existing.revision if existing else advanced[2] if advanced else data['revision']
         latest=ReviewRevision.objects.filter(report=locked).order_by('-revision').first()
-        if not existing and (latest is None or latest.revision!=data['revision']):
+        if not existing and (latest is None or latest.revision!=effective_revision):
             raise ReviewCommandError('REVISION_CONFLICT','Saved revision has changed',409)
-        row=ReviewRevision.objects.filter(report=locked,revision=data['revision']).first()
+        row=ReviewRevision.objects.filter(report=locked,revision=effective_revision).first()
         if row is None: raise ReviewCommandError('REVISION_NOT_FOUND','Revision unavailable',409)
         report=validate_report_data(locked.report_data)
         review=validate_review_state(row.review_data,report=report)
@@ -58,10 +59,11 @@ def record_and_render(record,actor,data,request_id,initials):
         pdf=render_report_pdf(report,review,layout=data['layout'],export_initials=actor_label,figure_assets=assets)
         if not existing:
             ReportPdfExportAudit.objects.create(report=locked,actor=actor,revision=row.revision,
+                requested_revision=data['revision'],
                 request_id=request_id,declared_initials=initials,layout=data['layout'],
                 actor_label=actor_label if method=='AUTHENTICATED' else None,attribution_method=method,
                 template_version=TEMPLATE_VERSION,requested_at=timezone.now())
-        return pdf, advanced
+        return pdf, advanced, effective_revision
 
 
 @require_POST
@@ -84,7 +86,7 @@ def pdf_export_request(request,report_id):
         initials=normalize_initials(data.get('declaredInitials')) if getattr(settings,'PRONTO_REQUIRE_INITIALS',False) else None
     except (ValueError,TypeError,UnicodeError,ReviewCommandError): return _error('INVALID_COMMAND',422)
     try:
-        pdf, advanced=record_and_render(grant.report,request.user,data,identifier,initials)
+        pdf, advanced, exported_revision=record_and_render(grant.report,request.user,data,identifier,initials)
     except ReviewCommandError as error: return _error(error.code,error.http_status)
     except DatabaseError:
         logger.exception('PDF audit unavailable');return _error('AUDIT_UNAVAILABLE',503)
@@ -92,7 +94,8 @@ def pdf_export_request(request,report_id):
         logger.exception('PDF rendering unavailable');return _error('REPORT_UNAVAILABLE',503)
     response=HttpResponse(pdf,content_type='application/pdf')
     safe=re.sub(r'[^A-Za-z0-9_-]','-',report_id)
-    response['Content-Disposition']=f'attachment; filename="InPreD-{safe}-r{data["revision"]}-{data["layout"].lower()}.pdf"'
+    response['Content-Disposition']=f'attachment; filename="InPreD-{safe}-r{exported_revision}-{data["layout"].lower()}.pdf"'
+    response['X-Export-Revision']=str(exported_revision)
     if advanced:
         response['X-Working-Version']=str(advanced[0])
         response['X-Working-Revision']=str(advanced[1])

@@ -284,6 +284,9 @@
             "PATHOGENIC",
             "OTHER"
           ]
+        },
+        "presentation": {
+          "$ref": "#/$defs/presentationAnnotation"
         }
       }
     },
@@ -447,6 +450,9 @@
         "comment": {
           "type": "string",
           "maxLength": 10000
+        },
+        "presentation": {
+          "$ref": "#/$defs/presentationAnnotation"
         }
       }
     },
@@ -463,6 +469,9 @@
         },
         "reportHighlight": {
           "type": "boolean"
+        },
+        "presentation": {
+          "$ref": "#/$defs/presentationAnnotation"
         }
       }
     },
@@ -479,6 +488,40 @@
           "format": "uuid"
         },
         "caption": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      }
+    },
+    "presentationAnnotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "functionalEffect": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "sensitive": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "resistant": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "emaTumour": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "emaOther": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 50000
+        },
+        "status": {
           "type": "string",
           "maxLength": 2000
         }

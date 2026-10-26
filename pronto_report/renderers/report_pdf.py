@@ -13,7 +13,7 @@ from pronto_report.migration import migrate_review_state_to_v3
 from pronto_report.serialization import serialize_report_data, serialize_review_state
 from .source_fields import cnv_display_fields
 
-TEMPLATE_VERSION = '1.3'
+TEMPLATE_VERSION = '2.0'
 BLUE = '#203b63'; GREEN = '#14592c'; OLIVE = '#708322'
 QC_COLORS = {'PASS':'#399a44', 'CONDITIONAL':'#e88917', 'FAIL':'#cf2525', 'NOT_REVIEWED':'#777777'}
 FIELD_LABELS = {
@@ -86,6 +86,7 @@ def project_report_export(report, review):
         'sample':r['sample'],'run':r['run'],'measurements':r['biomarkers'], 'variants':variants,
         'cnv':findings['CNV'],'rna':findings['RNA'],'notes':v['notes'],'qc':v['sectionQc'],
         'overallQc':v['runQcAssessment'],'metricHighlights':highlights,
+        'metricReviews':{item['metricId']:item for item in v['biomarkerReviews']},
         'figures':v['presentationFigures'],'reviewer':v.get('finalizationAttribution',v.get('lastSavedAttribution',{})),
         'corrections':v['valueCorrections'], 'diagnostics':r['diagnostics']}
 
@@ -185,10 +186,10 @@ def _note(model,key,label,color=BLUE):
     return [_heading(label,color),_paragraph(model['notes'].get(key))]
 
 
-def _header(canvas,doc,model,initials,title=''):
+def _header(canvas,doc,model,initials,title='',title_x=22):
     width,height=doc.pagesize;canvas.saveState()
     canvas.setFillColor(colors.HexColor(BLUE));canvas.setFont('Helvetica-Bold',18)
-    canvas.drawString(22,height-31,title or 'InPreD - Report')
+    canvas.drawString(title_x,height-31,title or 'InPreD - Report')
     canvas.setFont('Helvetica',8);canvas.setFillColor(colors.HexColor('#333333'))
     canvas.drawRightString(width-22,height-20,f'Patient ID: {_text(model["sample"].get("patientPseudonym"))}')
     canvas.drawRightString(width-22,height-32,f'Sample: {_text(model["sample"].get("sampleId"))}')
@@ -217,7 +218,8 @@ def render_report_pdf(report, review, *, layout, export_initials, figure_assets:
     if layout not in {'PRESENTATION','ESMO'} or not export_initials:
         raise ValueError('Invalid PDF layout or attribution')
     model=project_report_export(report,review);buffer=BytesIO()
-    page_size=landscape(A4) if layout=='PRESENTATION' else A4
+    from .presentation_pdf import PAGE_SIZE
+    page_size=PAGE_SIZE if layout=='PRESENTATION' else A4
     doc=SimpleDocTemplate(buffer,pagesize=page_size,leftMargin=22,rightMargin=22,topMargin=58,bottomMargin=28,
         title=f'InPreD {layout} {model["reportId"]}',author=export_initials)
     width=page_size[0]-44
@@ -246,39 +248,8 @@ def render_report_pdf(report, review, *, layout, export_initials, figure_assets:
             *_note(model,'references','References',OLIVE)]
         first=lambda c,d:_header(c,d,model,export_initials)
     else:
-        sidebar=[_paragraph('InPreD',size=13,color=BLUE,bold=True)]
-        for key,value in model['sample'].items(): sidebar.extend([_paragraph(FIELD_LABELS.get(key,key),size=7,bold=True),_paragraph(value,size=8)])
-        sidebar.extend([_paragraph('Assay / Run',size=7,bold=True),_paragraph(model['run'].get('runId'),size=7),_paragraph(f'Overall QC: {model["overallQc"]["status"]}',size=7,color=QC_COLORS[model['overallQc']['status']])])
-        qc_summary=Table([[_qc('CNV',model['qc']['cnv']),_qc('RNA',model['qc']['rna'])]],colWidths=[210,210],hAlign='LEFT',splitInRow=1)
-        qc_summary.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('VALIGN',(0,0),(-1,-1),'TOP')]))
-        main=[_heading('Mutational signatures',BLUE),_qc('Signatures',model['qc']['signatures']),_signatures(model,420),qc_summary,
-              _heading('Key relevant findings',BLUE),_highlight_table(model,420,BLUE),
-              *_note(model,'summary','Summary of most relevant findings'),
-              *_note(model,'biomarkerContext','Therapeutic context'),
-              *_note(model,'variantDescription','Variant description')]
-        right=[_heading(f'Mutations (N={len(model["variants"])})',BLUE),_qc('Small variants',model['qc']['variants']),_variant_table(model,259,True),_paragraph('VUS: Variant of uncertain significance',size=7)]
-        # Measure with a throwaway canvas; actual columns are drawn in onFirstPage.
-        from reportlab.pdfgen.canvas import Canvas
-        test_canvas=Canvas(BytesIO(),pagesize=page_size)
-        columns=[(sidebar,22,95),(main,129,420),(right,561,259)]
-        remainders=[]
-        for flows,x,w in columns:
-            remainders.extend(_draw_column(test_canvas,flows,x,page_size[1]-62,w,page_size[1]-95))
-        story=[Spacer(1,1)]
-        if remainders: story += [PageBreak(),_heading('Results - continued'),*remainders]
-        extra=[]
-        if model['cnv']: extra += [_heading('Copy number alterations'),_qc('CNV',model['qc']['cnv']),_cnv_table(model,width)]
-        if model['rna']: extra += [_heading('Fusions and splice'),_qc('RNA',model['qc']['rna']),_rna_table(model,width)]
-        if model['overallQc'].get('comment'): extra += [_heading('Overall QC comment'),_paragraph(model['overallQc']['comment'])]
-        for key,label in [('history','History / Reason for testing'),('patientDetails','Patient and sample details'),
-                          ('clinicalEvidence','Clinical actionability context'),('clinicalTrials','Clinical trial context'),
-                          ('followUp','Follow-up'),('additional','Additional comments'),('importedLegacyNote','Imported legacy note'),('assayMethods','Assay details'),('references','References')]:
-            if model['notes'].get(key): extra.extend(_note(model,key,label))
-        if extra: story += [PageBreak(),_heading('Additional results and context'),*extra]
-        def first(c,d):
-            _header(c,d,model,export_initials,'Results')
-            c.setFillColor(colors.HexColor('#e8edf3'));c.rect(18,26,103,page_size[1]-75,fill=1,stroke=0)
-            for flows,x,w in columns: _draw_column(c,flows,x,page_size[1]-62,w,page_size[1]-95)
+        from .presentation_pdf import presentation_story
+        story,first=presentation_story(model,doc,export_initials)
         if model['figures']:
             assets=figure_assets or {}
             for number,figure in enumerate(model['figures'],1):

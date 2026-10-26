@@ -584,7 +584,7 @@
       '.report-edit-controls input, textarea[data-review-note], #variant-table select[data-review-field], #variant-table textarea[data-review-field], [data-bulk-decision], [data-quick-field], #qc-review-status, #qc-review-comment, [data-section-qc], [data-source-decision], [data-source-highlight], [data-vus-variant], [data-highlight-variant], [data-exclude-variant], [data-metric-highlight], [data-figure-edit], [data-v4-edit]'
     ));
     function lockInputs() {
-      const inputs=Array.from(new Set([...editableInputs,...document.querySelectorAll('[data-figure-edit], [data-v4-edit]')]));
+      const inputs=Array.from(new Set([...editableInputs,...document.querySelectorAll('[data-figure-edit], [data-v4-edit], [data-presentation-field]')]));
       const previouslyDisabled = inputs.map((input) => input.disabled);
       inputs.forEach((input) => { input.disabled = true; });
       return () => inputs.forEach((input, index) => { input.disabled = previouslyDisabled[index]; });

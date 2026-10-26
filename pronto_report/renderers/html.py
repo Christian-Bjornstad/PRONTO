@@ -689,7 +689,7 @@ def _inline_assets(
     web_igv: bool = False, *, allow_same_origin_requests: bool = False
 ) -> tuple[str, str, str]:
     stylesheet = (_STATIC_ROOT / "report.css").read_text(encoding="utf-8")
-    script = (_STATIC_ROOT / "working-draft.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "review-v4.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "review-v3.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "report-attribution.js").read_text(encoding="utf-8") + '\n' + (_STATIC_ROOT / "report.js").read_text(encoding="utf-8")
+    script = (_STATIC_ROOT / "presentation-fields.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "working-draft.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "review-v4.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "review-v3.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "report-attribution.js").read_text(encoding="utf-8") + '\n' + (_STATIC_ROOT / "report.js").read_text(encoding="utf-8")
     if "</style" in stylesheet.casefold() or "</script" in script.casefold():
         raise ValueError("Unsafe static report asset")
     style_hash = base64.b64encode(sha256(stylesheet.encode("utf-8")).digest()).decode("ascii")
@@ -793,7 +793,7 @@ def render_html(
         _inline_assets(web_igv, allow_same_origin_requests=save_url is not None or print_url is not None or html_export_url is not None or pdf_export_url is not None)
         if inline_assets else
         ("", '<link rel="stylesheet" href="/static/report.css">',
-         '<script src="/static/review-v4.js" defer></script><script src="/static/review-v3.js" defer></script><script src="/static/report-attribution.js" defer></script><script src="/static/report.js" defer></script>')
+         '<script src="/static/presentation-fields.js" defer></script><script src="/static/review-v4.js" defer></script><script src="/static/review-v3.js" defer></script><script src="/static/report-attribution.js" defer></script><script src="/static/report.js" defer></script>')
     )
     if web_igv:
         igv_scripts = '<script type="module" src="/static/report-igv.js"></script>'
@@ -1033,6 +1033,8 @@ def render_html(
     if review and review.schema_version in {'3.0','4.0'}:
         review_v3.enhance_context(html_context, report, review, plot_images, not editable)
         html_context['tumour_content'] += review_v3.presentation_figures(review,figure_assets or {},figure_upload_url,csrf_token,not editable)
+        html_context['tumour_content'] += ('<details class="presentation-annotations"><summary>Presentation — annotations</summary>'
+            f'<div id="presentation-annotations" data-readonly="{str(not editable).lower()}"></div></details>')
         html_context['review_columns'] = '<th scope="col">Report</th><th scope="col">Review</th><th scope="col">Exclude</th><th scope="col">Report highlight</th>'
         if review.schema_version=='4.0':
             from pronto_report.review.source_defaults import source_defaults

@@ -116,6 +116,33 @@ class WorkingDraftTests(TestCase):
         self.draft['presentationFigures']=[{'figureId':str(uuid4()),'caption':'Unknown'}]
         assert self.command().status_code == 422
 
+    def test_exporting_second_layout_reuses_unchanged_snapshot(self):
+        self.command()
+        url=f'/reports/{self.report.report_id}/pdf-exports/'
+        first={'schemaVersion':'1.0','reportId':self.report.report_id,'revision':2,
+            'workingVersion':1,'layout':'ESMO','requestId':str(uuid4())}
+        assert self.client.post(url,json.dumps(first),content_type='application/json').status_code==200
+        count=ReviewRevision.objects.count()
+        second={**first,'revision':3,'workingVersion':2,'layout':'PRESENTATION','requestId':str(uuid4())}
+        result=self.client.post(url,json.dumps(second),content_type='application/json')
+        assert result.status_code==200
+        assert ReviewRevision.objects.count()==count
+        assert result['X-Export-Revision']=='2'
+        assert self.client.post(url,json.dumps(second),content_type='application/json').status_code==200
+
+    def test_manual_presentation_annotations_survive_overwrite_and_reload(self):
+        annotation={'sensitive':'Entered by reviewer', 'description':'Full saved description'}
+        self.draft['variantReviews'][0]['presentation']=annotation
+        first=self.command()
+        assert first.status_code==201
+        self.draft=first.json()['review']
+        self.draft['notes']['summary']='Second save of same working revision'
+        second=self.command(version=1)
+        assert second.status_code==201
+        assert second.json()['review']['revision']==2
+        from .models import WorkingDraft
+        assert WorkingDraft.objects.get(report=self.record).review_data['variantReviews'][0]['presentation']==annotation
+
     def test_invalid_action_type_is_a_validation_error(self):
         for action in ([],{},None,False):
             assert self.command(action=action).status_code == 422

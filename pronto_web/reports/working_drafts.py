@@ -55,12 +55,16 @@ def freeze_draft(record, revision, version):
     working = WorkingDraft.objects.select_for_update().filter(report=record).first()
     if not working or working.revision != revision or type(version) is not int or working.version != version:
         conflict()
+    latest = ReviewRevision.objects.filter(report=record).order_by('-revision').first()
+    if latest and ({key:value for key,value in latest.review_data.items() if key!='revision'} ==
+                   {key:value for key,value in working.review_data.items() if key!='revision'}):
+        return version, revision, latest.revision
     ReviewRevision.objects.create(report=record, revision=revision, review_data=working.review_data)
     new = {**working.review_data, 'revision': revision + 1}
     if not WorkingDraft.objects.filter(pk=working.pk, version=version).update(
             revision=revision+1, version=version+1, review_data=new):
         conflict()
-    return version + 1, revision + 1
+    return version + 1, revision + 1, revision
 
 
 @never_cache

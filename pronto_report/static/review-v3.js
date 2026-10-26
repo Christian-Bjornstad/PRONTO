@@ -29,6 +29,7 @@ window.initReviewV3 = function (api) {
   const {state, activityFor, changed, busy, setExporting, isDirty} = api;
   if (state.schemaVersion==='4.0') window.initReviewV4?.(api);
   if (!['3.0','4.0'].includes(state.schemaVersion)) return;
+  window.initPresentationFields?.(api);
   function findingFor(id) {
     let item = state.findingReviews.find((value) => value.findingId === id);
     if (!item) { item = {findingId:id, reportingDecision:'UNREVIEWED', reportHighlight:false}; state.findingReviews.push(item); }
@@ -206,14 +207,15 @@ window.initReviewV3 = function (api) {
       const response=await fetch(button.dataset.pdfUrl,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':button.dataset.csrf},body:JSON.stringify(pendingPdf)});
       if(!response.ok || !response.headers.get('Content-Type')?.startsWith('application/pdf')) throw new Error(response.status===409?'Saved version changed. Reload the latest report.':'PDF export could not be completed. Try again.');
       const blob=await response.blob();const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;
-      link.download=`InPreD-${state.reportId.replace(/[^A-Za-z0-9_-]/g,'-')}-r${state.revision}-${layout.toLowerCase()}.pdf`;
+      const exportedRevision=response.headers.get('X-Export-Revision') || state.revision;
+      link.download=`InPreD-${state.reportId.replace(/[^A-Za-z0-9_-]/g,'-')}-r${exportedRevision}-${layout.toLowerCase()}.pdf`;
       document.body.append(link);link.click();link.remove();setTimeout(() => URL.revokeObjectURL(url),30000);
       if (window.prontoWorkingConfig && response.headers.get('X-Working-Version')) {
         window.prontoWorkingConfig.version=Number(response.headers.get('X-Working-Version'));
         state.revision=Number(response.headers.get('X-Working-Revision'));
         window.prontoWorkingConfig.revision=state.revision;window.prontoWorkingConfig.sourceRevision=state.revision;
       }
-      status.textContent=`${layout==='ESMO'?'ESMO':'Presentation'} PDF exported from saved revision ${pendingPdf.revision}.`;pendingPdf=null;
+      status.textContent=`${layout==='ESMO'?'ESMO':'Presentation'} PDF exported from saved revision ${exportedRevision}.`;pendingPdf=null;
     }catch(error){status.textContent=error.message;}
     finally{setExporting(false);}
   }));

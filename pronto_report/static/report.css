@@ -1410,3 +1410,5 @@ button {
 .plot-document-controls select,.plot-document-controls button{font:inherit;padding:.45rem .7rem}
 .signature-details{margin:1rem 0;border:1px solid #d5dfe7;border-radius:6px;padding:.75rem 1rem}
 .signature-details summary{cursor:pointer;font-weight:600}
+
+.presentation-annotations{margin:24px 0}.presentation-annotations>summary{font-weight:600;cursor:pointer;padding:12px 0}.presentation-annotation{margin:16px 0;border:1px solid #ccd6e2;border-radius:6px;padding:16px}.presentation-annotation legend{font-weight:600;padding:0 8px}.presentation-annotation__fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.presentation-annotation label{display:flex;flex-direction:column;gap:6px}.presentation-annotation input,.presentation-annotation textarea{width:100%;box-sizing:border-box;font:inherit;padding:8px;border:1px solid #bcc9d8;border-radius:4px}.presentation-annotation__description{grid-column:1/-1}@media(max-width:768px){.presentation-annotation__fields{grid-template-columns:1fr}}
