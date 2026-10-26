@@ -166,3 +166,12 @@ Innstillinger har knappen Endre passord. Den åpner passordsiden i nettleseren, 
 PRONTO_tom_database_med_brukere.zip inneholder en egen datamappe med alle sju brukere, biomarkørlisten og null rapporter. Pakk ut mappen til en fast plass og velg den som eksisterende datamappe under Innstillinger. Lagre for neste oppstart og start appen på nytt. Datamappen inneholder også nøkkelen og må håndteres som privat driftsoppsett.
 
 For en separat kontrollinstallasjon kan PRONTO_INITIAL_USERS_FILE angi en bestemt privat JSON-fil. En eksplisitt tom miljøverdi deaktiverer automatisk brukeropprettelse for isolerte tester. Oppstartsfilen har schemaVersion 1.0 og users med bare username, firstName og passwordHash. Maksimalt 50 brukere og 64 KiB støttes; hashformatet er PBKDF2-SHA256 med minst én million iterasjoner.
+
+
+### Plottvisning og bakgrunnsjobber fra versjon 0.5.2
+
+Key findings viser nøkkeltallene først. Mutasjonssignaturen ligger i en lukket seksjon under nøkkeltallene og åpnes ved behov. Dette er en mutasjonssignatur og ikke et CNV-plott.
+
+En CNV-PDF med flere sider vises som ett dokument med sidevelger og Previous page og Next page. Alle sider beholdes. Den leverte CNV-PDF-en har 55 sider; dette ga tidligere 55 like knapper med samme filnavn. Det eldre PDF-formatet med nøyaktig ni sider beholder panelnavnene og gruppen B3 og C1.
+
+Bakgrunnsjobber avslutter nå opprydding av databaseforbindelser før grensesnittet mottar ferdigmeldingen. Ferdigmeldingen håndteres i et eksplisitt Qt-slot på vinduet. Isolert Windows-test med syntetisk import og 300 vindusendringer er gjennomført uten krasj. Dette fastslår ikke årsaken til den tidligere rapporterte native Windows-feilen. Tidsavbrutte ledige nettleserforbindelser avsluttes stille uten en unødig feilstakk i loggen.

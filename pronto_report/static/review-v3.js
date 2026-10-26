@@ -1,4 +1,10 @@
   document.addEventListener('click', (event) => {
+    const step=event.target.closest('[data-plot-step]');
+    if (step) {
+      const select=step.closest('.plot-document').querySelector('[data-plot-page-select]');
+      select.value=String(Math.max(0,Math.min(select.options.length-1,Number(select.value)+Number(step.dataset.plotStep))));
+      select.dispatchEvent(new Event('change',{bubbles:true}));
+    }
     const view=event.target.closest('[data-cnv-view]');
     if (view) {
       document.getElementById('cnv-table-view').hidden=view.dataset.cnvView !== 'table';
@@ -10,6 +16,13 @@
       document.querySelectorAll('.cnv-slide').forEach((slide) => {slide.hidden=slide.id !== plot.dataset.v3Plot;});
       document.querySelectorAll('[data-v3-plot]').forEach((b) => b.setAttribute('aria-pressed',String(b===plot)));
     }
+  });
+  document.addEventListener('change', (event) => {
+    if (!event.target.matches('[data-plot-page-select]')) return;
+    const select=event.target, documentPanel=select.closest('.plot-document');
+    documentPanel.querySelectorAll('[data-plot-page]').forEach(page => {page.hidden=page.dataset.plotPage!==select.value;});
+    documentPanel.querySelector('[data-plot-step="-1"]').disabled=select.selectedIndex===0;
+    documentPanel.querySelector('[data-plot-step="1"]').disabled=select.selectedIndex===select.options.length-1;
   });
 /* Linked controls for one versioned working copy; persistence remains explicit. */
 window.initReviewV3 = function (api) {

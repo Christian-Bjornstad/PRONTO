@@ -6,7 +6,7 @@ from pathlib import Path
 from threading import Event
 from typing import Any, Callable
 
-from PyQt6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Qt, QUrl, pyqtSignal
+from PyQt6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Qt, QUrl, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QComboBox, QDialog, QDialogButtonBox,
@@ -84,12 +84,11 @@ class Worker(QRunnable):
         self.signals = WorkerSignals()
 
     def run(self) -> None:
+        result, error_message = None, None
         try:
             result = self.operation(self.signals.progress.emit, self.cancel.is_set)
         except Exception as exc:
-            self.signals.failed.emit(str(exc) or type(exc).__name__)
-        else:
-            self.signals.finished.emit(result)
+            error_message = str(exc) or type(exc).__name__
         finally:
             # Each worker gets its own Django thread-local connection.
             try:
@@ -97,6 +96,10 @@ class Worker(QRunnable):
                 connections.close_all()
             except Exception:
                 pass
+        if error_message is None:
+            self.signals.finished.emit(result)
+        else:
+            self.signals.failed.emit(error_message)
 
 
 class CredentialsDialog(QDialog):
@@ -701,14 +704,21 @@ class MainWindow(QMainWindow):
             return False
         worker = Worker(operation)
         self._worker = worker
+        self._finished_callback = finished
         self._operation = title
         worker.signals.progress.connect(self._log)
-        worker.signals.finished.connect(lambda result: self._job_finished(result, finished))
+        worker.signals.finished.connect(self._complete_job)
         worker.signals.failed.connect(self._job_failed)
         self._set_busy(True)
         self._log(title)
         self._pool.start(worker)
         return True
+
+    @pyqtSlot(object)
+    def _complete_job(self, result):
+        callback = self._finished_callback
+        self._finished_callback = None
+        self._job_finished(result, callback)
 
     def _job_finished(self, result: Any, callback: Callable[[Any], None]) -> None:
         self._worker = None
@@ -721,7 +731,9 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self._log(f"Kunne ikke vise resultatet: {exc}")
 
+    @pyqtSlot(str)
     def _job_failed(self, message: str) -> None:
+        self._finished_callback = None
         operation = self._operation
         self._worker = None
         self._set_busy(False)

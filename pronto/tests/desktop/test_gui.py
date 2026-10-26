@@ -108,6 +108,40 @@ def test_initial_state_navigation_and_keyboard(window, qtbot):
     assert window.stack.currentIndex() == 4
 
 
+def test_worker_finishes_cleanup_before_notifying_gui(window, qtbot, monkeypatch):
+    from django.db import connections
+    cleanup_started, release = Event(), Event()
+    callbacks = []
+    def close_connections():
+        cleanup_started.set()
+        assert release.wait(3)
+    monkeypatch.setattr(connections, 'close_all', close_connections)
+    window._job('Synthetic cleanup', lambda progress, cancel: 'done', callbacks.append)
+    try:
+        qtbot.waitUntil(cleanup_started.is_set)
+        qtbot.wait(40)
+        assert callbacks == []
+    finally:
+        release.set()
+    qtbot.waitUntil(lambda: window._worker is None)
+    assert callbacks == ['done']
+
+
+def test_resizing_window_while_worker_emits_progress(window, qtbot):
+    results = []
+    def operation(progress, cancel):
+        for i in range(40):
+            progress(f'Synthetic import {i}')
+            Event().wait(.005)
+        return 'complete'
+    window._job('Synthetic import', operation, results.append)
+    for i in range(60):
+        window.resize(1100 + i % 3 * 100, 760 + i % 4 * 20)
+        qtbot.wait(5)
+    qtbot.waitUntil(lambda: window._worker is None)
+    assert results == ['complete']
+
+
 def test_password_change_starts_server_and_opens_authenticated_page(window, qtbot, monkeypatch):
     opened = []
     monkeypatch.setattr(window, '_open_url', opened.append)

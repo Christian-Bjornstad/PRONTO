@@ -1,9 +1,12 @@
 <section class="report-panel" role="tabpanel" id="panel-key-findings" aria-labelledby="tab-key-findings">
   <h2 class="visually-hidden">Key findings</h2>
-  {{ signature_section_qc }}
-  {{ signature_highlights }}
   <div class="metrics-grid">{{ biomarker_cards }}</div>
   <dl class="patient-strip">{{ case_facts }}</dl>
+  <details class="signature-details">
+    <summary>Mutational signatures</summary>
+    {{ signature_section_qc }}
+    {{ signature_highlights }}
+  </details>
   <div class="key-variants">
     <div class="section-heading">
       <div>

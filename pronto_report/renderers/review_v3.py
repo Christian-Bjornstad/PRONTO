@@ -123,8 +123,20 @@ def cnv_plots(report, images):
                 if name not in {'B3','C1'}:
                     groups.append((name,figure(f'cnv-panel-{name}',*pages[panel_names.index(name)],f'CNV {name}')))
         else:
-            for page,(media,payload) in enumerate(pages):
-                groups.append((str(asset['name']),figure(f'cnv-extra-{len(groups)}-{page}',media,payload,str(asset['name']))))
+            if len(pages) > 1:
+                identifier = f'cnv-document-{len(groups)}'
+                options = ''.join(f'<option value="{i}">Page {i+1} of {len(pages)}</option>' for i in range(len(pages)))
+                controls = (f'<div class="plot-document-controls"><button type="button" data-plot-step="-1" disabled>Previous page</button>'
+                    f'<label for="{identifier}-page">Page <select id="{identifier}-page" data-plot-page-select>{options}</select></label>'
+                    '<button type="button" data-plot-step="1">Next page</button></div>')
+                body = ''.join(f'<div class="plot-document-page" data-plot-page="{i}"{" hidden" if i else ""}>'
+                    + figure(f'{identifier}-{i}',media,payload,f'{asset["name"]} · Page {i+1} of {len(pages)}') + '</div>'
+                    for i,(media,payload) in enumerate(pages))
+                groups.append((f'{asset["name"]} ({len(pages)} pages)',
+                    '<section class="plot-document">' + controls + body + '</section>'))
+            else:
+                for page,(media,payload) in enumerate(pages):
+                    groups.append((str(asset['name']),figure(f'cnv-extra-{len(groups)}-{page}',media,payload,str(asset['name']))))
     if not groups:
         return '<p class="empty-state">No CNV plots provided.</p>'
     buttons=''.join(f'<button type="button" data-v3-plot="cnv-slide-{i}" aria-pressed="{str(i==0).lower()}">{shown(name)}</button>' for i,(name,_) in enumerate(groups))

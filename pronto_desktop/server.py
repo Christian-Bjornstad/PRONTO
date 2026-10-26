@@ -25,7 +25,11 @@ HEALTH_PATH = "/__pronto_health__/"
 class _LocalRequestHandler(WSGIRequestHandler):
     def handle(self):
         self.request.settimeout(20)
-        super().handle()
+        try:
+            super().handle()
+        except TimeoutError:
+            # Browsers keep spare connections open without sending a request.
+            pass
 
     def log_message(self, format, *args):
         # URLs can contain sample identifiers. Do not echo them into desktop logs.
