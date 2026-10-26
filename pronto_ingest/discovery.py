@@ -279,7 +279,11 @@ def discover_folders(folders, progress=None, cancel=None, *, report_version='aut
                 allowed = linked if role == 'rna_table' else {sample}
                 if cols and any(str(row['values'][col]) in allowed for row in table['rows'] for col in cols):
                     files[role] = (*files.get(role, ()), candidate.path)
-        reports.append(ReportPlan(sample, run, files, _issues(files)))
+        from .metadata import study_id_is_missing
+        current_metadata = [row for path in files['metadata'] for row in row_cache.get(path, ())
+                            if row.get('Sample_id') == sample and row.get('Sequencing_run_id') == run]
+        reports.append(ReportPlan(sample, run, files, _issues(files), study_id_missing=(
+            len(current_metadata) == 1 and study_id_is_missing(current_metadata[0].get('Study_id')))))
         assigned.update(p for paths in files.values() for p in paths)
     if not reports:
         warnings.append('Fant ingen gyldige prøve- og kjøringsidentiteter i metadata.')
@@ -463,15 +467,15 @@ def _actual_plan(folders, candidates, row_cache, table_cache, warnings, runs,
                 issues += ('metadata: prøve og kjøring må ha én entydig rad',)
             current_metadata = [row for path in files['metadata'] for row in row_cache.get(path, ())
                                 if row.get('Sample_id') == sample and row.get('Sequencing_run_id') == run]
-            if len(current_metadata) == 1 and current_metadata[0].get('Study_id', '').strip() in {'', '-', '.', 'NA'}:
-                issues += ('metadata: Study_id mangler',)
+            from .metadata import study_id_is_missing
+            study_id_missing = len(current_metadata) == 1 and study_id_is_missing(current_metadata[0].get('Study_id'))
             if len(flags) != 1 or not flags <= POSITIVE_FLAGS | NEGATIVE_FLAGS | {'-', ''}:
                 issues += ('Create_report: ukjent eller motstridende verdi',)
             if cnv_source == 'cancan' and not files.get('cancan_table'):
                 issues += ('cancan_table: mangler valgt løsning',)
             reports.append(ReportPlan(sample, run, files, issues, profile='tsoppi-run-v1',
                 metadata_flag=flag, selected=flag.upper() in POSITIVE_FLAGS,
-                cnv_source=cnv_source, cnv_solution=cnv_solution, report_version=version))
+                cnv_source=cnv_source, cnv_solution=cnv_solution, report_version=version, study_id_missing=study_id_missing))
             assigned.update(path for paths in files.values() for path in paths)
     if not reports:
         warnings.append('Fant ingen DNA-prøver for de valgte kjøringene i metadata.')
@@ -505,7 +509,7 @@ def assign_source(plan, report_key, role, path):
         if report.key == report_key:
             found = True
             if role == 'metadata':
-                report = replace(report, study_id_override='')
+                report = replace(report, study_id_override='', study_id_missing=False)
             files = dict(report.files)
             files[role] = (path,) if path is not None else ()
             issues = _issues(files, report.profile)
@@ -532,8 +536,9 @@ def assign_source(plan, report_key, role, path):
                         report = replace(report, metadata_flag=flag, selected=selected, selection_confirmed=confirmed)
                         if len(current) != 1:
                             issues += ('metadata: prøve og kjøring må ha én entydig rad',)
-                        elif not report.study_id_override and current[0].get('Study_id', '').strip() in {'', '-', '.', 'NA'}:
-                            issues += ('metadata: Study_id mangler',)
+                        from .metadata import study_id_is_missing
+                        report = replace(report, study_id_missing=(
+                            len(current) == 1 and study_id_is_missing(current[0].get('Study_id'))))
                     row_cache = {source: table_rows(source) for source in files.get('variants', ())}
                     from pronto_report.adapters.source_tables import read_source_table
                     table_cache = {source: read_source_table(source, kind=kind)

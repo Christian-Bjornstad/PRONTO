@@ -74,7 +74,7 @@ def test_manual_study_id_only_resolves_that_missing_field(actual_sources):
     assert fixed.reports[0].issues == ('variants: mangler',)
     assert not fixed.reports[0].ready
     reset = set_manual_study_id(fixed, report.key, '')
-    assert 'metadata: Study_id mangler' in reset.reports[0].issues
+    assert reset.reports[0].issues == ('variants: mangler',)
     for invalid in ('NA', '-', 'BAD\nVALUE', 'A' * 129):
         with pytest.raises(ValueError):
             set_manual_study_id(plan, report.key, invalid)
@@ -101,8 +101,44 @@ def test_rescan_preserves_manual_id_only_for_unchanged_metadata(actual_sources):
     path.write_text(path.read_text() + '# changed source\n')
     changed = preserve_manual_study_ids(fixed, discover_folders(tuple(actual_sources.values())))
     assert not changed.reports[0].study_id_override
-    assert not changed.reports[0].ready
+    assert changed.reports[0].ready
     assert any('nullstilt' in warning for warning in changed.warnings)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('missing', ['', '   ', 'NA', '-', '.', 'N/A'])
+def test_missing_study_id_imports_as_null_without_source_changes(actual_sources, tmp_path, django_user_model, missing):
+    from pronto_web.reports.models import ReportRecord
+    from pronto_report.renderers.html import render_html
+    from pronto_report.validation import validate_report_data
+    path = actual_sources['raw'] / 'InPreD_PRONTO_metadata_tsoppi.txt'
+    path.write_text(path.read_text().replace(f'{DNA}\t{RUN}\tSYNTHETIC\t', f'{DNA}\t{RUN}\t{missing}\t'))
+    original = path.read_bytes()
+    plan = discover_folders(tuple(actual_sources.values()))
+    assert plan.reports[0].ready
+    assert plan.reports[0].study_id_missing
+    plan = set_report_selected(plan, plan.reports[0].key, True)
+    actor = django_user_model.objects.create_user(username='optional-study')
+    result = import_plan(plan, actor, tmp_path / 'archive')
+    assert result.items[0].status == 'imported', result
+    data = ReportRecord.objects.get().report_data
+    assert data['sample']['patientPseudonym'] is None
+    assert 'Not reported' in render_html(validate_report_data(data))
+    assert path.read_bytes() == original
+    if missing == '':
+        from io import BytesIO
+        from pypdf import PdfReader
+        from pronto_web.reports.models import ReviewRevision
+        from pronto_report.validation import validate_review_state
+        from pronto_report.renderers.report_pdf import render_report_pdf
+        from pronto_report.renderers.summary_html import render_summary_html
+        report = validate_report_data(data)
+        review = validate_review_state(ReviewRevision.objects.get().review_data, report=report)
+        assert '<dt>patientPseudonym</dt><dd>Not available</dd>' in render_summary_html(report, review, export_initials='QA')
+        for layout in ('ESMO', 'PRESENTATION'):
+            payload = render_report_pdf(report, review, layout=layout, export_initials='QA')
+            pages = PdfReader(BytesIO(payload)).pages
+            assert 'Not provided' in pages[0].extract_text()
 
 
 @pytest.mark.django_db

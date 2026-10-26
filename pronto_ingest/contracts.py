@@ -33,6 +33,7 @@ class ReportPlan:
     cnv_solution: str = 'main'
     report_version: str = ''
     study_id_override: str = ''
+    study_id_missing: bool = False
 
     @property
     def key(self):

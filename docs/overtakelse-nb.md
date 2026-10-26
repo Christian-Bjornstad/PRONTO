@@ -10,7 +10,7 @@ Programversjon og eksakte kontrollresultater identifiseres i pakkens manifest.
 
 Denne manualen forklarer hvordan den nye PRONTO-appen installeres, brukes, vedlikeholdes og videreføres. Appen samler valg av kjøringsmapper, kontrollert import, database og serverstyring. Den eksisterende HTML-arbeidsflaten brukes videre til vurdering og rapportering. Den dekker hele kjeden fra TSOPPI og kliniske metadata til database, vurderingsarbeid, HTML, PDF og IGV. Målgruppen er både fagbrukeren som skal overta rapportarbeidet, og utvikleren eller driftsansvarlig som skal kunne forvalte løsningen uten muntlig forklaring fra den opprinnelige utvikleren.
 
-Den leverte jobbkjøringen er kontrollert i en separat lokal testdatabase. Filsøket fant 13 DNA-prøver fordelt på fire toppmapper. Fem prøver med komplett metadata ble importert; åtte ble stoppet før import fordi Study_id manglet. Originalfilene ble bare lest. Biomarkørlisten fra september 2026 inneholdt 90 rader og ga 65 unike gensymboler. Dette er teknisk importkontroll; rapportinnhold og faglige vurderinger må fortsatt gjennomgås av ansvarlig bruker. Python FELLES og Ivanti må prøves på jobb-PC-en.
+Den leverte jobbkjøringen er kontrollert i en separat lokal testdatabase. Filsøket fant 13 DNA-prøver fordelt på fire toppmapper. Alle 13 prøvene er importert. Åtte mangler Study_id; dette er tillatt og verdiene er lagret som manglende. Originalfilene ble bare lest. Biomarkørlisten fra september 2026 inneholdt 90 rader og ga 65 unike gensymboler. Dette er teknisk importkontroll; rapportinnhold og faglige vurderinger må fortsatt gjennomgås av ansvarlig bruker. Python FELLES og Ivanti må prøves på jobb-PC-en.
 
 Leveransen består av denne manualen, et eget kildekodearkiv og et kontrollnotat med versjon og testresultater. Kildekodearkivet inneholder den konkrete programversjonen og godkjente testfiler. Den lokale databasen, passord, nøkler, referansegenomer og genererte pasientrapporter overføres separat gjennom godkjent intern lagring.
 
@@ -105,7 +105,7 @@ Alle stier i tabellen er relative til den prosjektmappen som inneholder manage.p
 
 Appen søker i én til fem valgte mapper og deres undermapper. TSOPPI-profilen kjenner igjen råkjøringen, _CNVs, _report_preQC og _report_preQC_newPRONTO_version med samme kjørings-ID. Den identifiserer kjente tabeller fra kolonneoverskrifter og kjente plott fra filnavn; kildeidentitet krever eksakt prøvekobling. Ved import lager appen en midlertidig, kanonisk kilderot som passer den eksisterende adapteren. Ved direkte bruk av denne adapteren inneholder kilderoten InPreD_PRONTO_metadata.txt og nøyaktig én fil som matcher *_variant_summary.tsv. Under mappen med aktuell sample_id skal sample_list.tsv og én småvarianttabell finnes. Adapteren foretrekker *_small_variant_table_forQC.tsv; hvis ingen finnes, brukes *_small_variant_table.tsv. Flere treff gir feil fremfor et tilfeldig filvalg.
 
-Metadatafilen må inneholde aktuell Sample_id. Sequencing_run_id og Study_id brukes som obligatoriske identitetsopplysninger. Sammendraget må ha den aktuelle prøven, med støtte for prøvens _P-suffiks. Manglende kildefiler, manglende identitet eller manglende sammendragsrad avbryter importen.
+Metadatafilen må inneholde aktuell Sample_id. Sequencing_run_id er obligatorisk. Study_id er valgfritt; tom verdi lagres som null og vises som ikke oppgitt i rapporten. Sammendraget må ha den aktuelle prøven, med støtte for prøvens _P-suffiks. Manglende kildefiler, manglende identitet eller manglende sammendragsrad avbryter importen.
 
 | Kildetype | Hva den brukes til |
 | Metadata TSV | Prøve, run, pasientpseudonym og tilgjengelig klinisk diagnose. |
@@ -305,7 +305,7 @@ FINAL kan ikke redigeres direkte. Start en ny revisjon for videre arbeid. Histor
 
 pronto_ingest/discovery.py går gjennom de valgte mappene uten å følge symbolske lenker eller Windows-junctions. Søk er begrenset til 50 000 filer og 30 undermappenivåer. Kjente kildetyper er CSV, TSV, TXT, XLSX, PNG og PDF. BAM, CRAM, FASTQ og VCF brukes ikke som innlesing til varianttabellen og kopieres ikke av denne importflyten.
 
-Metadata bestemmer kombinasjonene av Sample_id og Sequencing_run_id. I TSOPPI-profilen avgrenses radene til den aktuelle kjøringen og DNA-prøvemappene; historiske metadata blir ikke egne rapporter. Et positivt Create_report-flagg gir et forhåndsvalgt prøvevalg. Bindestrek eller tomt felt krever uttrykkelig avkryssing, mens negative eller ukjente verdier ikke kan overstyres. Den eldre generelle profilen beholder kravet om positivt metadataflagg. Study_id kreves fortsatt for rapportidentiteten.
+Metadata bestemmer kombinasjonene av Sample_id og Sequencing_run_id. I TSOPPI-profilen avgrenses radene til den aktuelle kjøringen og DNA-prøvemappene; historiske metadata blir ikke egne rapporter. Et positivt Create_report-flagg gir et forhåndsvalgt prøvevalg. Bindestrek eller tomt felt krever uttrykkelig avkryssing, mens negative eller ukjente verdier ikke kan overstyres. Den eldre generelle profilen beholder kravet om positivt metadataflagg. Study_id er valgfritt. Rapportidentiteten bygger på Sample_id og Sequencing_run_id.
 
 Påkrevde datakilder er metadata, summary og variants samt en eksplisitt DNA/RNA-kobling. I den generelle profilen kommer denne fra sample_list.tsv med én DNA-tumorprøve. TSOPPI-profilen kan bruke entydige kommentarer i concordance- og variantfiler i stedet. Alle tilgjengelige koblingspåstander må være samstemte, inkludert eventuell sample_list. RNA utledes aldri fra et lignende prøveprefiks. En intern sample_list-representasjon opprettes bare i det midlertidige adapterområdet, og originalfilene bevares i kildearkivet.
 
@@ -556,7 +556,7 @@ Den tidligere gjennomkjøringen på separat database kontrollerte import, CSRF-b
 
 ### Gjenstående miljøkontroller
 
-Den leverte jobbkjøringen er prøvd lokalt i separat database: fem av 13 prøver ble importert, mens åtte manglet Study_id og ble stoppet før import. Python FELLES, Ivanti, tilgangsrettigheter og Poppler må fortsatt kontrolleres på jobb-PC-en. Klinisk innhold er ikke faglig godkjent av den tekniske testen. Native Windows dekker ikke de Linux-avhengige funksjonene for permanent BAM eller CRAM-bevaring. Utelatte tester er ikke beståtte tester.
+Den leverte jobbkjøringen er prøvd lokalt i separat database: alle 13 prøver ble importert, inkludert åtte uten Study_id. Python FELLES, Ivanti, tilgangsrettigheter og Poppler må fortsatt kontrolleres på jobb-PC-en. Klinisk innhold er ikke faglig godkjent av den tekniske testen. Native Windows dekker ikke de Linux-avhengige funksjonene for permanent BAM eller CRAM-bevaring. Utelatte tester er ikke beståtte tester.
 
 Docker Linux-tjenesten var ikke tilgjengelig ved den tidligere kontrollen og Docker-fixtureløpet ble da ikke kjørt på nytt. Dockerfile beskriver den eldre kommandolinjeflyten, ikke en ferdig desktop- eller webdistribusjon. Det foreligger heller ikke ekstern produksjonsdrift, klinisk godkjenning, generell belastningstest eller full sårbarhetsrevisjon av avhengighetene i denne overleveringen.
 
@@ -640,10 +640,17 @@ Kjente eksportavvik håndteres av parseren: den sammenslåtte metadataoverskrift
 
 ### Manuell utfylling av Study_id
 
-Velg en prøve med status Mangler Study_id og trykk Fyll inn Study_id. Oppgi korrekt verdi for den viste prøven og kjøringen. Knappen fyller bare inn et manglende felt i én entydig metadatarad. Den endrer ikke prøve-ID, kjørings-ID, RNA-kobling eller Create_report, og opphever ikke andre avvik. Et Study_id som allerede finnes i kildefilen kan ikke overskrives gjennom denne knappen. Tomt felt fjerner den manuelle utfyllingen.
+Study_id kan stå tomt. Hvis verdien er kjent, velg prøven og trykk Fyll inn Study_id for valgfri utfylling. Oppgi korrekt verdi for den viste prøven og kjøringen. Knappen fyller bare inn et manglende felt i én entydig metadatarad. Den endrer ikke prøve-ID, kjørings-ID, RNA-kobling eller Create_report, og opphever ikke andre avvik. Et Study_id som allerede finnes i kildefilen kan ikke overskrives gjennom denne knappen. Tomt felt fjerner den manuelle utfyllingen.
 
 Utfyllingen gjelder arbeidsøkten før import og blir lagret permanent ved import. Nytt filsøk beholder den bare når samme metadatafil er uendret; ved endret kilde nullstilles verdien med en merknad. Velg prøven for import etter at feltet er fylt inn. Avsluttes appen før import, må verdien fylles inn på nytt.
 
 Originalfilen i analysemappen endres ikke. Importen arkiverer originalen og manual-metadata.json med opprinnelig verdi, manuell verdi, prøve, kjøring og kontrollsum for metadatafilen. Sidefilen registreres som ImportSource med rollen metadata_override og tas med i proveniens og importens fingeravtrykk. ImportBatch registrerer ansvarlig importbruker og tidspunkt. Rapporten får diagnostikken MANUAL_STUDY_ID. Gjentatt import med samme kilder og verdi gir ingen dublett; en annen verdi under en allerede importert identitet avvises som konflikt.
 
 Appmenyen viser et stort PRONTO-ikon med navnet under. PRONTO_SNARVEI.cmd oppretter en Windows-snarvei med samme ikon. Det underliggende PowerShell-skriptet støtter også DataRoot og Port når en bestemt eksisterende database skal åpnes.
+
+
+### Valgfritt Study_id fra versjon 0.4.1
+
+Study_id er ikke et importkrav. Tom tekst, bare mellomrom og plassholderne NA, N/A, bindestrek eller punktum lagres som null i ReportData v2. HTML og PDF viser at verdien ikke er oppgitt. Sample_id og Sequencing_run_id må fortsatt identifisere prøven og kjøringen entydig. Metadatafilen og dens kolonneoverskrifter kreves fortsatt. Manuell utfylling er valgfri.
+
+Hele den leverte kjøringen er nå importert i separat lokal testdatabase: 13 rapporter, hvorav åtte uten Study_id. Originalfilene er uendret. Den nye tomme databasen for vanlig appbruk er fortsatt separat fra denne testen.

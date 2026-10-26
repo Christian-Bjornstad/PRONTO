@@ -742,7 +742,7 @@ class MainWindow(QMainWindow):
         self.scan_button.setEnabled(not busy)
         report = self._metadata_report()
         self.study_id_button.setEnabled(not busy and report is not None and (
-            'metadata: Study_id mangler' in report.issues or bool(report.study_id_override)))
+            report.study_id_missing or bool(report.study_id_override)))
         self.advanced_sources_button.setEnabled(not busy and self.plan is not None)
         self.mapping_button.setVisible(self.plan is not None and (
             self.advanced_sources_button.isChecked() or any(report.issues for report in self.plan.reports)))
@@ -887,7 +887,10 @@ class MainWindow(QMainWindow):
             else:
                 root.setFlags(root.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
             if not report.study_id_override:
-                root.setToolTip(2, "Create_report i metadata. Tomt felt eller «-» krever at du velger prøven for import.")
+                text = "Create_report i metadata. Tomt felt eller «-» krever at du velger prøven for import."
+                if report.study_id_missing:
+                    text += '\nStudy_id er ikke oppgitt. Feltet er valgfritt og hindrer ikke import.'
+                root.setToolTip(2, text)
             self.plan_tree.addTopLevelItem(root)
             for role, paths in report.files.items():
                 for path in paths:
@@ -921,8 +924,6 @@ class MainWindow(QMainWindow):
         role, separator, reason = str(issue).partition(': ')
         if not separator:
             return str(issue)
-        if role == 'metadata' and reason == 'Study_id mangler':
-            return 'Mangler Study_id'
         name = ROLE_LABELS.get(role, role)
         if reason == 'mangler':
             return 'Metadatafil mangler' if role == 'metadata' else f'{name} mangler'
@@ -940,14 +941,13 @@ class MainWindow(QMainWindow):
         report = next((report for report in self.plan.reports if report.key == key), None)
         if report is not None and report.issues:
             self.plan_hint.setText('\n'.join(self._issue_help(issue) for issue in report.issues))
+        elif report is not None and report.study_id_missing and not report.study_id_override:
+            self.plan_hint.setText('Study_id er ikke oppgitt. Prøven kan importeres uten dette feltet.')
         else:
             self._update_plan_summary()
 
     @staticmethod
     def _issue_help(issue: str) -> str:
-        if issue == 'metadata: Study_id mangler':
-            return ('Metadatafilen er funnet, men Study_id mangler for denne prøven og kjøringen. '
-                    'Velg «Fyll inn Study_id» for å oppgi riktig verdi. Originalfilen endres ikke.')
         if issue == 'metadata: mangler':
             return ('Fant ingen lesbar metadatafil med kolonnene Sample_id, Sequencing_run_id og Study_id. '
                     'Velg mappen som inneholder metadatafilen, og kontroller filene på nytt.')
@@ -959,7 +959,7 @@ class MainWindow(QMainWindow):
             return "Sperret i metadata"
         if not report.ready:
             issues = report.issues
-            first = next((issue for issue in issues if issue == 'metadata: Study_id mangler'), issues[0] if issues else '')
+            first = issues[0] if issues else ''
             return MainWindow._issue_text(first) if first else 'Kildekontroll kreves'
         return "Klar" if getattr(report, "selected", True) else "Ikke valgt"
 

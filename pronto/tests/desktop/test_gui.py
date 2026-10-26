@@ -108,7 +108,6 @@ def test_initial_state_navigation_and_keyboard(window, qtbot):
 
 
 @pytest.mark.parametrize('issue,status', [
-    ('metadata: Study_id mangler', 'Mangler Study_id'),
     ('metadata: mangler', 'Metadatafil mangler'),
     ('variants: mangler', 'Småvarianter mangler'),
     ('cnv_table: flere kandidater; velg én', 'Flere filer for cnv-tabell'),
@@ -121,15 +120,23 @@ def test_blocked_sample_explains_specific_missing_input(window, plan, issue, sta
     assert item.toolTip(3)
     assert not item.flags() & Qt.ItemFlag.ItemIsUserCheckable
     window.plan_tree.setCurrentItem(item)
-    if issue == 'metadata: Study_id mangler':
-        assert 'Metadatafilen er funnet' in item.toolTip(3)
-        assert 'Metadatafilen er funnet' in window.plan_hint.text()
-        assert 'Study_id' in item.child(item.childCount() - 1).toolTip(1)
+
+
+def test_missing_study_id_is_optional_in_import_ui(window, plan):
+    report = replace(plan.reports[0], study_id_missing=True)
+    window.show_plan(replace(plan, reports=(report,)))
+    item = window.plan_tree.topLevelItem(0)
+    window.plan_tree.setCurrentItem(item)
+    assert item.text(3) == 'Klar'
+    assert item.flags() & Qt.ItemFlag.ItemIsUserCheckable
+    assert window.import_button.isEnabled()
+    assert 'kan importeres' in window.plan_hint.text()
+    assert window.study_id_button.isEnabled()
 
 
 def test_fill_study_id_updates_plan_without_touching_source(window, plan, monkeypatch, qtbot):
     from PyQt6.QtWidgets import QInputDialog
-    report = replace(plan.reports[0], issues=('metadata: Study_id mangler',))
+    report = replace(plan.reports[0], study_id_missing=True)
     metadata = report.files['metadata'][0]
     metadata.parent.mkdir(parents=True)
     original = f'Sample_id\tSequencing_run_id\tStudy_id\n{report.sample_id}\t{report.run_id}\t\n'

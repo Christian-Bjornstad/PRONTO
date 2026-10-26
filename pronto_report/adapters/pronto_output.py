@@ -210,8 +210,9 @@ def adapt_pronto_output(
         raise AdapterError("Requested sample is absent from metadata")
 
     run_id = metadata.get("Sequencing_run_id", "")
-    patient_pseudonym = metadata.get("Study_id", "").strip()
-    if _is_missing(run_id) or _is_missing(patient_pseudonym):
+    study_id = metadata.get("Study_id", "").strip()
+    patient_pseudonym = None if _is_missing(study_id) else study_id
+    if _is_missing(run_id):
         raise AdapterError("Required report identity metadata is missing")
 
     reference_build = _reference_build(variant_path)
@@ -226,7 +227,7 @@ def adapt_pronto_output(
             )
         )
 
-    sample: dict[str, str] = {
+    sample: dict[str, str | None] = {
         "sampleId": sample_id,
         "patientPseudonym": patient_pseudonym,
         "referenceBuild": reference_build,

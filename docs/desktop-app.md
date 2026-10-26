@@ -69,7 +69,7 @@ BAM/CRAM-filer leses ikke som varianttabeller og kopieres ikke ukritisk inn i da
 
 ## Prosessering og rapportarbeid
 
-Statusfeltet viser den konkrete årsaken når en prøve stoppes. «Mangler Study_id» betyr at metadatafilen er funnet, men feltet mangler for den aktuelle prøven og kjøringen. «Metadatafil mangler» betyr at ingen lesbar fil med de påkrevde kolonnene ble funnet. Velg prøveraden for å lese forklaringen. Velg «Fyll inn Study_id» for å oppgi riktig verdi i appen før import; appen fyller ikke inn oppdiktede identifikatorer.
+Statusfeltet viser den konkrete årsaken når en prøve stoppes. Manglende Study_id hindrer ikke import. Når prøven velges, vises at feltet er valgfritt. «Metadatafil mangler» betyr at ingen lesbar fil med de påkrevde kolonnene ble funnet. Velg prøveraden for å lese forklaringen. Velg «Fyll inn Study_id» for å oppgi riktig verdi i appen før import; appen fyller ikke inn oppdiktede identifikatorer.
 
 Velg mappe og vent på filsøket. Utvid prøvene for å se de automatisk koblede kildene. Merk prøvene som skal importeres, eller bruk `Velg klare prøver`. Dette er et prøvevalg, ikke et krav om å velge hver fil. Negative metadataflagg kan ikke overstyres.
 
@@ -110,7 +110,7 @@ Lag et syntetisk eksempel med fire kjøringsmapper, historiske metadata, eksplis
 
 Velg Out/desktop-example i Importer. Kjør filkontroll og merk SYN0001-D01-P01-A01 før import. Prøven er bevisst satt til `Create_report = -` for å teste dette valget. Bruk en separat testdatabase. Eksempelet leser ingen pasientfiler og oppretter ingen egen sample_list i kildemappene.
 
-Den leverte kjøringen er testet i separat lokal database. Filsøket fant 13 DNA-prøver; fem med komplett metadata ble importert og åtte ble stoppet på manglende Study_id. En importert rapport er åpnet med alle plott, gennavn fra biomarkørlisten i fet skrift og lagring av kladd. Databasebackup er kontrollert. Rapportinnhold må fortsatt gjennomgås faglig. Python FELLES, Ivanti og Poppler må også prøves i det faktiske jobbmiljøet.
+Den leverte kjøringen er testet i separat lokal database. Filsøket fant 13 DNA-prøver; alle 13 ble importert, inkludert åtte uten Study_id. En importert rapport er åpnet med alle plott, gennavn fra biomarkørlisten i fet skrift og lagring av kladd. Databasebackup er kontrollert. Rapportinnhold må fortsatt gjennomgås faglig. Python FELLES, Ivanti og Poppler må også prøves i det faktiske jobbmiljøet.
 
 ## Utviklerkontroll
 
@@ -139,10 +139,17 @@ Kjente eksportavvik håndteres av parseren: den sammenslåtte metadataoverskrift
 
 ### Manuell utfylling av Study_id
 
-Velg en prøve med status Mangler Study_id og trykk Fyll inn Study_id. Oppgi korrekt verdi for den viste prøven og kjøringen. Knappen fyller bare inn et manglende felt i én entydig metadatarad. Den endrer ikke prøve-ID, kjørings-ID, RNA-kobling eller Create_report, og opphever ikke andre avvik. Et Study_id som allerede finnes i kildefilen kan ikke overskrives gjennom denne knappen. Tomt felt fjerner den manuelle utfyllingen.
+Study_id kan stå tomt. Hvis verdien er kjent, velg prøven og trykk Fyll inn Study_id for valgfri utfylling. Oppgi korrekt verdi for den viste prøven og kjøringen. Knappen fyller bare inn et manglende felt i én entydig metadatarad. Den endrer ikke prøve-ID, kjørings-ID, RNA-kobling eller Create_report, og opphever ikke andre avvik. Et Study_id som allerede finnes i kildefilen kan ikke overskrives gjennom denne knappen. Tomt felt fjerner den manuelle utfyllingen.
 
 Utfyllingen gjelder arbeidsøkten før import og blir lagret permanent ved import. Nytt filsøk beholder den bare når samme metadatafil er uendret; ved endret kilde nullstilles verdien med en merknad. Velg prøven for import etter at feltet er fylt inn. Avsluttes appen før import, må verdien fylles inn på nytt.
 
 Originalfilen i analysemappen endres ikke. Importen arkiverer originalen og manual-metadata.json med opprinnelig verdi, manuell verdi, prøve, kjøring og kontrollsum for metadatafilen. Sidefilen registreres som ImportSource med rollen metadata_override og tas med i proveniens og importens fingeravtrykk. ImportBatch registrerer ansvarlig importbruker og tidspunkt. Rapporten får diagnostikken MANUAL_STUDY_ID. Gjentatt import med samme kilder og verdi gir ingen dublett; en annen verdi under en allerede importert identitet avvises som konflikt.
 
 Appmenyen viser et stort PRONTO-ikon med navnet under. PRONTO_SNARVEI.cmd oppretter en Windows-snarvei med samme ikon. Det underliggende PowerShell-skriptet støtter også DataRoot og Port når en bestemt eksisterende database skal åpnes.
+
+
+### Valgfritt Study_id fra versjon 0.4.1
+
+Study_id er ikke et importkrav. Tom tekst, bare mellomrom og plassholderne NA, N/A, bindestrek eller punktum lagres som null i ReportData v2. HTML og PDF viser at verdien ikke er oppgitt. Sample_id og Sequencing_run_id må fortsatt identifisere prøven og kjøringen entydig. Metadatafilen og dens kolonneoverskrifter kreves fortsatt. Manuell utfylling er valgfri.
+
+Hele den leverte kjøringen er nå importert i separat lokal testdatabase: 13 rapporter, hvorav åtte uten Study_id. Originalfilene er uendret. Den nye tomme databasen for vanlig appbruk er fortsatt separat fra denne testen.

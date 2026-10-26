@@ -1,8 +1,11 @@
 """Explicitly fill a missing Study_id without modifying the source metadata."""
 from dataclasses import replace
 
-MISSING_STUDY_ID = 'metadata: Study_id mangler'
-MISSING_VALUES = {'', '-', '.', 'NA'}
+MISSING_VALUES = {'', '-', '.', 'NA', 'N/A'}
+
+
+def study_id_is_missing(value):
+    return value is None or str(value).strip().upper() in MISSING_VALUES
 
 
 def normalize_study_id(value):
@@ -47,10 +50,7 @@ def set_manual_study_id(plan, report_key, value):
     original = source_metadata_row(report)
     if original.get('Study_id', '').strip().upper() not in MISSING_VALUES:
         raise ValueError('Study_id finnes allerede i metadatafilen. Kontroller kildegrunnlaget før det endres.')
-    issues = tuple(issue for issue in report.issues if issue != MISSING_STUDY_ID)
-    if not value:
-        issues += (MISSING_STUDY_ID,)
-    updated = replace(report, study_id_override=value, issues=issues, selected=False, selection_confirmed=False)
+    updated = replace(report, study_id_override=value, study_id_missing=True, selected=False, selection_confirmed=False)
     return replace(plan, reports=tuple(updated if candidate.key == report_key else candidate for candidate in plan.reports))
 
 
