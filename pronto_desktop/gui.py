@@ -287,20 +287,19 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(16, 28, 16, 24)
         layout.setSpacing(8)
-        brand_row = QHBoxLayout()
-        brand_row.setSpacing(8)
-        brand_row.addStretch()
+        brand_row = QVBoxLayout()
+        brand_row.setSpacing(10)
         mark = QLabel()
         mark.setObjectName("app-mark")
         mark.setAccessibleName("PRONTO")
-        mark.setPixmap(icon_pixmap(28))
-        mark.setFixedSize(28, 28)
-        brand_row.addWidget(mark)
+        mark.setPixmap(icon_pixmap(88))
+        mark.setFixedSize(88, 88)
+        brand_row.addWidget(mark, alignment=Qt.AlignmentFlag.AlignHCenter)
         brand = label("PRONTO")
         brand.setWordWrap(False)
         brand.setObjectName("brand")
-        brand_row.addWidget(brand)
-        brand_row.addStretch()
+        brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        brand_row.addWidget(brand, alignment=Qt.AlignmentFlag.AlignHCenter)
         layout.addLayout(brand_row)
         layout.addSpacing(30)
         self.nav_buttons: list[QPushButton] = []
@@ -483,11 +482,12 @@ class MainWindow(QMainWindow):
         self.plan_tree = QTreeWidget()
         self.plan_tree.setObjectName("import-plan")
         self.plan_tree.setAccessibleName("Importplan med prøver, kildefiler og avvik")
-        self.plan_tree.setHeaderLabels(["Prøve / kilde", "Kjøring / fil", "Metadata", "Status"])
+        self.plan_tree.setHeaderLabels(["Prøve / kilde", "Kjøring / fil", "Rapportvalg", "Status"])
         self.plan_tree.setAlternatingRowColors(True)
         self.plan_tree.setMinimumHeight(160)
         self.plan_tree.setUniformRowHeights(True)
         self.plan_tree.itemChanged.connect(self._selection_changed)
+        self.plan_tree.currentItemChanged.connect(self._plan_item_selected)
         self.plan_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         self.plan_tree.setColumnWidth(0, 230)
         self.plan_tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -867,8 +867,9 @@ class MainWindow(QMainWindow):
             root.setData(0, Qt.ItemDataRole.UserRole, report.key)
             root.setToolTip(0, str(report.sample_id))
             root.setToolTip(1, str(report.run_id))
+            root.setToolTip(3, '\n\n'.join(self._issue_help(issue) for issue in report.issues))
             flag = getattr(report, "metadata_flag", "").strip().upper()
-            if flag not in {"N", "NO", "NEI", "FALSE", "0"}:
+            if report.ready and flag not in {"N", "NO", "NEI", "FALSE", "0"}:
                 root.setFlags(root.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 root.setCheckState(0, Qt.CheckState.Checked if getattr(report, "selected", True) else Qt.CheckState.Unchecked)
             else:
@@ -881,8 +882,9 @@ class MainWindow(QMainWindow):
                     child.setToolTip(1, str(path))
                     root.addChild(child)
             for issue in report.issues:
-                child = QTreeWidgetItem(["Avvik", str(issue), "", "Kontroller"])
-                child.setToolTip(1, str(issue))
+                child = QTreeWidgetItem(["Avvik", self._issue_text(issue), "", "Stoppet"])
+                child.setToolTip(1, self._issue_help(issue))
+                child.setToolTip(3, self._issue_help(issue))
                 root.addChild(child)
         if plan.unassigned:
             group = QTreeWidgetItem(["Andre filer", str(len(plan.unassigned)), "", "Ikke brukt"])
@@ -902,11 +904,49 @@ class MainWindow(QMainWindow):
         self._log(self.plan_summary.text())
 
     @staticmethod
+    def _issue_text(issue: str) -> str:
+        role, separator, reason = str(issue).partition(': ')
+        if not separator:
+            return str(issue)
+        if role == 'metadata' and reason == 'Study_id mangler':
+            return 'Mangler Study_id'
+        name = ROLE_LABELS.get(role, role)
+        if reason == 'mangler':
+            return 'Metadatafil mangler' if role == 'metadata' else f'{name} mangler'
+        if reason.startswith('flere kandidater'):
+            return f'Flere filer for {name.lower()}'
+        return f'{name}: {reason}'
+
+    def _plan_item_selected(self, item, previous):
+        if self.plan is None or item is None:
+            return
+        while item.parent() is not None:
+            item = item.parent()
+        key = item.data(0, Qt.ItemDataRole.UserRole)
+        report = next((report for report in self.plan.reports if report.key == key), None)
+        if report is not None and report.issues:
+            self.plan_hint.setText('\n'.join(self._issue_help(issue) for issue in report.issues))
+        else:
+            self._update_plan_summary()
+
+    @staticmethod
+    def _issue_help(issue: str) -> str:
+        if issue == 'metadata: Study_id mangler':
+            return ('Metadatafilen er funnet, men Study_id mangler for denne prøven og kjøringen. '
+                    'Fyll inn korrekt Study_id i en kontrollert kopi av metadatafilen, og kontroller filene på nytt.')
+        if issue == 'metadata: mangler':
+            return ('Fant ingen lesbar metadatafil med kolonnene Sample_id, Sequencing_run_id og Study_id. '
+                    'Velg mappen som inneholder metadatafilen, og kontroller filene på nytt.')
+        return MainWindow._issue_text(issue)
+
+    @staticmethod
     def _report_status(report: Any) -> str:
         if getattr(report, "metadata_flag", "").strip().upper() in {"N", "NO", "NEI", "FALSE", "0"}:
             return "Sperret i metadata"
         if not report.ready:
-            return "Må avklares"
+            issues = report.issues
+            first = next((issue for issue in issues if issue == 'metadata: Study_id mangler'), issues[0] if issues else '')
+            return MainWindow._issue_text(first) if first else 'Kildekontroll kreves'
         return "Klar" if getattr(report, "selected", True) else "Ikke valgt"
 
     @staticmethod

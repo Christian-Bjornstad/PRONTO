@@ -91,6 +91,11 @@ def test_initial_state_navigation_and_keyboard(window, qtbot):
     assert not window.windowIcon().isNull()
     assert len(window.folder_fields) == 5
     assert window.nav_buttons[4].text() == 'Log'
+    from PyQt6.QtWidgets import QLabel
+    mark = window.findChild(QLabel, 'app-mark')
+    brand = window.findChild(QLabel, 'brand')
+    assert mark.width() >= 80 and mark.height() >= 80
+    assert brand.mapTo(window, QPoint(0, 0)).y() > mark.mapTo(window, mark.rect().bottomLeft()).y()
     assert window.metrics["reports"].text() == "12"
     assert window.runtime.count_thread != get_ident()
     window.activateWindow()
@@ -100,6 +105,26 @@ def test_initial_state_navigation_and_keyboard(window, qtbot):
     assert not window.advanced_import.isVisible()
     qtbot.keyClick(window, Qt.Key.Key_5, Qt.KeyboardModifier.ControlModifier)
     assert window.stack.currentIndex() == 4
+
+
+@pytest.mark.parametrize('issue,status', [
+    ('metadata: Study_id mangler', 'Mangler Study_id'),
+    ('metadata: mangler', 'Metadatafil mangler'),
+    ('variants: mangler', 'Småvarianter mangler'),
+    ('cnv_table: flere kandidater; velg én', 'Flere filer for cnv-tabell'),
+])
+def test_blocked_sample_explains_specific_missing_input(window, plan, issue, status):
+    report = replace(plan.reports[0], issues=(issue,))
+    window.show_plan(replace(plan, reports=(report,)))
+    item = window.plan_tree.topLevelItem(0)
+    assert item.text(3) == status
+    assert item.toolTip(3)
+    assert not item.flags() & Qt.ItemFlag.ItemIsUserCheckable
+    window.plan_tree.setCurrentItem(item)
+    if issue == 'metadata: Study_id mangler':
+        assert 'Metadatafilen er funnet' in item.toolTip(3)
+        assert 'Metadatafilen er funnet' in window.plan_hint.text()
+        assert 'Study_id' in item.child(item.childCount() - 1).toolTip(1)
 
 
 def test_missing_pdf_tools_are_reported_without_blocking_gui(window, qtbot):

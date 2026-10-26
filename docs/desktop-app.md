@@ -69,6 +69,8 @@ BAM/CRAM-filer leses ikke som varianttabeller og kopieres ikke ukritisk inn i da
 
 ## Prosessering og rapportarbeid
 
+Statusfeltet viser den konkrete årsaken når en prøve stoppes. «Mangler Study_id» betyr at metadatafilen er funnet, men feltet mangler for den aktuelle prøven og kjøringen. «Metadatafil mangler» betyr at ingen lesbar fil med de påkrevde kolonnene ble funnet. Velg prøveraden for å lese forklaringen. Rett metadata i en kontrollert kopi og kjør filkontroll på nytt; appen fyller ikke inn oppdiktede identifikatorer.
+
 Velg mappe og vent på filsøket. Utvid prøvene for å se de automatisk koblede kildene. Merk prøvene som skal importeres, eller bruk `Velg klare prøver`. Dette er et prøvevalg, ikke et krav om å velge hver fil. Negative metadataflagg kan ikke overstyres.
 
 `Andre filer` samler ubrukte alternativer, som gamle rapportversjoner, QC i et annet filformat og CNV-løsninger som ikke er valgt. Disse må ikke kobles manuelt. Bare reelle mangler eller konkurrerende kilder under en prøve krever avklaring. Manuell kildekobling ligger under `Filvalg` og brukes ved slike avvik.
