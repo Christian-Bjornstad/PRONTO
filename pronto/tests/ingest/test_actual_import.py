@@ -58,6 +58,85 @@ def selected_plan(roots, **options):
     return set_report_selected(plan, plan.reports[0].key, True)
 
 
+def missing_study_plan(roots):
+    path = roots['raw'] / 'InPreD_PRONTO_metadata_tsoppi.txt'
+    path.write_text(path.read_text().replace(f'{DNA}\t{RUN}\tSYNTHETIC\t', f'{DNA}\t{RUN}\t\t'))
+    return discover_folders(tuple(roots.values()))
+
+
+def test_manual_study_id_only_resolves_that_missing_field(actual_sources):
+    from pronto_ingest.metadata import set_manual_study_id
+    plan = missing_study_plan(actual_sources)
+    report = plan.reports[0]
+    plan = replace(plan, reports=(replace(report, issues=(*report.issues, 'variants: mangler')),))
+    fixed = set_manual_study_id(plan, report.key, 'STUDY-A / 123')
+    assert fixed.reports[0].study_id_override == 'STUDY-A / 123'
+    assert fixed.reports[0].issues == ('variants: mangler',)
+    assert not fixed.reports[0].ready
+    reset = set_manual_study_id(fixed, report.key, '')
+    assert 'metadata: Study_id mangler' in reset.reports[0].issues
+    for invalid in ('NA', '-', 'BAD\nVALUE', 'A' * 129):
+        with pytest.raises(ValueError):
+            set_manual_study_id(plan, report.key, invalid)
+
+
+def test_manual_study_id_refuses_existing_value_and_missing_row(actual_sources):
+    from pronto_ingest.metadata import set_manual_study_id
+    plan = discover_folders(tuple(actual_sources.values()))
+    with pytest.raises(ValueError):
+        set_manual_study_id(plan, plan.reports[0].key, 'CHANGED')
+    report = replace(plan.reports[0], sample_id='OTHER')
+    with pytest.raises(ValueError):
+        set_manual_study_id(replace(plan, reports=(report,)), report.key, 'NEW')
+
+
+def test_rescan_preserves_manual_id_only_for_unchanged_metadata(actual_sources):
+    from pronto_ingest.metadata import set_manual_study_id, preserve_manual_study_ids
+    plan = missing_study_plan(actual_sources)
+    fixed = set_manual_study_id(plan, plan.reports[0].key, 'MANUAL')
+    fresh = discover_folders(tuple(actual_sources.values()))
+    kept = preserve_manual_study_ids(fixed, fresh)
+    assert kept.reports[0].study_id_override == 'MANUAL' and kept.reports[0].ready
+    path = fresh.reports[0].files['metadata'][0]
+    path.write_text(path.read_text() + '# changed source\n')
+    changed = preserve_manual_study_ids(fixed, discover_folders(tuple(actual_sources.values())))
+    assert not changed.reports[0].study_id_override
+    assert not changed.reports[0].ready
+    assert any('nullstilt' in warning for warning in changed.warnings)
+
+
+@pytest.mark.django_db
+def test_manual_study_id_is_archived_and_reimport_is_stable(actual_sources, tmp_path, django_user_model):
+    import json
+    from hashlib import sha256
+    from pronto_ingest.metadata import set_manual_study_id
+    from pronto_web.reports.models import ImportSource, ReportRecord
+    plan = missing_study_plan(actual_sources)
+    source = plan.reports[0].files['metadata'][0]
+    original = source.read_bytes()
+    plan = set_manual_study_id(plan, plan.reports[0].key, 'MANUAL-STUDY / 123')
+    plan = set_report_selected(plan, plan.reports[0].key, True)
+    actor = django_user_model.objects.create_user(username='manual-operator')
+    archive = tmp_path / 'archive'
+    result = import_plan(plan, actor, archive)
+    assert result.items[0].status == 'imported', result
+    document = ReportRecord.objects.get().report_data
+    assert document['sample']['patientPseudonym'] == 'MANUAL-STUDY / 123'
+    assert any(item['code'] == 'MANUAL_STUDY_ID' for item in document['diagnostics'])
+    audit_source = ImportSource.objects.get(role='metadata_override')
+    payload = (archive / audit_source.archive_key).read_bytes()
+    assert sha256(payload).hexdigest() == audit_source.sha256
+    assert json.loads(payload)['manualValue'] == 'MANUAL-STUDY / 123'
+    assert json.loads(payload)['originalValue'] == ''
+    assert any(item['sha256'] == audit_source.sha256 for item in document['provenance']['sourceFiles'])
+    assert source.read_bytes() == original
+    assert [item.status for item in import_plan(plan, actor, archive).items] == ['already_imported']
+    other = set_manual_study_id(plan, plan.reports[0].key, 'DIFFERENT')
+    other = set_report_selected(other, other.reports[0].key, True)
+    assert import_plan(other, actor, archive).items[0].status == 'failed'
+    assert ReportRecord.objects.get().report_data == document
+
+
 @pytest.mark.django_db
 def test_actual_run_archives_originals_and_uses_exact_historical_metadata_row(actual_sources, tmp_path, django_user_model):
     from pronto_web.reports.models import ImportBatch, ImportSource, ReportRecord, ReviewRevision

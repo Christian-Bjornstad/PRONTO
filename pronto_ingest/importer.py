@@ -159,6 +159,8 @@ def _validate_sources(report_plan, sources):
              and r.get('Sequencing_run_id') == report_plan.run_id]
     if len(exact) != 1:
         raise ImportProblem('Metadata har manglende eller flere rader for prøve og kjøring.')
+    from .metadata import effective_metadata
+    effective_metadata(report_plan, exact[0])
     _validate_selection(report_plan, exact[0])
     # The legacy adapter picks by sample only. Refuse cross-run ambiguity here.
     if report_plan.profile != 'tsoppi-run-v1' and len([r for r in metadata if r.get('Sample_id') == report_plan.sample_id]) != 1:
@@ -204,6 +206,8 @@ def _canonical_sources(report_plan, sources, canonical, linked):
     metadata = table_rows(sources['metadata'][0], header={'Sample_id', 'Sequencing_run_id', 'Study_id'})
     row = next(r for r in metadata if r.get('Sample_id') == report_plan.sample_id
                and r.get('Sequencing_run_id') == report_plan.run_id)
+    from .metadata import effective_metadata
+    row = effective_metadata(report_plan, row)
     with (canonical / 'InPreD_PRONTO_metadata.txt').open('w', encoding='utf-8', newline='') as stream:
         writer = csv.DictWriter(stream, fieldnames=list(row), delimiter='\t')
         writer.writeheader()
@@ -265,6 +269,9 @@ def _build_report(report_plan, sources, archive, hashes, original_names, cancel=
     for row, variant in zip(variant_table['rows'], document['variants']):
         row['findingId'], row['occurrenceId'] = variant['variantId'], variant['occurrenceId']
     document['sourceTables'] = [variant_table]
+    if report_plan.study_id_override:
+        document['diagnostics'].append({'code': 'MANUAL_STUDY_ID', 'severity': 'INFO', 'path': 'sample.patientPseudonym',
+            'message': 'Study_id ble fylt inn manuelt ved import. Originalverdi og manuell verdi er bevart i kildearkivet.'})
     # Hash provenance points to the archived original bytes, using opaque relative
     # names. No workstation paths are exposed through report JSON or HTML.
     document['provenance']['sourceFiles'] = [
@@ -376,6 +383,21 @@ def _import_one(plan, report_plan, actor, raw_root, batch, progress, cancel):
                 hashes[target] = _copy(source, target, cancel)
                 original_names[target] = source.name
                 sources[role] = (*sources.get(role, ()), target)
+        if report_plan.study_id_override:
+            from .metadata import source_metadata_row, effective_metadata
+            original = source_metadata_row(report_plan, sources['metadata'])
+            effective = effective_metadata(report_plan, original)
+            target = archive / 'manual-metadata.json'
+            payload = json.dumps({'schemaVersion': '1.0', 'sampleId': report_plan.sample_id,
+                'runId': report_plan.run_id, 'field': 'Study_id', 'originalValue': original.get('Study_id', ''),
+                'manualValue': effective['Study_id'], 'metadataSha256': hashes[sources['metadata'][0]][0]},
+                ensure_ascii=False, sort_keys=True).encode('utf-8')
+            with target.open('xb') as output:
+                os.chmod(target, 0o600)
+                output.write(payload)
+            sources['metadata_override'] = (target,)
+            hashes[target] = (hashlib.sha256(payload).hexdigest(), len(payload))
+            original_names[target] = target.name
         fingerprint_fields = [
             report_plan.sample_id, report_plan.run_id,
             sorted((role, hashes[p][0]) for role, paths in sources.items() for p in paths)

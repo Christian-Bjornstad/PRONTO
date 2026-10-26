@@ -127,6 +127,29 @@ def test_blocked_sample_explains_specific_missing_input(window, plan, issue, sta
         assert 'Study_id' in item.child(item.childCount() - 1).toolTip(1)
 
 
+def test_fill_study_id_updates_plan_without_touching_source(window, plan, monkeypatch, qtbot):
+    from PyQt6.QtWidgets import QInputDialog
+    report = replace(plan.reports[0], issues=('metadata: Study_id mangler',))
+    metadata = report.files['metadata'][0]
+    metadata.parent.mkdir(parents=True)
+    original = f'Sample_id\tSequencing_run_id\tStudy_id\n{report.sample_id}\t{report.run_id}\t\n'
+    metadata.write_text(original)
+    window.show_plan(replace(plan, reports=(report,)))
+    assert not window.study_id_button.isEnabled()
+    window.plan_tree.setCurrentItem(window.plan_tree.topLevelItem(0))
+    assert window.study_id_button.isEnabled()
+    monkeypatch.setattr(QInputDialog, 'getText', lambda *args, **kwargs: ('STUDY-MANUAL-123', True))
+    window.study_id_button.click()
+    qtbot.waitUntil(lambda: window._worker is None)
+    assert window.plan.reports[0].study_id_override == 'STUDY-MANUAL-123'
+    assert window.plan.reports[0].ready
+    assert not window.plan.reports[0].selected
+    assert metadata.read_text() == original
+    monkeypatch.setattr(QInputDialog, 'getText', lambda *args, **kwargs: ('SHOULD-NOT-SAVE', False))
+    window.study_id_button.click()
+    assert window.plan.reports[0].study_id_override == 'STUDY-MANUAL-123'
+
+
 def test_missing_pdf_tools_are_reported_without_blocking_gui(window, qtbot):
     threads = []
     def capabilities():

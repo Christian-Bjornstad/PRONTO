@@ -504,6 +504,8 @@ def assign_source(plan, report_key, role, path):
     for report in plan.reports:
         if report.key == report_key:
             found = True
+            if role == 'metadata':
+                report = replace(report, study_id_override='')
             files = dict(report.files)
             files[role] = (path,) if path is not None else ()
             issues = _issues(files, report.profile)
@@ -530,7 +532,7 @@ def assign_source(plan, report_key, role, path):
                         report = replace(report, metadata_flag=flag, selected=selected, selection_confirmed=confirmed)
                         if len(current) != 1:
                             issues += ('metadata: prøve og kjøring må ha én entydig rad',)
-                        elif current[0].get('Study_id', '').strip() in {'', '-', '.', 'NA'}:
+                        elif not report.study_id_override and current[0].get('Study_id', '').strip() in {'', '-', '.', 'NA'}:
                             issues += ('metadata: Study_id mangler',)
                     row_cache = {source: table_rows(source) for source in files.get('variants', ())}
                     from pronto_report.adapters.source_tables import read_source_table

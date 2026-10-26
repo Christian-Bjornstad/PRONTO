@@ -32,6 +32,7 @@ class ReportPlan:
     cnv_source: str = 'merged'
     cnv_solution: str = 'main'
     report_version: str = ''
+    study_id_override: str = ''
 
     @property
     def key(self):

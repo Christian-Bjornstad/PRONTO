@@ -11,7 +11,7 @@ from PyQt6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QComboBox, QDialog, QDialogButtonBox,
     QFileDialog, QFormLayout, QFrame, QGridLayout, QHBoxLayout, QHeaderView, QLayout,
-    QLabel, QLineEdit, QMainWindow, QPlainTextEdit, QProgressBar, QPushButton,
+    QLabel, QLineEdit, QMainWindow, QPlainTextEdit, QProgressBar, QPushButton, QInputDialog,
     QScrollArea, QSizePolicy, QSpinBox, QStackedWidget, QTableWidget,
     QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
@@ -500,6 +500,9 @@ class MainWindow(QMainWindow):
         self.scan_button = button("Kontroller filer", "scan-folders")
         self.scan_button.setToolTip("Søk etter kilder og bygg importplan (Ctrl+R)")
         self.scan_button.clicked.connect(self.start_scan)
+        self.study_id_button = button('Fyll inn Study_id …', 'fill-study-id')
+        self.study_id_button.setEnabled(False)
+        self.study_id_button.clicked.connect(self.fill_study_id)
         self.mapping_button = button("Koble kildefil …", "map-source")
         self.mapping_button.clicked.connect(self.map_source)
         self.mapping_button.setEnabled(False)
@@ -516,6 +519,7 @@ class MainWindow(QMainWindow):
         self.import_button.clicked.connect(self.prepare_import)
         self.import_button.setEnabled(False)
         actions.addWidget(self.scan_button)
+        actions.addWidget(self.study_id_button)
         actions.addWidget(self.advanced_sources_button)
         actions.addWidget(self.mapping_button)
         actions.addWidget(self.cancel_button)
@@ -736,6 +740,9 @@ class MainWindow(QMainWindow):
         self.cancel_button.setVisible(busy)
         self.cancel_button.setEnabled(busy)
         self.scan_button.setEnabled(not busy)
+        report = self._metadata_report()
+        self.study_id_button.setEnabled(not busy and report is not None and (
+            'metadata: Study_id mangler' in report.issues or bool(report.study_id_override)))
         self.advanced_sources_button.setEnabled(not busy and self.plan is not None)
         self.mapping_button.setVisible(self.plan is not None and (
             self.advanced_sources_button.isChecked() or any(report.issues for report in self.plan.reports)))
@@ -841,11 +848,14 @@ class MainWindow(QMainWindow):
         from pronto_ingest.discovery import discover_folders
         options = {"report_version": self.report_version.currentData(), "cnv_source": self.cnv_source.currentData(), "cnv_solution": self.cnv_solution.currentData()}
         revision = self._source_revision
+        previous_plan = self.plan
         def discover(progress: Any, cancel: Any) -> Any:
             # Network paths and existence checks remain outside the GUI thread.
             if automatic and not all(folder.is_dir() for folder in folders):
                 return None
-            return discover_folders(folders, progress=progress, cancel=cancel, **options)
+            from pronto_ingest.metadata import preserve_manual_study_ids
+            return preserve_manual_study_ids(previous_plan,
+                discover_folders(folders, progress=progress, cancel=cancel, **options))
         self._job("Finner og kobler filer …", discover, lambda plan: self._scan_finished(plan, revision))
 
     def _scan_finished(self, plan: Any, revision: int) -> None:
@@ -868,13 +878,16 @@ class MainWindow(QMainWindow):
             root.setToolTip(0, str(report.sample_id))
             root.setToolTip(1, str(report.run_id))
             root.setToolTip(3, '\n\n'.join(self._issue_help(issue) for issue in report.issues))
+            if report.study_id_override:
+                root.setToolTip(2, 'Study_id er fylt inn manuelt: ' + report.study_id_override)
             flag = getattr(report, "metadata_flag", "").strip().upper()
             if report.ready and flag not in {"N", "NO", "NEI", "FALSE", "0"}:
                 root.setFlags(root.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 root.setCheckState(0, Qt.CheckState.Checked if getattr(report, "selected", True) else Qt.CheckState.Unchecked)
             else:
                 root.setFlags(root.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
-            root.setToolTip(2, "Create_report i metadata. Tomt felt eller «-» krever at du velger prøven for import.")
+            if not report.study_id_override:
+                root.setToolTip(2, "Create_report i metadata. Tomt felt eller «-» krever at du velger prøven for import.")
             self.plan_tree.addTopLevelItem(root)
             for role, paths in report.files.items():
                 for path in paths:
@@ -918,6 +931,7 @@ class MainWindow(QMainWindow):
         return f'{name}: {reason}'
 
     def _plan_item_selected(self, item, previous):
+        self._set_busy(self._worker is not None)
         if self.plan is None or item is None:
             return
         while item.parent() is not None:
@@ -933,7 +947,7 @@ class MainWindow(QMainWindow):
     def _issue_help(issue: str) -> str:
         if issue == 'metadata: Study_id mangler':
             return ('Metadatafilen er funnet, men Study_id mangler for denne prøven og kjøringen. '
-                    'Fyll inn korrekt Study_id i en kontrollert kopi av metadatafilen, og kontroller filene på nytt.')
+                    'Velg «Fyll inn Study_id» for å oppgi riktig verdi. Originalfilen endres ikke.')
         if issue == 'metadata: mangler':
             return ('Fant ingen lesbar metadatafil med kolonnene Sample_id, Sequencing_run_id og Study_id. '
                     'Velg mappen som inneholder metadatafilen, og kontroller filene på nytt.')
@@ -1015,6 +1029,41 @@ class MainWindow(QMainWindow):
             key, role, source = dialog.report.currentData(), dialog.role.currentData(), dialog.source.currentData()
             self._job("Kontrollerer filvalg …", lambda progress, cancel: assign_source(plan, key, role, source),
                       lambda result: self._scan_finished(result, revision))
+
+    def _metadata_report(self):
+        if self.plan is None:
+            return None
+        item = self.plan_tree.currentItem()
+        if item is None:
+            return None
+        while item.parent() is not None:
+            item = item.parent()
+        key = item.data(0, Qt.ItemDataRole.UserRole)
+        return next((report for report in self.plan.reports if report.key == key), None)
+
+    def fill_study_id(self):
+        if self._worker is not None:
+            return
+        report = self._metadata_report()
+        if report is None:
+            return
+        value, accepted = QInputDialog.getText(self, 'Fyll inn Study_id',
+            f'Prøve: {report.sample_id}\nKjøring: {report.run_id}\nStudy_id:', text=report.study_id_override)
+        if not accepted:
+            return
+        from pronto_ingest.metadata import set_manual_study_id
+        plan, revision = self.plan, self._source_revision
+        def finished(result):
+            self._scan_finished(result, revision)
+            if self.plan is not result:
+                return
+            for index in range(self.plan_tree.topLevelItemCount()):
+                item = self.plan_tree.topLevelItem(index)
+                if item.data(0, Qt.ItemDataRole.UserRole) == report.key:
+                    self.plan_tree.setCurrentItem(item)
+                    break
+            self._log('Study_id er oppdatert i importplanen. Originalfilen er uendret.')
+        self._job('Kontrollerer Study_id …', lambda progress, cancel: set_manual_study_id(plan, report.key, value), finished)
 
     def prepare_import(self) -> None:
         if self.plan is None or self._worker is not None:
