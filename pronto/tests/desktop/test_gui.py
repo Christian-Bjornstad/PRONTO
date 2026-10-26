@@ -60,6 +60,9 @@ class FakeRuntime:
     def has_users(self):
         return True
 
+    def administrator_exists(self):
+        return True
+
 
 @pytest.fixture
 def window(qtbot, tmp_path):
@@ -77,6 +80,14 @@ def window(qtbot, tmp_path):
     yield instance
     qtbot.waitUntil(lambda: instance._worker is None)
     instance.close()
+
+
+def test_users_button_opens_administrator_login(window, qtbot, monkeypatch):
+    opened=[]
+    monkeypatch.setattr(window, '_open_url', opened.append)
+    window.open_users()
+    qtbot.waitUntil(lambda: bool(opened) and window._worker is None)
+    assert opened==['http://127.0.0.1:8770/accounts/login/?next=/accounts/users/']
 
 
 @pytest.fixture

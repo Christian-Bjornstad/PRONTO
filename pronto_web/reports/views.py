@@ -50,13 +50,13 @@ def report_index(request) -> HttpResponse:
         response = redirect_to_login(request.get_full_path())
         response['Cache-Control'] = 'no-store'
         return response
-    reports = ReportRecord.objects.filter(grants__user=request.user).prefetch_related('reviews','review_audits').order_by('report_id')
+    reports = ReportRecord.objects.filter(grants__user=request.user).prefetch_related('reviews__hidden_record','review_audits').order_by('report_id')
     page=Paginator(reports,25).get_page(request.GET.get('page'))
     entries=[]
     from .models import WorkingDraft
     active={row.report_id:row for row in WorkingDraft.objects.filter(report__in=page)} if settings.PRONTO_WORKING_DRAFTS else {}
     for record in page:
-        revisions=sorted(record.reviews.all(),key=lambda r:r.revision,reverse=True)
+        revisions=sorted((r for r in record.reviews.all() if not hasattr(r, 'hidden_record')),key=lambda r:r.revision,reverse=True)
         latest=active.get(record.pk) or (revisions[0] if revisions else None)
         status=('reviewed' if latest and latest.review_data['status']=='FINAL' else
                 'under-review' if record.pk in active or any(a.action=='SAVE_DRAFT' for a in record.review_audits.all()) else 'un-reviewed')
@@ -64,7 +64,8 @@ def report_index(request) -> HttpResponse:
                         'working':active.get(record.pk),
                         'latestFinal':next((r for r in revisions if r.review_data['status']=='FINAL'),None),
                         'updatedAt':latest.review_data.get('updatedAt') if latest else None})
-    response = render(request, 'reports/index.html', {'entries': entries,'page':page})
+    from .user_management import is_administrator
+    response = render(request, 'reports/index.html', {'entries': entries,'page':page, 'can_administer':is_administrator(request.user)})
     response["Cache-Control"] = "no-store"
     return response
 

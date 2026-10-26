@@ -641,6 +641,9 @@ class MainWindow(QMainWindow):
         self.password_button = button('Endre passord', 'change-password')
         self.password_button.clicked.connect(self.open_password_change)
         account_actions.addWidget(self.password_button)
+        self.users_button = button('Brukere', 'manage-users')
+        self.users_button.clicked.connect(self.open_users)
+        account_actions.addWidget(self.users_button)
         account_actions.addStretch()
         layout.addLayout(account_actions)
         layout.addStretch()
@@ -763,6 +766,7 @@ class MainWindow(QMainWindow):
         self.backup_button.setEnabled(not busy)
         self.account_button.setEnabled(not busy)
         self.password_button.setEnabled(not busy)
+        self.users_button.setEnabled(not busy)
         self.logout_button.setEnabled(not busy and self.actor is not None)
         self.save_settings_button.setEnabled(not busy and hasattr(self.runtime, "save_next_launch"))
         for widget in (*self.folder_fields, *self.folder_buttons):
@@ -1207,11 +1211,41 @@ class MainWindow(QMainWindow):
         else:
             self._job("Starter rapportserveren …", lambda progress, cancel: self.runtime.server.start(), lambda url: self._server_started(str(url), True))
 
+    def open_users(self):
+        self._job('Åpner brukere …', lambda progress, cancel: self.runtime.administrator_exists(), self._users_ready)
+
+    def _users_ready(self, exists):
+        if not exists:
+            dialog = QDialog(self)
+            dialog.setWindowTitle('Opprett administrator')
+            form = QFormLayout(dialog)
+            username = QLineEdit('molpat')
+            password = QLineEdit()
+            password.setEchoMode(QLineEdit.EchoMode.Password)
+            form.addRow('Brukernavn', username)
+            form.addRow('Passord', password)
+            buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+            buttons.accepted.connect(dialog.accept)
+            buttons.rejected.connect(dialog.reject)
+            form.addRow(buttons)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            name, secret = username.text(), password.text()
+            password.clear()
+            self._job('Oppretter administrator …',
+                lambda progress, cancel: self.runtime.setup_administrator(name, secret),
+                lambda result: self._open_account_page('/accounts/login/?next=/accounts/users/'))
+        else:
+            self._open_account_page('/accounts/login/?next=/accounts/users/')
+
     def open_password_change(self):
+        self._open_account_page('/accounts/password/')
+
+    def _open_account_page(self, path):
         from urllib.parse import urljoin
         def opened(url):
             self._refresh_server()
-            self._open_url(urljoin(str(url), '/accounts/password/'))
+            self._open_url(urljoin(str(url), path))
         if self.runtime.server.running:
             opened(self.runtime.server.url)
         else:

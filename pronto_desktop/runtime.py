@@ -88,6 +88,15 @@ class DesktopRuntime:
             raise RuntimeError("Initialize the PRONTO desktop runtime first.")
         return self._server
 
+    def administrator_exists(self):
+        from django.contrib.auth.models import Group
+        from pronto_web.reports.user_management import ADMIN_GROUP
+        return Group.objects.filter(name=ADMIN_GROUP, user__isnull=False).exists()
+
+    def setup_administrator(self, username, password):
+        from pronto_web.reports.user_management import create_installation_admin
+        return create_installation_admin(username.strip().lower(), password).username
+
     def initialize(self) -> None:
         from django.apps import apps
         from django.conf import settings
@@ -181,6 +190,10 @@ class DesktopRuntime:
                     copyfile(accounts, saved_accounts)
                     os.chmod(saved_accounts, 0o600)
             from django.contrib.staticfiles.handlers import StaticFilesHandler
+            from .accounts import provision_administrator
+            admin_seed = ROOT / 'config' / 'initial-admin.json'
+            if configured_accounts != '' and admin_seed.is_file():
+                provision_administrator(admin_seed)
             from django.core.wsgi import get_wsgi_application
             application = StaticFilesHandler(get_wsgi_application())
             self._server = LocalServer(application, secret=settings.SECRET_KEY,

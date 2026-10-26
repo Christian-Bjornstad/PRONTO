@@ -123,6 +123,8 @@ def _runtime_script(tmp_path, code):
         if key.startswith("PRONTO_"):
             env.pop(key)
     env["LOCALAPPDATA"] = str(tmp_path / "local-appdata")
+    # The empty-database contract must not inherit private package bootstrap files.
+    env['PRONTO_INITIAL_USERS_FILE'] = ''
     env["PRONTO_TEST_DATA_ROOT"] = str(tmp_path / "data")
     completed = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, text=True, capture_output=True, timeout=60)
     assert completed.returncode == 0, completed.stdout + completed.stderr

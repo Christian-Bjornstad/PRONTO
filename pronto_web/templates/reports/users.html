@@ -1,0 +1,10 @@
+{% extends 'reports/management_base.html' %}
+{% block title %}Brukere{% endblock %}
+{% block content %}<h1>Brukere</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<section class="panel"><h2>Ny bruker</h2><form class="new-user-form" method="post">{% csrf_token %}<input type="hidden" name="action" value="CREATE">{{ form.as_p }}<button type="submit">Opprett bruker</button></form><small>Nye brukere får tilgang til teamets rapporter. Passordet kan endres etter innlogging.</small></section>
+<div class="panel table-wrap"><table><thead><tr><th>Brukernavn</th><th>Navn</th><th>Status</th><th>Handlinger</th></tr></thead><tbody>
+{% for user in users %}<tr><td>{{ user.username }}</td><td>{{ user.first_name }}</td><td>{% if user.is_active %}Aktiv{% else %}Deaktivert{% endif %}{% if user.pk in admin_ids %}<small>Administrator</small>{% endif %}</td><td>{% if user.pk not in admin_ids and not user.is_staff and not user.is_superuser %}
+<form method="post">{% csrf_token %}<input type="hidden" name="user_id" value="{{ user.pk }}"><button name="action" value="{% if user.is_active %}DEACTIVATE{% else %}ACTIVATE{% endif %}">{% if user.is_active %}Deaktiver{% else %}Aktiver{% endif %}</button></form>
+<form method="post">{% csrf_token %}<input type="hidden" name="user_id" value="{{ user.pk }}"><input type="password" name="password" aria-label="Nytt passord for {{ user.username }}" autocomplete="new-password" required maxlength="128"><button name="action" value="PASSWORD">Sett passord</button></form>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>{% endblock %}

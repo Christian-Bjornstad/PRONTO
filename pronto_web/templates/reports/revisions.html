@@ -1,0 +1,8 @@
+{% extends 'reports/management_base.html' %}
+{% block title %}Revisjoner{% endblock %}
+{% block content %}<h1>Revisjoner</h1><p><a href="{% url 'report-detail' record.pk %}">Til rapporten</a></p><p class="muted">Fjern eldre utkast fra versjonslisten. Historikken beholdes og kan gjenopprettes her.</p>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<div class="panel table-wrap"><table><thead><tr><th>Revisjon</th><th>Status</th><th>Historikk</th><th>Handling</th></tr></thead><tbody>
+{% for row in rows %}<tr><td><a href="{% url 'report-detail' record.pk %}?revision={{ row.revision }}">{{ row.revision }}</a></td><td>{{ row.review_data.status }}</td><td>{% if row.pk in hidden %}Skjult{% else %}Synlig{% endif %}</td><td>
+{% if row.revision in protected or row.review_data.status == 'FINAL' %}<span class="muted">Beholdes</span>{% else %}<form method="post">{% csrf_token %}<input type="hidden" name="revision" value="{{ row.revision }}"><button name="action" value="{% if row.pk in hidden %}RESTORE{% else %}HIDE{% endif %}">{% if row.pk in hidden %}Gjenopprett{% else %}Fjern fra historikk{% endif %}</button></form>{% endif %}
+</td></tr>{% endfor %}</tbody></table></div>{% endblock %}

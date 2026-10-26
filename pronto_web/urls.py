@@ -18,8 +18,12 @@ from pronto_web.reports.views import (
 
 
 from pronto_web.reports.working_drafts import working_command
+from pronto_web.reports.user_management import manage_users
+from pronto_web.reports.revision_management import manage_revisions
 
 urlpatterns = [
+    path('accounts/users/', manage_users, name='manage-users'),
+    path('reports/<str:report_id>/history/', manage_revisions, name='manage-revisions'),
     path('favicon.ico', favicon, name='pronto-favicon'),
     path('reports/<str:report_id>/working/', working_command, name='working-command'),
     path('igv/references/<str:build>/<str:component>/', reference_component, name='igv-reference'),

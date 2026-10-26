@@ -62,3 +62,26 @@ def provision_team_accounts(path):
         user.groups.add(group)
         created += 1
     return created
+
+
+@transaction.atomic
+def provision_administrator(path):
+    """Private package seed. Existing administrators and passwords are preserved."""
+    from pronto_web.reports.user_management import ADMIN_GROUP, share_team_reports
+    from pronto_web.reports.models import AdministrationEvent
+    document = read_initial_accounts(path)
+    if len(document['users']) != 1:
+        raise ValueError('Administratoroppsettet må inneholde én konto.')
+    group, _ = Group.objects.get_or_create(name=ADMIN_GROUP)
+    Group.objects.select_for_update().get(pk=group.pk)
+    if group.user_set.exists():
+        return False
+    entry = document['users'][0]
+    if get_user_model().objects.filter(username__iexact=entry['username']).exists():
+        raise ValueError('Administratornavnet finnes allerede. Kontoen ble ikke endret.')
+    user = get_user_model().objects.create(username=entry['username'], first_name=entry['firstName'],
+        password=entry['passwordHash'], is_active=True, is_staff=False, is_superuser=False)
+    user.groups.add(group, Group.objects.get_or_create(name=TEAM_GROUP)[0])
+    share_team_reports(user)
+    AdministrationEvent.objects.create(actor=user, action='ADMIN_SETUP', target_username=user.username)
+    return True

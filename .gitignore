@@ -20,6 +20,7 @@ htmlcov/
 *.pem
 .local-web/
 initial-users.json
+initial-admin.json
 STARTPASSORD.txt
 
 # Generated PRONTO output and local review state

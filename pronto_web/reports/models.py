@@ -21,6 +21,22 @@ ALIGNMENT_FORMATS = [("bam", "bam"), ("cram", "cram")]
 class ReportRecord(models.Model):
     report_id = models.CharField(max_length=128, primary_key=True)
     report_data = models.JSONField()
+    team_shared = models.BooleanField(default=False)
+
+
+class AdministrationEvent(models.Model):
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    action = models.CharField(max_length=32)
+    target_username = models.CharField(max_length=150, blank=True)
+    report_id = models.CharField(max_length=128, blank=True)
+    revision = models.PositiveIntegerField(null=True)
+    occurred_at = models.DateTimeField(auto_now_add=True)
+
+
+class HiddenRevision(models.Model):
+    review = models.OneToOneField('ReviewRevision', on_delete=models.PROTECT, related_name='hidden_record')
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    occurred_at = models.DateTimeField(auto_now_add=True)
 
 
 class ReportGrant(models.Model):
@@ -139,6 +155,7 @@ class ReportPdfExportAudit(models.Model):
     report = models.ForeignKey(ReportRecord, on_delete=models.PROTECT)
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     revision = models.PositiveIntegerField()
+    requested_revision = models.PositiveIntegerField(null=True)
     request_id = models.UUIDField()
     layout = models.CharField(max_length=16, choices=[('ESMO','ESMO'),('PRESENTATION','PRESENTATION')])
     template_version = models.CharField(max_length=16)

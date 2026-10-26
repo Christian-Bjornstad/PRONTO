@@ -86,3 +86,21 @@ def test_seeded_user_can_login_and_change_password(account_file, client, django_
     assert response.status_code == 302
     assert provision_team_accounts(account_file) == 0
     assert django_user_model.objects.get(username='siri').check_password('new-own-password-583')
+
+
+@pytest.mark.django_db
+def test_private_admin_seed_never_resets_changed_password(account_file, django_user_model):
+    from pronto_desktop.accounts import provision_administrator
+    from pronto_web.reports.user_management import ADMIN_GROUP
+    document=json.loads(account_file.read_text())
+    document['users']=document['users'][:1]
+    account_file.write_text(json.dumps(document))
+    assert provision_administrator(account_file)
+    admin=django_user_model.objects.get(username='siri')
+    assert admin.groups.filter(name=ADMIN_GROUP).exists()
+    assert not admin.is_superuser and not admin.is_staff
+    admin.set_password('changed-manager-pass-883')
+    admin.save()
+    assert not provision_administrator(account_file)
+    admin.refresh_from_db()
+    assert admin.check_password('changed-manager-pass-883')
