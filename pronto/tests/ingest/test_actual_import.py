@@ -58,6 +58,23 @@ def selected_plan(roots, **options):
     return set_report_selected(plan, plan.reports[0].key, True)
 
 
+@pytest.mark.django_db
+def test_import_by_team_member_grants_other_active_team_members(actual_sources, tmp_path, django_user_model):
+    from django.contrib.auth.models import Group
+    from pronto_web.reports.team_access import TEAM_GROUP
+    from pronto_web.reports.models import ReportGrant
+    group = Group.objects.create(name=TEAM_GROUP)
+    siri = django_user_model.objects.create_user(username='siri')
+    anja = django_user_model.objects.create_user(username='anja')
+    inactive = django_user_model.objects.create_user(username='inactive', is_active=False)
+    django_user_model.objects.create_user(username='outside')
+    for user in (siri, anja, inactive):
+        user.groups.add(group)
+    result = import_plan(selected_plan(actual_sources), siri, tmp_path/'archive')
+    assert result.items[0].status == 'imported'
+    assert set(ReportGrant.objects.values_list('user__username', flat=True)) == {'siri', 'anja'}
+
+
 def missing_study_plan(roots):
     path = roots['raw'] / 'InPreD_PRONTO_metadata_tsoppi.txt'
     path.write_text(path.read_text().replace(f'{DNA}\t{RUN}\tSYNTHETIC\t', f'{DNA}\t{RUN}\t\t'))

@@ -430,7 +430,8 @@ def _import_one(plan, report_plan, actor, raw_root, batch, progress, cancel):
                 report_data=json.loads(serialize_report_data(report)))
             ReviewRevision.objects.create(report=record, revision=1,
                 review_data=json.loads(serialize_review_state(review)))
-            ReportGrant.objects.create(report=record, user=actor)
+            from pronto_web.reports.team_access import grant_imported_report
+            grant_imported_report(record, actor)
             ReportAsset.objects.bulk_create([ReportAsset(report=record, asset_id=key, content=value)
                                             for key, value in assets.items()])
             item = ImportItem.objects.create(batch=batch, report=record, sample_id=report_plan.sample_id,

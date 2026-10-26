@@ -153,3 +153,16 @@ Appmenyen viser et stort PRONTO-ikon med navnet under. PRONTO_SNARVEI.cmd oppret
 Study_id er ikke et importkrav. Tom tekst, bare mellomrom og plassholderne NA, N/A, bindestrek eller punktum lagres som null i ReportData v2. HTML og PDF viser at verdien ikke er oppgitt. Sample_id og Sequencing_run_id må fortsatt identifisere prøven og kjøringen entydig. Metadatafilen og dens kolonneoverskrifter kreves fortsatt. Manuell utfylling er valgfri.
 
 Hele den leverte kjøringen er nå importert i separat lokal testdatabase: 13 rapporter, hvorav åtte uten Study_id. Originalfilene er uendret. Den nye tomme databasen for vanlig appbruk er fortsatt separat fra denne testen.
+
+
+### Personlige brukere i versjon 0.5
+
+Den lokale teamleveransen inneholder kontoene siri, anja, vigdis, laxmi, helen, tonje og christian, med personlige startpassord gitt separat. En ny database oppretter disse automatisk når config/initial-users.json følger programmet. Denne private oppstartsfilen inneholder PBKDF2-hasher, ikke lesbare passord, og følger ikke Git eller det offentlige kildearkivet. En kopi lagres i dataroten ved første oppstart. Uten oppstartsfil brukes fortsatt vanlig førstegangsopprettelse av en konto.
+
+Kontoene er aktive vanlige brukere uten administratorrettigheter. De tilhører gruppen PRONTO report team. En rapport importert av en teambruker gir rapporttilgang til de aktive medlemmene i dette teamet. En bruker utenfor teamet får bare egne rapporttilganger; eksisterende private rapporter deles ikke automatisk. Personlige endringer lagres med den innloggede brukerens identitet, og revisjonskonflikter håndteres som før. Appens importhistorikk viser egne importjobber.
+
+Innstillinger har knappen Endre passord. Den åpner passordsiden i nettleseren, der brukeren logger inn og oppgir gammelt og nytt passord. Den samme funksjonen finnes nederst i rapportoversikten. Startpassordene har ti tegn. Nye passord følger den eksisterende kontrollen med minst tolv tegn og kontroll mot vanlige passord. Appen lagrer bare passordhashen i databasen. Ved ny oppstart beholdes endrede passord og deaktiverte kontoer. Startfilen kan ikke overta et eksisterende brukernavn utenfor teamgruppen.
+
+PRONTO_tom_database_med_brukere.zip inneholder en egen datamappe med alle sju brukere, biomarkørlisten og null rapporter. Pakk ut mappen til en fast plass og velg den som eksisterende datamappe under Innstillinger. Lagre for neste oppstart og start appen på nytt. Datamappen inneholder også nøkkelen og må håndteres som privat driftsoppsett.
+
+For en separat kontrollinstallasjon kan PRONTO_INITIAL_USERS_FILE angi en bestemt privat JSON-fil. En eksplisitt tom miljøverdi deaktiverer automatisk brukeropprettelse for isolerte tester. Oppstartsfilen har schemaVersion 1.0 og users med bare username, firstName og passwordHash. Maksimalt 50 brukere og 64 KiB støttes; hashformatet er PBKDF2-SHA256 med minst én million iterasjoner.

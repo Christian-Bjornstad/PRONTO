@@ -19,6 +19,8 @@ htmlcov/
 *.key
 *.pem
 .local-web/
+initial-users.json
+STARTPASSORD.txt
 
 # Generated PRONTO output and local review state
 Out/**

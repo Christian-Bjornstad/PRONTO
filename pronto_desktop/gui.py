@@ -639,6 +639,9 @@ class MainWindow(QMainWindow):
         self.logout_button.setEnabled(False)
         self.logout_button.clicked.connect(self._logout)
         account_actions.addWidget(self.logout_button)
+        self.password_button = button('Endre passord', 'change-password')
+        self.password_button.clicked.connect(self.open_password_change)
+        account_actions.addWidget(self.password_button)
         account_actions.addStretch()
         layout.addLayout(account_actions)
         layout.addStretch()
@@ -753,6 +756,7 @@ class MainWindow(QMainWindow):
         self.import_button.setEnabled(not busy and self.plan is not None and any(r.ready and getattr(r, "selected", True) for r in self.plan.reports))
         self.backup_button.setEnabled(not busy)
         self.account_button.setEnabled(not busy)
+        self.password_button.setEnabled(not busy)
         self.logout_button.setEnabled(not busy and self.actor is not None)
         self.save_settings_button.setEnabled(not busy and hasattr(self.runtime, "save_next_launch"))
         for widget in (*self.folder_fields, *self.folder_buttons):
@@ -1217,6 +1221,16 @@ class MainWindow(QMainWindow):
             self._open_url(self.runtime.server.url)
         else:
             self._job("Starter rapportserveren …", lambda progress, cancel: self.runtime.server.start(), lambda url: self._server_started(str(url), True))
+
+    def open_password_change(self):
+        from urllib.parse import urljoin
+        def opened(url):
+            self._refresh_server()
+            self._open_url(urljoin(str(url), '/accounts/password/'))
+        if self.runtime.server.running:
+            opened(self.runtime.server.url)
+        else:
+            self._job('Åpner passordbytte …', lambda progress, cancel: self.runtime.server.start(), opened)
 
     def _open_url(self, url: str) -> None:
         if not QDesktopServices.openUrl(QUrl(url)):

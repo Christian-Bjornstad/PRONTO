@@ -107,6 +107,14 @@ def test_initial_state_navigation_and_keyboard(window, qtbot):
     assert window.stack.currentIndex() == 4
 
 
+def test_password_change_starts_server_and_opens_authenticated_page(window, qtbot, monkeypatch):
+    opened = []
+    monkeypatch.setattr(window, '_open_url', opened.append)
+    window.open_password_change()
+    qtbot.waitUntil(lambda: window._worker is None)
+    assert opened == ['http://127.0.0.1:8770/accounts/password/']
+
+
 @pytest.mark.parametrize('issue,status', [
     ('metadata: mangler', 'Metadatafil mangler'),
     ('variants: mangler', 'Småvarianter mangler'),

@@ -165,6 +165,21 @@ class DesktopRuntime:
                     self.backup()
                 call_command("migrate", interactive=False, verbosity=0)
             call_command("check", verbosity=0)
+            from .accounts import provision_team_accounts
+            from shutil import copyfile
+            saved_accounts = self.data_root / 'initial-users.json'
+            configured_accounts = os.environ.get('PRONTO_INITIAL_USERS_FILE')
+            bundled_accounts = Path(configured_accounts) if configured_accounts else ROOT / 'config' / 'initial-users.json'
+            accounts = saved_accounts if saved_accounts.is_file() else bundled_accounts
+            if configured_accounts == '':
+                accounts = None
+            if configured_accounts and not bundled_accounts.is_file():
+                raise ValueError('Den valgte filen med startbrukere finnes ikke.')
+            if accounts is not None and accounts.is_file():
+                provision_team_accounts(accounts)
+                if accounts != saved_accounts:
+                    copyfile(accounts, saved_accounts)
+                    os.chmod(saved_accounts, 0o600)
             from django.contrib.staticfiles.handlers import StaticFilesHandler
             from django.core.wsgi import get_wsgi_application
             application = StaticFilesHandler(get_wsgi_application())
