@@ -185,7 +185,7 @@ Lokal oppstart bruker SQLite. Appens datamappe og port huskes i brukerprofilens 
 
 Databasen inneholder ikke bare et register over filstier. Den inneholder selve rapportgrunnlaget, vurderingene, rapportbildene og presentasjonsfigurene. Importerte kildesnapshots ligger i datarotens raw_imports med genererte arkivnøkler. BAM eller CRAM, referansegenomer, opprinnelige analysemapper og ferdige PDF eller HTML-nedlastinger kan også ligge utenfor databasen og må håndteres separat.
 
-Migreringene ligger i pronto_web/reports/migrations/. Historikken har to 0002-grener som samles i 0003. Den inneholder også 0010 for arbeidskladder og 0011_import_batches for ImportBatch, ImportItem og ImportSource. Bruk migrate; ikke slett migreringsfiler eller endre tabellene manuelt. Audit er beskyttet av applikasjonsrutiner og databaseforhold, men er ikke et kryptografisk, manipulasjonssikkert register mot en databaseadministrator.
+Migreringene ligger i pronto_web/reports/migrations/. Historikken har to 0002-grener som samles i 0003. Den inneholder også 0010 for arbeidskladder, 0011_import_batches for import og 0012–0014 for administrasjon, eksplisitt teamdeling og eksportsporing. Bruk migrate; ikke slett migreringsfiler eller endre tabellene manuelt. Audit er beskyttet av applikasjonsrutiner og databaseforhold, men er ikke et kryptografisk, manipulasjonssikkert register mot en databaseadministrator.
 
 ## 7 Installere starte og bruke appen
 
@@ -631,7 +631,7 @@ Backup fra den nye desktopappen ligger under backups i den aktive dataroten. Den
 
 I Innstillinger velger du Biomarkørliste og Velg XLSX. Appen leser kolonnene Molekylær markør og Biomarkør_spesifikasjon. En kontrollert kopi og SHA-256 lagres i dataroten som biomarker-list.xlsx og biomarker-list.json. Originalen flyttes ikke. Listen lastes igjen ved neste oppstart. Åpne rapporten på nytt for å se endret markering. Både aktive og lukkede oppføringer bidrar til genmedlemskap; fet skrift sier ingenting om studieegnethet. TMB og MSI behandles ikke som gensymboler. Ingen liste er aktiv i en ny desktopdatabase før en fil er valgt.
 
-Ny tom database under Innstillinger velger en tom mappe og lagrer oppsett for neste oppstart. Start appen på nytt; migreringene lager tabellene uten demo, rapporter eller brukere fra den gamle databasen. Opprett deretter første personlige konto. Databasen og senere redigeringer bevares i denne dataroten mellom oppstarter. Eksisterende database velges med det vanlige mappevalget. Behold hele dataroten ved flytting, inkludert nøkkel, råarkiv og biomarkørliste.
+Ny tom database under Innstillinger velger en tom mappe og lagrer oppsett for neste oppstart. Start appen på nytt; migreringene lager tabellene uten demo, rapporter eller brukere fra den gamle databasen. Bruk den private startfilen eller opprett administrator under Innstillinger → Brukere. Databasen og senere redigeringer bevares i denne dataroten mellom oppstarter. Eksisterende database velges med det vanlige mappevalget. Behold hele dataroten ved flytting, inkludert nøkkel, råarkiv og biomarkørliste.
 
 Filversjon, CNV-tabell og Cancan-løsning ligger under Avansert i Importer. Vanlig import bruker nyeste tilgjengelige rapportfiler og den sammenslåtte CNV-tabellen. Valgene henter alternative resultater som allerede finnes i mappene; appen kjører ikke Cancan eller variant calling.
 
@@ -676,3 +676,20 @@ Key findings viser nøkkeltallene først. Mutasjonssignaturen ligger i en lukket
 En CNV-PDF med flere sider vises som ett dokument med sidevelger og Previous page og Next page. Alle sider beholdes. Den leverte CNV-PDF-en har 55 sider; dette ga tidligere 55 like knapper med samme filnavn. Det eldre PDF-formatet med nøyaktig ni sider beholder panelnavnene og gruppen B3 og C1.
 
 Bakgrunnsjobber avslutter nå opprydding av databaseforbindelser før grensesnittet mottar ferdigmeldingen. Ferdigmeldingen håndteres i et eksplisitt Qt-slot på vinduet. Isolert Windows-test med syntetisk import og 300 vindusendringer er gjennomført uten krasj. Dette fastslår ikke årsaken til den tidligere rapporterte native Windows-feilen. Tidsavbrutte ledige nettleserforbindelser avsluttes stille uten en unødig feilstakk i loggen.
+
+
+### Administrator og revisjoner fra versjon 0.6
+
+Innstillinger → Brukere åpner brukeradministrasjonen i nettleseren. Logg inn som administrator molpat. Den private apppakken inneholder en separat initial-admin.json med administratorens passordhash; passordet distribueres separat. Ingen passord eller administratorhash ligger i GitHub. Ved installasjon fra GitHub uten privat startfil: åpne Innstillinger → Brukere, opprett molpat med avtalt passord i engangsoppsettet og logg deretter inn i nettleseren. Engangsoppsettet er bare tilgjengelig lokalt i desktop-appen når databasen ikke har noen administratorkonto. Det finnes ingen åpen nettside for å opprette administratorer.
+
+Administrator kan opprette vanlige teambrukere, deaktivere og aktivere kontoer og sette nytt passord. Nye teambrukere får tilgang til eksisterende teamrapporter og senere teamimporter. Private rapporter uten teamtilgang deles ikke. Kontoer slettes ikke, slik at vurderinger fortsatt kan knyttes til riktig person. Administratoren ligger i gruppen PRONTO administrators og får ikke generell Django-superbrukertilgang. Vanlige brukere kan verken opprette kontoer, tildele administratorrolle eller rydde revisjoner. Administratorens eget passord endres med vanlig Endre passord, og oppstarten tilbakestiller det aldri.
+
+Vanlig Save oppdaterer én WorkingDraft med samme revisjonsnummer. Version øker for å oppdage samtidige endringer. Start new revision og Finalize bevarer egne revisjoner. Første PDF-eksport bevarer kladden og fortsetter arbeidet i neste revisjon; flere PDF-formater av helt uendret innhold bruker den samme bevarte revisjonen. Eksportsporet skiller forespurt arbeidsrevisjon fra revisjonen som faktisk ble eksportert. Filnavn og status viser den eksporterte revisjonen.
+
+I rapportoversikten finner molpat Administrer revisjoner. Eldre utkast kan fjernes fra den vanlige versjonslisten og gjenopprettes på samme side. Gjeldende, ferdigstilte og eksporterte revisjoner og en aktiv kladds kilde beholdes. Dette er reversibel rydding: selve vurderingen og revisjonsnummeret beholdes i databasen, og nummer gjenbrukes ikke. AdministrationEvent registrerer brukerhandlinger og rydding; HiddenRevision markerer skjulte utkast. ReportRecord.team_shared markerer rapporter som deles med nye teambrukere. Migreringen merker tidligere teamimporter; individuelle rapporttilganger blir ikke til teamdeling. Migreringene 0012–0014 kjøres automatisk med databasebackup ved oppstart.
+
+### Presentasjonsrapport fra versjon 0.6
+
+Presentation PDF følger InPreD MolMDT-enkelsidemalen i 16:9: pasientfelt til venstre, signaturer, CNV og RNA øverst, hovedfunn og beskrivelser i midten og inkluderte mutasjoner til høyre. Bare inkluderte funn rapporteres; hovedfunn krever også Report highlight. Tomme resultater vises som manglende opplysninger. Lange tabeller og beskrivelser fortsetter på senere sider. Fullstendige kildeannotasjoner, øvrige notater og QC følger på detaljsider, og valgte figurer kommer til slutt.
+
+Under Tumour board report → Presentation — annotations finnes manuelle felt for de markerte hovedfunnene. GoF/LoF, Sensitive, Resistant, EMA for pasientens tumortype eller annen tumortype, signaturstatus og beskrivelse lagres sammen med vurderingen. Appen beregner ikke behandlingsindikasjon, HRD/MSI-status eller regulatorisk godkjenning fra disse feltene. De fylles ut og kontrolleres av ansvarlig fagbruker. Uutfylte felt viser en strek i presentasjonen. ESMO-formatet beholder sitt stående rapportoppsett.
