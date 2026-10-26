@@ -39,7 +39,7 @@ PRONTO/
   <run>_report_preQC_newPRONTO_version/
 ```
 
-Filsøket starter automatisk etter mappevalget. Innlimte stier og endrede importvalg undersøkes etter en kort pause. `Kontroller filer` kjører søket på nytt ved behov. Appen kobler kjente kilder til prøvene; du skal normalt bare velge hvilke prøver som skal importeres.
+Legg til alle kildemappene først. Trykk deretter `Kontroller filer` for ett samlet søk. Mappevalg, innlimte stier og endrede importvalg starter ikke søk automatisk. Appen kobler kjente kilder til prøvene; du skal normalt bare velge hvilke prøver som skal importeres.
 
 Filtypen gjenkjennes fra kolonnene og kjente navnemønstre. Rolleord i navn kan variere i store og små bokstaver, bindestrek, understrek og versjonssuffiks som `_v2`. Råmappen kan også ende med `_TSO_500_LocalApp_postprocessing_results`. Metadata trenger ikke et bestemt filnavn, og analysesammendrag kan for eksempel hete `analysis_variant_summary.tsv`. Prøve-ID og kjørings-ID må fortsatt stemme nøyaktig. Et annet prøvenavn blir aldri et omtrentlig treff.
 
@@ -69,9 +69,9 @@ BAM/CRAM-filer leses ikke som varianttabeller og kopieres ikke ukritisk inn i da
 
 ## Prosessering og rapportarbeid
 
-Statusfeltet viser den konkrete årsaken når en prøve stoppes. Manglende Study_id hindrer ikke import. Når prøven velges, vises at feltet er valgfritt. «Metadatafil mangler» betyr at ingen lesbar fil med de påkrevde kolonnene ble funnet. Velg prøveraden for å lese forklaringen. Velg «Fyll inn Study_id» for å oppgi riktig verdi i appen før import; appen fyller ikke inn oppdiktede identifikatorer.
+Statusfeltet viser den konkrete årsaken når en prøve stoppes. Manglende Study_id hindrer ikke import. Når prøven velges, vises at feltet er valgfritt. «Metadatafil mangler» betyr at ingen lesbar fil med de påkrevde kolonnene ble funnet. Velg prøveraden for å lese forklaringen. Åpne Filvalg og velg «Fyll inn Study_id» for valgfri utfylling før import; appen fyller ikke inn oppdiktede identifikatorer.
 
-Velg mappe og vent på filsøket. Utvid prøvene for å se de automatisk koblede kildene. Merk prøvene som skal importeres, eller bruk `Velg klare prøver`. Dette er et prøvevalg, ikke et krav om å velge hver fil. Negative metadataflagg kan ikke overstyres.
+Legg til alle mappene og trykk Kontroller filer. Utvid prøvene for å se de automatisk koblede kildene. Merk prøvene som skal importeres, eller bruk `Velg klare prøver`. Dette er et prøvevalg, ikke et krav om å velge hver fil. Negative metadataflagg kan ikke overstyres.
 
 `Andre filer` samler ubrukte alternativer, som gamle rapportversjoner, QC i et annet filformat og CNV-løsninger som ikke er valgt. Disse må ikke kobles manuelt. Bare reelle mangler eller konkurrerende kilder under en prøve krever avklaring. Manuell kildekobling ligger under `Filvalg` og brukes ved slike avvik.
 
@@ -139,7 +139,7 @@ Kjente eksportavvik håndteres av parseren: den sammenslåtte metadataoverskrift
 
 ### Manuell utfylling av Study_id
 
-Study_id kan stå tomt. Hvis verdien er kjent, velg prøven og trykk Fyll inn Study_id for valgfri utfylling. Oppgi korrekt verdi for den viste prøven og kjøringen. Knappen fyller bare inn et manglende felt i én entydig metadatarad. Den endrer ikke prøve-ID, kjørings-ID, RNA-kobling eller Create_report, og opphever ikke andre avvik. Et Study_id som allerede finnes i kildefilen kan ikke overskrives gjennom denne knappen. Tomt felt fjerner den manuelle utfyllingen.
+Study_id kan stå tomt. Hvis verdien er kjent, velg prøven, åpne Filvalg og trykk Fyll inn Study_id for valgfri utfylling. Oppgi korrekt verdi for den viste prøven og kjøringen. Knappen fyller bare inn et manglende felt i én entydig metadatarad. Den endrer ikke prøve-ID, kjørings-ID, RNA-kobling eller Create_report, og opphever ikke andre avvik. Et Study_id som allerede finnes i kildefilen kan ikke overskrives gjennom denne knappen. Tomt felt fjerner den manuelle utfyllingen.
 
 Utfyllingen gjelder arbeidsøkten før import og blir lagret permanent ved import. Nytt filsøk beholder den bare når samme metadatafil er uendret; ved endret kilde nullstilles verdien med en merknad. Velg prøven for import etter at feltet er fylt inn. Avsluttes appen før import, må verdien fylles inn på nytt.
 

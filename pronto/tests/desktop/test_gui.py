@@ -103,6 +103,7 @@ def test_initial_state_navigation_and_keyboard(window, qtbot):
     assert window.stack.currentIndex() == 1
     assert window.nav_buttons[1].isChecked()
     assert not window.advanced_import.isVisible()
+    assert not window.study_id_button.isVisible()
     qtbot.keyClick(window, Qt.Key.Key_5, Qt.KeyboardModifier.ControlModifier)
     assert window.stack.currentIndex() == 4
 
@@ -140,6 +141,10 @@ def test_missing_study_id_is_optional_in_import_ui(window, plan):
     assert window.import_button.isEnabled()
     assert 'kan importeres' in window.plan_hint.text()
     assert window.study_id_button.isEnabled()
+    window.navigate(1)
+    assert not window.study_id_button.isVisible()
+    window.advanced_sources_button.click()
+    assert window.study_id_button.isVisible()
 
 
 def test_fill_study_id_updates_plan_without_touching_source(window, plan, monkeypatch, qtbot):
@@ -456,22 +461,30 @@ def test_actual_profile_sample_list_preview(window, plan, qtbot, tmp_path):
         assert window.grab().save(str(output / f"pronto-run-import-{width}.png"))
 
 
-def test_folder_picker_scans_automatically_in_worker(window, plan, qtbot, monkeypatch, tmp_path):
+def test_four_folder_pickers_wait_for_one_explicit_scan(window, plan, qtbot, monkeypatch, tmp_path):
     from pronto_desktop import gui
     import pronto_ingest.discovery as discovery
     calls = []
-    monkeypatch.setattr(gui.QFileDialog, "getExistingDirectory", lambda *args: str(tmp_path))
+    roots = tuple(tmp_path / f'run-{index}' for index in range(4))
+    for root in roots:
+        root.mkdir()
+    choices = iter(roots)
+    monkeypatch.setattr(gui.QFileDialog, "getExistingDirectory", lambda *args: str(next(choices)))
     def discover(folders, **kwargs):
         calls.append((folders, get_ident()))
         return plan
     monkeypatch.setattr(discovery, "discover_folders", discover)
-    window._choose_folder(0)
+    for index in range(4):
+        window._choose_folder(index)
+        qtbot.wait(650)
+        assert not calls and window._worker is None
+    window.start_scan()
     qtbot.waitUntil(lambda: window.plan is not None and window._worker is None)
-    assert calls == [((tmp_path,), calls[0][1])]
+    assert calls == [(roots, calls[0][1])]
     assert calls[0][1] != get_ident()
 
 
-def test_pasted_folder_is_debounced_and_options_rescan(window, plan, qtbot, monkeypatch, tmp_path):
+def test_pasted_folders_and_options_wait_for_explicit_scan(window, plan, qtbot, monkeypatch, tmp_path):
     import pronto_ingest.discovery as discovery
     calls = []
     def discover(folders, **kwargs):
@@ -481,15 +494,21 @@ def test_pasted_folder_is_debounced_and_options_rescan(window, plan, qtbot, monk
     window.folder_fields[0].setText(str(tmp_path / "not-yet-complete"))
     qtbot.wait(70)
     window.folder_fields[0].setText(str(tmp_path))
+    qtbot.wait(700)
+    assert not calls and window._worker is None
+    window.start_scan()
     qtbot.waitUntil(lambda: len(calls) == 1 and window._worker is None)
     assert calls == [((tmp_path,), "auto")]
     window.report_version.setCurrentIndex(window.report_version.findData("new"))
     assert window.plan is None and not window.import_button.isEnabled()
+    qtbot.wait(700)
+    assert len(calls) == 1
+    window.start_scan()
     qtbot.waitUntil(lambda: len(calls) == 2 and window._worker is None)
     assert calls[-1] == ((tmp_path,), "new")
 
 
-def test_changed_folder_discards_inflight_plan_and_scans_latest(window, plan, qtbot, monkeypatch, tmp_path):
+def test_changed_folder_discards_inflight_plan_until_next_scan(window, plan, qtbot, monkeypatch, tmp_path):
     import pronto_ingest.discovery as discovery
     second_root = tmp_path / "second"
     second_root.mkdir()
@@ -510,6 +529,9 @@ def test_changed_folder_discards_inflight_plan_and_scans_latest(window, plan, qt
     window.folder_fields[0].setText(str(second_root))
     assert window.plan is None
     release.set()
+    qtbot.waitUntil(lambda: window._worker is None)
+    assert window.plan is None and calls == [(tmp_path,)]
+    window.start_scan()
     qtbot.waitUntil(lambda: window.plan is latest and window._worker is None)
     assert calls == [(tmp_path,), (second_root,)]
     assert window.plan_tree.topLevelItem(0).text(0) == "LATEST_SAMPLE"
@@ -567,17 +589,18 @@ def test_unused_files_are_collapsed_without_manual_selection_prompt(window, plan
     assert window.mapping_button.isVisible()
 
 
-def test_invalid_typed_folder_does_not_start_discovery(window, qtbot, monkeypatch, tmp_path):
+def test_typing_invalid_folder_does_not_start_discovery(window, qtbot, monkeypatch, tmp_path):
     import pronto_ingest.discovery as discovery
     calls = []
     monkeypatch.setattr(discovery, "discover_folders", lambda *args, **kwargs: calls.append(args))
     window.folder_fields[0].setText(str(tmp_path / "not-present"))
-    qtbot.waitUntil(lambda: "eksisterende mappe" in window.plan_summary.text() and window._worker is None)
+    qtbot.wait(800)
+    assert window._worker is None
     assert not calls and window.plan is None
     assert not window.import_button.isEnabled()
 
 
-def test_auto_scan_waits_for_busy_worker_and_keeps_debounce_afterward(window, plan, qtbot, monkeypatch, tmp_path):
+def test_folder_edits_do_not_queue_scans_after_other_work(window, plan, qtbot, monkeypatch, tmp_path):
     import pronto_ingest.discovery as discovery
     release = Event()
     calls = []
@@ -590,18 +613,22 @@ def test_auto_scan_waits_for_busy_worker_and_keeps_debounce_afterward(window, pl
     qtbot.wait(700)
     assert not calls
     release.set()
-    qtbot.waitUntil(lambda: len(calls) == 1 and window._worker is None)
+    qtbot.waitUntil(lambda: window._worker is None)
+    assert not calls
     other = tmp_path / "other"
     other.mkdir()
     window.folder_fields[0].setText(str(other))
     qtbot.wait(70)
-    assert len(calls) == 1
+    assert not calls
     window.folder_fields[0].setText(str(tmp_path))
-    qtbot.waitUntil(lambda: len(calls) == 2 and window._worker is None)
-    assert calls == [(tmp_path,), (tmp_path,)]
+    qtbot.wait(700)
+    assert not calls
+    window.start_scan()
+    qtbot.waitUntil(lambda: len(calls) == 1 and window._worker is None)
+    assert calls == [(tmp_path,)]
 
 
-def test_choosing_same_folder_again_refreshes_sources(window, plan, qtbot, monkeypatch, tmp_path):
+def test_choosing_same_folder_again_requires_explicit_refresh(window, plan, qtbot, monkeypatch, tmp_path):
     from pronto_desktop import gui
     import pronto_ingest.discovery as discovery
     calls = []
@@ -611,8 +638,12 @@ def test_choosing_same_folder_again_refreshes_sources(window, plan, qtbot, monke
         return plan
     monkeypatch.setattr(discovery, "discover_folders", discover)
     window._choose_folder(0)
+    window.start_scan()
     qtbot.waitUntil(lambda: len(calls) == 1 and window._worker is None)
     window._choose_folder(0)
+    qtbot.wait(700)
+    assert len(calls) == 1 and window.plan is None
+    window.start_scan()
     qtbot.waitUntil(lambda: len(calls) == 2 and window._worker is None)
 
 

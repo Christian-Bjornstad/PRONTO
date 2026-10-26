@@ -233,13 +233,13 @@ Ctrl+1 til Ctrl+5 bytter side. Ctrl+R starter filkontroll. Knapper og felter kan
 ### Importere en kjøring
 
 1. Velg PRONTO-mappen som inneholder de fire kjøringsmappene. Alternativt velger du én til fem separate kildemapper; de må være forskjellige og ikke ligge inne i hverandre. Velg rapportversjon og CNV-kilde før filkontrollen. Cancan krever også valg av løsning.
-2. Filsøket starter automatisk når mappen er valgt. Appen undersøker undermappene og kobler kjente kilder per prøve og kjøring. Kontroller filer kan brukes til et nytt søk. Utvid prøven for å se kildene. Ingenting legges i rapportdatabasen ved denne kontrollen.
+2. Legg til alle kildemappene og trykk Kontroller filer én gang. Appen undersøker mappene samlet og kobler kjente kilder per prøve og kjøring. Mappevalg alene starter ingen filkontroll. Utvid prøven for å se kildene. Ingenting legges i rapportdatabasen ved denne kontrollen.
 3. Avklar bare reelle mangler eller konkurrerende kilder under en prøve. Andre filer samler ubrukte alternativer og trenger ingen manuell kobling. Ved avvik gir Filvalg tilgang til Koble kildefil, hvor bare allerede funnet materiale kan velges. Kontroller alltid kildeinnholdet mot prøven.
 4. Merk prøvene du vil importere, eller bruk Velg klare prøver. Prøver med Create_report satt til bindestrek eller tomt felt krever dette uttrykkelige prøvevalget. Det er ikke nødvendig å velge hver fil. Et negativt metadataflagg kan ikke overstyres. Trykk Importer valgte og logg inn med personlig PRONTO-konto. En tom brukertabell kan få sin første konto; passord lagres ikke i innstillingene, og kontoen blir ikke administrator.
 5. Les resultatet for hver prøve. Importert, Allerede importert, Feilet og Avbrutt betyr forskjellige ting. Prøver med avvik blir ikke kliniske rapporter bare fordi andre prøver i samme jobb lykkes.
 6. Trykk Åpne rapporter og logg inn i HTML-arbeidsflaten. Kontroller prøve, run, kilder, CNV, RNA og plott før du begynner vurderingen.
 
-Endres mappevalg, rapportversjon eller CNV-kilde og løsning, starter et nytt filsøk etter en kort pause. Den gamle planen kan ikke brukes til import. Endres en kildefil etter kontrollen eller under kopiering, skal importen avvise det berørte grunnlaget. Slik blir det synlig at filene ikke lenger er de som ble kontrollert.
+Endres mappevalg, rapportversjon eller CNV-kilde og løsning, nullstilles importplanen. Trykk Kontroller filer for et nytt samlet søk. Den gamle planen kan ikke brukes til import. Endres en kildefil etter kontrollen eller under kopiering, skal importen avvise det berørte grunnlaget. Slik blir det synlig at filene ikke lenger er de som ble kontrollert.
 
 Versjon 0.3 bruker samme PRONTO-ikon i appvindu, oppgavelinje, nettleser og HTML-rapport. Lukk eldre appvinduer før oppdateringen startes. PRONTO_SNARVEI.cmd kan lage en snarvei med riktig ikon etter at hele programmappen er pakket ut på sin faste plass.
 
@@ -640,7 +640,7 @@ Kjente eksportavvik håndteres av parseren: den sammenslåtte metadataoverskrift
 
 ### Manuell utfylling av Study_id
 
-Study_id kan stå tomt. Hvis verdien er kjent, velg prøven og trykk Fyll inn Study_id for valgfri utfylling. Oppgi korrekt verdi for den viste prøven og kjøringen. Knappen fyller bare inn et manglende felt i én entydig metadatarad. Den endrer ikke prøve-ID, kjørings-ID, RNA-kobling eller Create_report, og opphever ikke andre avvik. Et Study_id som allerede finnes i kildefilen kan ikke overskrives gjennom denne knappen. Tomt felt fjerner den manuelle utfyllingen.
+Study_id kan stå tomt. Hvis verdien er kjent, velg prøven, åpne Filvalg og trykk Fyll inn Study_id for valgfri utfylling. Oppgi korrekt verdi for den viste prøven og kjøringen. Knappen fyller bare inn et manglende felt i én entydig metadatarad. Den endrer ikke prøve-ID, kjørings-ID, RNA-kobling eller Create_report, og opphever ikke andre avvik. Et Study_id som allerede finnes i kildefilen kan ikke overskrives gjennom denne knappen. Tomt felt fjerner den manuelle utfyllingen.
 
 Utfyllingen gjelder arbeidsøkten før import og blir lagret permanent ved import. Nytt filsøk beholder den bare når samme metadatafil er uendret; ved endret kilde nullstilles verdien med en merknad. Velg prøven for import etter at feltet er fylt inn. Avsluttes appen før import, må verdien fylles inn på nytt.
 

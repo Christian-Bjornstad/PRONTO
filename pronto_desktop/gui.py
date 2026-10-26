@@ -223,11 +223,6 @@ class MainWindow(QMainWindow):
         self._closing = False
         self._operation = ""
         self._source_revision = 0
-        self._auto_scan_pending = False
-        self._scan_timer = QTimer(self)
-        self._scan_timer.setSingleShot(True)
-        self._scan_timer.setInterval(600)
-        self._scan_timer.timeout.connect(self._auto_scan)
         self._history: list[tuple[str, str, str, str]] = []
         self._persisted_history: list[tuple[str, str, str, str]] = []
         self._pool = QThreadPool(self)
@@ -464,7 +459,7 @@ class MainWindow(QMainWindow):
         contents.addWidget(advanced, alignment=Qt.AlignmentFlag.AlignRight)
         contents.addWidget(self.advanced_import)
         inner_layout.addWidget(foldercard)
-        self.plan_summary = label("Velg mappe. Filene finnes automatisk.", muted=True)
+        self.plan_summary = label("Legg til mapper, og velg Kontroller filer.", muted=True)
         self.plan_hint = label("", muted=True)
         self.plan_hint.setAccessibleName("Veiledning for prøvevalg")
         self.plan_hint.hide()
@@ -502,6 +497,7 @@ class MainWindow(QMainWindow):
         self.scan_button.clicked.connect(self.start_scan)
         self.study_id_button = button('Fyll inn Study_id …', 'fill-study-id')
         self.study_id_button.setEnabled(False)
+        self.study_id_button.hide()
         self.study_id_button.clicked.connect(self.fill_study_id)
         self.mapping_button = button("Koble kildefil …", "map-source")
         self.mapping_button.clicked.connect(self.map_source)
@@ -724,7 +720,6 @@ class MainWindow(QMainWindow):
             callback(result)
         except Exception as exc:
             self._log(f"Kunne ikke vise resultatet: {exc}")
-        self._resume_auto_scan()
 
     def _job_failed(self, message: str) -> None:
         operation = self._operation
@@ -734,8 +729,6 @@ class MainWindow(QMainWindow):
         self.plan_summary.setText(f"{message}" + (" Forrige importplan er beholdt." if self.plan is not None else ""))
         if self._closing:
             self.close()
-        else:
-            self._resume_auto_scan()
 
     def _set_busy(self, busy: bool) -> None:
         self.progress.setVisible(busy)
@@ -746,6 +739,7 @@ class MainWindow(QMainWindow):
         report = self._metadata_report()
         self.study_id_button.setEnabled(not busy and report is not None and (
             report.study_id_missing or bool(report.study_id_override)))
+        self.study_id_button.setVisible(self.plan is not None and self.advanced_sources_button.isChecked())
         self.advanced_sources_button.setEnabled(not busy and self.plan is not None)
         self.mapping_button.setVisible(self.plan is not None and (
             self.advanced_sources_button.isChecked() or any(report.issues for report in self.plan.reports)))
@@ -769,8 +763,6 @@ class MainWindow(QMainWindow):
         self._refresh_server()
 
     def cancel_job(self) -> None:
-        self._scan_timer.stop()
-        self._auto_scan_pending = False
         self._source_revision += 1
         if self._worker is not None:
             self._worker.cancel.set()
@@ -785,8 +777,6 @@ class MainWindow(QMainWindow):
                 self._folders_changed()
             else:
                 self.folder_fields[index].setText(directory)
-            self._scan_timer.stop()
-            self._auto_scan()
 
     def _toggle_folders(self, expanded: bool) -> None:
         for index in range(1, len(self.folder_fields)):
@@ -807,7 +797,6 @@ class MainWindow(QMainWindow):
 
     def _folders_changed(self) -> None:
         self._source_revision += 1
-        self._scan_timer.stop()
         self._folder_button_text()
         if self.plan is not None:
             self.plan = None
@@ -822,26 +811,14 @@ class MainWindow(QMainWindow):
         self.advanced_sources_button.setEnabled(False)
         self.select_ready_button.setEnabled(False)
         paths = [field.text().strip() for field in self.folder_fields if field.text().strip()]
-        self._auto_scan_pending = bool(paths) and all(Path(path).is_absolute() for path in paths)
-        self.plan_summary.setText("Finner filer automatisk …" if self._auto_scan_pending
-                                  else "Velg mappe. Filene finnes automatisk.")
-        if self._auto_scan_pending and not self._closing:
-            self._scan_timer.start(600)
+        self.study_id_button.hide()
+        self.study_id_button.setEnabled(False)
+        self.plan_summary.setText(f'{len(paths)} mapper valgt · Klar for filkontroll' if paths
+                                  else 'Legg til mapper, og velg Kontroller filer.')
 
-    def _resume_auto_scan(self) -> None:
-        if self._auto_scan_pending and not self._closing and not self._scan_timer.isActive():
-            self._scan_timer.start(0)
-
-    def _auto_scan(self) -> None:
-        if self._closing or not self._auto_scan_pending or self._worker is not None:
-            return
-        self.start_scan(automatic=True)
-
-    def start_scan(self, *, automatic: bool = False) -> None:
+    def start_scan(self) -> None:
         if self._worker is not None:
             return
-        self._scan_timer.stop()
-        self._auto_scan_pending = False
         self.navigate(1)
         folders = tuple(Path(field.text().strip()) for field in self.folder_fields if field.text().strip())
         if not folders:
@@ -855,8 +832,6 @@ class MainWindow(QMainWindow):
         previous_plan = self.plan
         def discover(progress: Any, cancel: Any) -> Any:
             # Network paths and existence checks remain outside the GUI thread.
-            if automatic and not all(folder.is_dir() for folder in folders):
-                return None
             from pronto_ingest.metadata import preserve_manual_study_ids
             return preserve_manual_study_ids(previous_plan,
                 discover_folders(folders, progress=progress, cancel=cancel, **options))
@@ -871,8 +846,6 @@ class MainWindow(QMainWindow):
         self.show_plan(plan)
 
     def show_plan(self, plan: Any) -> None:
-        self._scan_timer.stop()
-        self._auto_scan_pending = False
         self.plan = plan
         self.plan_tree.blockSignals(True)
         self.plan_tree.clear()
@@ -1251,8 +1224,6 @@ class MainWindow(QMainWindow):
         self._log(f"Sikkerhetskopi opprettet: {path}")
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        self._scan_timer.stop()
-        self._auto_scan_pending = False
         if self._worker is not None:
             self._closing = True
             self.cancel_job()
