@@ -11,7 +11,7 @@ from pronto_report.models import ReportData
 
 
 _MAX_ATTACHMENT_BYTES = 12 * 1024 * 1024
-_MAX_PDF_PAGES = 20
+_MAX_PDF_PAGES = 100
 
 
 def _attachment_path(root: Path, name: str) -> Path:
@@ -31,14 +31,21 @@ def _pdf_pages(payload: bytes) -> tuple[tuple[str, bytes], ...]:
         page_count = int(pdfinfo_from_bytes(payload)["Pages"])
         if not 1 <= page_count <= _MAX_PDF_PAGES:
             raise ValueError("PDF plot exceeds page limit")
-        pages = convert_from_bytes(payload, dpi=110, thread_count=1)
+        images = []
+        pixels = 0
+        for start in range(1, page_count + 1, 5):
+            pages = convert_from_bytes(payload, dpi=110, thread_count=1,
+                                       first_page=start, last_page=min(start + 4, page_count), timeout=120)
+            for page in pages:
+                pixels += page.width * page.height
+                if pixels > 200_000_000:
+                    raise ValueError('PDF plot exceeds raster size limit')
+                buffer = BytesIO()
+                page.convert('RGB').save(buffer, format='JPEG', quality=82)
+                images.append(('image/jpeg', buffer.getvalue()))
+                page.close()
     except (ImportError, KeyError, OSError, RuntimeError, ValueError) as error:
         raise ValueError("Unable to render declared PDF plot") from error
-    images = []
-    for page in pages:
-        buffer = BytesIO()
-        page.convert("RGB").save(buffer, format="JPEG", quality=82)
-        images.append(("image/jpeg", buffer.getvalue()))
     return tuple(images)
 
 

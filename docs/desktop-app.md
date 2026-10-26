@@ -6,9 +6,9 @@ PRONTO desktop samler filinnlasting, import til databasen, serverstart og åpnin
 
 Pakk ut hele programmappen til en fast plass. Bruk PRONTO_INSTALL.cmd første gang og PRONTO_START.cmd ved senere oppstart. Startfilene støtter lokal Python og Python FELLES gjennom Ivanti. Faktisk Ivanti og tilgang på jobb-PC må kontrolleres der. Ikke flytt bare startfilene ut av programmappen.
 
-Lukk den gamle appen før du starter en oppdatert versjon. Versjon 0.2 har automatisk filkobling og felles PRONTO-ikon i app, oppgavelinje, nettleser og rapport. Kjør `PRONTO_SNARVEI.cmd` hvis du vil lage en Windows-snarvei med dette ikonet. Snarveien peker på den utpakkede programmappen, som derfor må bli liggende på samme plass.
+Lukk den gamle appen før du starter en oppdatert versjon. Versjon 0.3 har automatisk filkobling og felles PRONTO-ikon i app, oppgavelinje, nettleser og rapport. Kjør `PRONTO_SNARVEI.cmd` hvis du vil lage en Windows-snarvei med dette ikonet. Snarveien peker på den utpakkede programmappen, som derfor må bli liggende på samme plass.
 
-Installer også Poppler slik at `pdfinfo` og `pdftoppm` finnes i PATH for den samme brukeren og Python-økten. Dette gjøres normalt gjennom lokal IT. Kontroller med `Get-Command pdfinfo, pdftoppm` i PowerShell, og start Python FELLES eller appen på nytt etter endring av PATH. Python-pakkene alene installerer ikke disse programmene. Diagnostikk viser status; import med PDF-plott avvises før rapporten lagres hvis verktøyene mangler.
+Installer også Poppler slik at `pdfinfo` og `pdftoppm` finnes i PATH for den samme brukeren og Python-økten. Dette gjøres normalt gjennom lokal IT. Kontroller med `Get-Command pdfinfo, pdftoppm` i PowerShell, og start Python FELLES eller appen på nytt etter endring av PATH. Python-pakkene alene installerer ikke disse programmene. Log viser status; import med PDF-plott avvises før rapporten lagres hvis verktøyene mangler.
 
 Med prosjektets Python 3.14-miljø kan du også bruke:
 
@@ -79,7 +79,7 @@ Importer valgte validerer kildene, bevarer private kildekopier med SHA-256, oppr
 
 Samme uendrede kildegrunnlag skal ikke gi dubletter. Endret rågrunnlag under en eksisterende prøve og kjøring avvises som konflikt; gamle vurderinger skal ikke overskrives. En rapport opprettet før importhistorikken ble innført kan heller ikke gjenimporteres blindt som om kildegrunnlaget var kjent.
 
-Mappekontrollen undersøker opptil 50 000 filer og 30 nivåer. Lenker og Windows-junctions følges ikke. Kildetabeller er begrenset til 25 MiB, 10 000 datarader og 500 kolonner. Rapportplott er begrenset til 12 MiB per fil, 20 PDF-sider og samlet 100 plott eller 64 MiB per rapport. En fil som endres etter kontrollen må undersøkes på nytt før import. Ødelagte eller ukjente filer blir ikke automatisk rapportinnhold.
+Mappekontrollen undersøker opptil 50 000 filer og 30 nivåer. Lenker og Windows-junctions følges ikke. Kildetabeller er begrenset til 25 MiB, 10 000 datarader og 500 kolonner. Rapportplott er begrenset til 12 MiB per fil, 100 PDF-sider og samlet 100 plott eller 64 MiB per rapport. En fil som endres etter kontrollen må undersøkes på nytt før import. Ødelagte eller ukjente filer blir ikke automatisk rapportinnhold.
 
 Start server og Åpne rapporter åpner den eksisterende HTML-arbeidsflaten. Der fortsetter Save, Finalize, ny revisjon, PDF og HTML som før. Serverstart importerer aldri filene på nytt. En server som tilhører en annen prosess eller database stoppes ikke for å frigjøre porten.
 
@@ -108,7 +108,7 @@ Lag et syntetisk eksempel med fire kjøringsmapper, historiske metadata, eksplis
 
 Velg Out/desktop-example i Importer. Kjør filkontroll og merk SYN0001-D01-P01-A01 før import. Prøven er bevisst satt til `Create_report = -` for å teste dette valget. Bruk en separat testdatabase. Eksempelet leser ingen pasientfiler og oppretter ingen egen sample_list i kildemappene.
 
-Jobbmappenes navn, tabelloverskrifter og utvalgte kommentarer er kartlagt ved skrivebeskyttet visning. Den komplette jobbkjøringen er ennå ikke importert i appen. Kontroller derfor prøveidentitet, alle kolonner, valgte kilder og rapportinnhold ved første lokale test. Python FELLES, Ivanti og Poppler må også prøves i det faktiske jobbmiljøet.
+Den leverte kjøringen er testet i separat lokal database. Filsøket fant 13 DNA-prøver; fem med komplett metadata ble importert og åtte ble stoppet på manglende Study_id. En importert rapport er åpnet med alle plott, gennavn fra biomarkørlisten i fet skrift og lagring av kladd. Databasebackup er kontrollert. Rapportinnhold må fortsatt gjennomgås faglig. Python FELLES, Ivanti og Poppler må også prøves i det faktiske jobbmiljøet.
 
 ## Utviklerkontroll
 
@@ -122,3 +122,14 @@ $env:DJANGO_SETTINGS_MODULE='pronto_web.test_settings'
 ```
 
 Testene bruker midlertidige databaser, syntetiske mapper og de godkjente fixturefilene. Den virkelige driftsdatabasen skal ikke brukes i tester.
+
+
+## 20 Biomarkørliste og ny database
+
+I Innstillinger velger du Biomarkørliste og Velg XLSX. Appen leser kolonnene Molekylær markør og Biomarkør_spesifikasjon. En kontrollert kopi og SHA-256 lagres i dataroten som biomarker-list.xlsx og biomarker-list.json. Originalen flyttes ikke. Listen lastes igjen ved neste oppstart. Åpne rapporten på nytt for å se endret markering. Både aktive og lukkede oppføringer bidrar til genmedlemskap; fet skrift sier ingenting om studieegnethet. TMB og MSI behandles ikke som gensymboler. Ingen liste er aktiv i en ny desktopdatabase før en fil er valgt.
+
+Ny tom database under Innstillinger velger en tom mappe og lagrer oppsett for neste oppstart. Start appen på nytt; migreringene lager tabellene uten demo, rapporter eller brukere fra den gamle databasen. Opprett deretter første personlige konto. Databasen og senere redigeringer bevares i denne dataroten mellom oppstarter. Eksisterende database velges med det vanlige mappevalget. Behold hele dataroten ved flytting, inkludert nøkkel, råarkiv og biomarkørliste.
+
+Filversjon, CNV-tabell og Cancan-løsning ligger under Avansert i Importer. Vanlig import bruker nyeste tilgjengelige rapportfiler og den sammenslåtte CNV-tabellen. Valgene henter alternative resultater som allerede finnes i mappene; appen kjører ikke Cancan eller variant calling.
+
+Kjente eksportavvik håndteres av parseren: den sammenslåtte metadataoverskriften for de tre siste feltene deles, gamle rader med to manglende sluttfelt fylles med tomme felt, og kommentaren ID of the matched tumor RNA sample gjenkjennes. Manglende Study_id må rettes i en kontrollert kopi av metadata før nytt filsøk. PDF-plott kan ha opptil 100 sider og rasteriseres i grupper på fem med en samlet grense på 200 millioner piksler per PDF.

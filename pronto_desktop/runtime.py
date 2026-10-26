@@ -67,12 +67,14 @@ class DesktopRuntime:
         preferences = _read_json(self.config_path)
         selected = data_root if data_root is not None else preferences.get("data_root")
         self._remembered = data_root is None and bool(preferences.get("data_root"))
+        self._new_database = bool(self._remembered and preferences.get('new_database'))
         self.data_root = Path(selected).expanduser().resolve() if selected else ROOT / ".local-web"
         self._legacy = not selected or self.data_root == ROOT / ".local-web"
         self._requested_port = port if port is not None else preferences.get("port")
         self._server = None
         self._initialized = False
         self.startup_warnings = []
+        self.biomarker_info = None
         self.database_path = self.data_root / ("pronto.sqlite3" if self._legacy else "database/pronto.sqlite3")
         self.raw_root = self.data_root / "raw_imports"
 
@@ -92,13 +94,15 @@ class DesktopRuntime:
         with _SETUP_LOCK:
             if self._initialized:
                 return
+            if self._new_database and self.database_path.exists():
+                raise RuntimeError('Den valgte nye databasen finnes allerede. Velg den som eksisterende database.')
             if self._legacy:
                 from scripts.start_web import STATE
                 config = _read_json(STATE / "config.json")
                 selected_db = Path(config.get("database") or STATE / "pronto.sqlite3")
                 self.database_path = (ROOT / selected_db).resolve() if not selected_db.is_absolute() else selected_db.resolve()
                 self._requested_port = self._requested_port if self._requested_port is not None else config.get("port", 8770)
-            if self._remembered and (not self.data_root.is_dir() or not self.database_path.is_file()):
+            if self._remembered and not self._new_database and (not self.data_root.is_dir() or not self.database_path.is_file()):
                 raise RuntimeError("The remembered PRONTO database is unavailable. Restore its location or restart "
                                    "with an explicit --data-root to create a new empty database.")
             if settings.configured:
@@ -167,6 +171,15 @@ class DesktopRuntime:
             self._server = LocalServer(application, secret=settings.SECRET_KEY,
                                        database=self.database_path, port=self._requested_port if self._requested_port is not None else 8770)
             self._initialized = True
+            settings.PRONTO_BIOMARKER_GENES = frozenset()
+            marker_file = self.data_root / 'biomarker-list.xlsx'
+            if marker_file.is_file():
+                from pronto_report.review.biomarker_list import read_biomarker_list
+                self.biomarker_info = read_biomarker_list(marker_file)
+                saved_marker = _read_json(self.data_root / 'biomarker-list.json')
+                if saved_marker.get('sha256') == self.biomarker_info['sha256']:
+                    self.biomarker_info['name'] = saved_marker.get('name', marker_file.name)
+                settings.PRONTO_BIOMARKER_GENES = frozenset(self.biomarker_info['genes'])
             if self._legacy:
                 _write_json(local_config_path, {**_read_json(local_config_path), "database": str(self.database_path),
                                                 "port": self.port or 8770})
@@ -179,6 +192,29 @@ class DesktopRuntime:
     def capabilities(self) -> dict[str, bool]:
         from .capabilities import capabilities
         return capabilities()
+
+    def prepare_empty_database(self, data_root: Path):
+        selected = Path(data_root).expanduser().resolve()
+        if selected == self.data_root:
+            raise ValueError('Velg en annen tom mappe.')
+        if selected.exists() and any(selected.iterdir()):
+            raise ValueError('Velg en tom mappe for den nye databasen.')
+        selected.mkdir(parents=True, exist_ok=True, mode=0o700)
+        _write_json(self.config_path, {'data_root': str(selected), 'port': self.port, 'new_database': True})
+        return selected
+
+    def set_biomarker_list(self, path: Path):
+        from pronto_report.review.biomarker_list import read_biomarker_list
+        from django.conf import settings
+        import shutil
+        result = read_biomarker_list(path)
+        target = self.data_root / 'biomarker-list.xlsx'
+        if Path(path).resolve() != target.resolve():
+            shutil.copyfile(path, target)
+        settings.PRONTO_BIOMARKER_GENES = frozenset(result['genes'])
+        self.biomarker_info = result
+        _write_json(self.data_root / 'biomarker-list.json', result)
+        return result
 
     def save_next_launch(self, data_root: Path, port: int) -> None:
         """Persist a root selection; never switch Django's database in this process."""

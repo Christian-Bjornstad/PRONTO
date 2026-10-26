@@ -2,6 +2,7 @@
 import base64
 from html import escape
 from .source_fields import cnv_display_fields
+from pronto_report.review.gene_registry import gene_markup
 
 NOTE_FIELDS = (
     ('history','History / Reason for testing'), ('variantDescription','Variant description'),
@@ -61,7 +62,9 @@ def source_table(table, review, *, readonly=False):
                     f'data-source-label="{escape(short,quote=True)}" '
                     f'data-source-search="{escape(search,quote=True)}" class="{"excluded-row" if decision == "EXCLUDE" else ""}">'
                     + controls + '<td class="source-data">' + ('Source QC highlighted' if row['sourceApproved'] else '') + '</td>'
-                    + ''.join(f'<td class="source-data">{shown(v)}</td>' for v in row['values']) + '</tr>')
+                    + ''.join('<td class="source-data">' +
+                              (gene_markup(v) if header in {'Gene_Symbol', 'gene.name', 'Gene_A', 'Gene_B'} else shown(v)) + '</td>'
+                              for header, v in zip(table['headers'], row['values'])) + '</tr>')
     table_id=escape(str(table['tableId']),quote=True)
     return (f'<section class="source-table-block"><p>{shown(table["fileName"])} · {shown(table["sheet"])} · '
             f'{len(rows)} source rows. Source QC highlighting is separate from report selection.</p>'

@@ -13,7 +13,7 @@ from typing import Any, Mapping
 
 from pronto_report.models import ReportData, ReviewState
 from pronto_report.branding import favicon_data_uri
-from pronto_report.review.gene_registry import gene_in_list
+from pronto_report.review.gene_registry import gene_in_list, gene_markup
 from pronto_report.renderers import review_v3
 from pronto_report.igv.locus import locus_for_variant
 from pronto_report.migration import migrate_review_state_v1
@@ -499,9 +499,9 @@ def _variant_rows(
                 escape(str(variant["occurrenceId"]), quote=True),
                 escape(search, quote=True),
                 escape(str(frequency) if frequency is not None else "", quote=True),
-                "".join(f"<td>{escape(value)}</td>" for value in (gene, protein, coding, vaf))
+                '<td>' + gene_markup(gene) + '</td>' + "".join(f"<td>{escape(value)}</td>" for value in (protein, coding, vaf))
                 + '<td>' + escape(_display(_annotation(variant, 'depthTumourDna'))) + '</td>'
-                + '<td>Not received</td><td>' + (('<span title="InPreD molecular marker list, September 2026">'+('In list' if gene_in_list(variant.get('gene')) else 'Not in list')+'</span>') if review and review.schema_version=='4.0' else 'Not cross-checked') + '</td>'
+                + '<td>Not received</td><td>' + (('<span title="Configured molecular marker list">'+('In list' if gene_in_list(variant.get('gene')) else 'Not in list')+'</span>') if review and review.schema_version=='4.0' else 'Not cross-checked') + '</td>'
                 + ('' if review and review.schema_version=='4.0' else igv_cell),
                 review_cells,
                 details,

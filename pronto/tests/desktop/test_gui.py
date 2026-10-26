@@ -90,12 +90,14 @@ def plan(tmp_path):
 def test_initial_state_navigation_and_keyboard(window, qtbot):
     assert not window.windowIcon().isNull()
     assert len(window.folder_fields) == 5
+    assert window.nav_buttons[4].text() == 'Log'
     assert window.metrics["reports"].text() == "12"
     assert window.runtime.count_thread != get_ident()
     window.activateWindow()
     qtbot.keyClick(window, Qt.Key.Key_2, Qt.KeyboardModifier.ControlModifier)
     assert window.stack.currentIndex() == 1
     assert window.nav_buttons[1].isChecked()
+    assert not window.advanced_import.isVisible()
     qtbot.keyClick(window, Qt.Key.Key_5, Qt.KeyboardModifier.ControlModifier)
     assert window.stack.currentIndex() == 4
 

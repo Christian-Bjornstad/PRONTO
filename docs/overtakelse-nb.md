@@ -4,13 +4,13 @@ Manual for overtakelse og drift
 
 Teknisk og praktisk overlevering til ny forvalter
 
-24. oktober 2026
+26. oktober 2026
 
 Programversjon og eksakte kontrollresultater identifiseres i pakkens manifest.
 
 Denne manualen forklarer hvordan den nye PRONTO-appen installeres, brukes, vedlikeholdes og videreføres. Appen samler valg av kjøringsmapper, kontrollert import, database og serverstyring. Den eksisterende HTML-arbeidsflaten brukes videre til vurdering og rapportering. Den dekker hele kjeden fra TSOPPI og kliniske metadata til database, vurderingsarbeid, HTML, PDF og IGV. Målgruppen er både fagbrukeren som skal overta rapportarbeidet, og utvikleren eller driftsansvarlig som skal kunne forvalte løsningen uten muntlig forklaring fra den opprinnelige utvikleren.
 
-Lokal rapportbehandling og appens importløp er kontrollert på godkjent testgrunnlag og syntetiske filer. Jobb-PC-ens fire kjøringsmapper, utvalgte filoverskrifter og DNA/RNA-kommentarer er kartlagt ved visning uten endring av kildefilene. Den komplette kjøringen er ennå ikke importert i appen. Før reelle kjøringer tas i bruk må filgjenkjenning, prøvekobling og rapportinnhold verifiseres mot disse filene. Kontroller og begrensninger er samlet i kapittel 17. Innføring med reelle pasientdata, flerbrukerdrift og permanent BAM eller CRAM lagring krever de lokale driftsbeslutningene og kontrollene beskrevet i kapittel 15 og 18.
+Den leverte jobbkjøringen er kontrollert i en separat lokal testdatabase. Filsøket fant 13 DNA-prøver fordelt på fire toppmapper. Fem prøver med komplett metadata ble importert; åtte ble stoppet før import fordi Study_id manglet. Originalfilene ble bare lest. Biomarkørlisten fra september 2026 inneholdt 90 rader og ga 65 unike gensymboler. Dette er teknisk importkontroll; rapportinnhold og faglige vurderinger må fortsatt gjennomgås av ansvarlig bruker. Python FELLES og Ivanti må prøves på jobb-PC-en.
 
 Leveransen består av denne manualen, et eget kildekodearkiv og et kontrollnotat med versjon og testresultater. Kildekodearkivet inneholder den konkrete programversjonen og godkjente testfiler. Den lokale databasen, passord, nøkler, referansegenomer og genererte pasientrapporter overføres separat gjennom godkjent intern lagring.
 
@@ -59,7 +59,7 @@ PRONTO omfatter en ny lokal app for import og serverstyring, en nettbasert rappo
 
 Webappen leser hovedsakelig rapportgrunnlaget fra sin egen database. Den søker ikke løpende i ClinVar, COSMIC, gnomAD, OncoKB eller sykehusets journalsystem. Slike annoteringer finnes eventuelt allerede i TSOPPI-tabellene. Det finnes ingen generell overvåking av nye run-mapper eller ferdig integrasjon mot LIMS i denne leveransen.
 
-IGV laster nødvendige deler av BAM eller CRAM og referansefiler når brukeren åpner en region. Dette er en separat dataflyt og gir ikke nye kliniske annoteringer. Genlisten som brukes for Biomarker er en lokal liste fra september 2026.
+IGV laster nødvendige deler av BAM eller CRAM og referansefiler når brukeren åpner en region. Dette er en separat dataflyt og gir ikke nye kliniske annoteringer. Biomarkørlisten velges som XLSX under Innstillinger. Appen bruker en lokal kopi til å vise oppførte gensymboler i fet skrift i HTML.
 
 ### Viktige arkitekturvalg
 
@@ -156,7 +156,7 @@ reportId beregnes deterministisk fra prøve og run. variantId identifiserer vari
 
 serialization.py avviser blant annet dupliserte JSON-felter, ikke-endelige tall og for store dokumenter. JSON-grensen er 25 MiB. Schema og den påfølgende sammenhengsvalideringen kontrollerer identitet og variantreferanser. En vurdering fra en annen rapport skal avvises. Bruk deserialize og validate-funksjonene; direkte skriving av vilkårlig JSON til databasen omgår disse kontrollene.
 
-Startvalg hentes fra Class_judgement, CPSR_ClinVar_class og IGV_QC når de er entydige og støttet. Lagrede manuelle valg beholdes. Et treff i genes-september-2026.json betyr genmedlemskap og velger hverken Include eller Highlight.
+Startvalg hentes fra Class_judgement, CPSR_ClinVar_class og IGV_QC når de er entydige og støttet. Lagrede manuelle valg beholdes. Et treff i den tilknyttede XLSX-listen betyr genmedlemskap og velger hverken Include eller Highlight. Eldre oppsett uten desktopkonfigurasjon har fortsatt den innebygde listen som reserve.
 
 ## 6 Databasen og hva som lagres hvor
 
@@ -203,7 +203,7 @@ py -3.14 -m venv .venv
 .\.venv\Scripts\python.exe -m pronto_desktop
 ```
 
-PDF-kildeplott valideres før de lagres og krever i tillegg Poppler med pdfinfo og pdftoppm tilgjengelig i PATH for Python-prosessen. Python-pakken pdf2image installerer ikke disse programmene. PDF-rapportene PRONTO selv produserer bruker ReportLab. Installer Poppler i godkjent område, legg bin-mappen i PATH og start Python FELLES eller appen på nytt etter endring. Kontroller verktøyene under Diagnostikk og med Get-Command pdfinfo, pdftoppm i PowerShell. Import med PDF-plott avvises før rapporten lagres hvis verktøyene mangler. Et program som har vært åpent mens PATH ble endret kan fortsatt bruke gammelt miljø.
+PDF-kildeplott valideres før de lagres og krever i tillegg Poppler med pdfinfo og pdftoppm tilgjengelig i PATH for Python-prosessen. Python-pakken pdf2image installerer ikke disse programmene. PDF-rapportene PRONTO selv produserer bruker ReportLab. Installer Poppler i godkjent område, legg bin-mappen i PATH og start Python FELLES eller appen på nytt etter endring. Kontroller verktøyene under Log og med Get-Command pdfinfo, pdftoppm i PowerShell. Import med PDF-plott avvises før rapporten lagres hvis verktøyene mangler. Et program som har vært åpent mens PATH ble endret kan fortsatt bruke gammelt miljø.
 
 ### Første oppstart og eksisterende data
 
@@ -226,7 +226,7 @@ Det nye oppsettet får database/pronto.sqlite3, raw_imports, backups og secret.k
 | Importer | Valg av overordnet mappe og ekstra kildemapper, rapportversjon, CNV-kilde, filkontroll, avkryssing av prøver, kildefiler, avvik, import og avbryt. |
 | Rapporter | Viser importresultater fra økten og egen lagret importhistorikk etter innlogging. Åpner HTML-oversikten. |
 | Innstillinger | Viser aktiv database og kildearkiv, tar sikkerhetskopi, håndterer appinnlogging og lagrer datamappe og port for neste oppstart. |
-| Diagnostikk | Viser fremdrift, meldinger og feil fra økten. Loggen kan kopieres og må håndteres som annet analysegrunnlag. |
+| Log | Viser fremdrift, meldinger og feil fra økten. Loggen kan kopieres og må håndteres som annet analysegrunnlag. |
 
 Ctrl+1 til Ctrl+5 bytter side. Ctrl+R starter filkontroll. Knapper og felter kan nås med tastatur. Filkontroll, import, innlogging, backup og serverstart utføres i bakgrunnsarbeid slik at appen kan vise status underveis.
 
@@ -241,7 +241,7 @@ Ctrl+1 til Ctrl+5 bytter side. Ctrl+R starter filkontroll. Knapper og felter kan
 
 Endres mappevalg, rapportversjon eller CNV-kilde og løsning, starter et nytt filsøk etter en kort pause. Den gamle planen kan ikke brukes til import. Endres en kildefil etter kontrollen eller under kopiering, skal importen avvise det berørte grunnlaget. Slik blir det synlig at filene ikke lenger er de som ble kontrollert.
 
-Versjon 0.2 bruker samme PRONTO-ikon i appvindu, oppgavelinje, nettleser og HTML-rapport. Lukk eldre appvinduer før oppdateringen startes. PRONTO_SNARVEI.cmd kan lage en snarvei med riktig ikon etter at hele programmappen er pakket ut på sin faste plass.
+Versjon 0.3 bruker samme PRONTO-ikon i appvindu, oppgavelinje, nettleser og HTML-rapport. Lukk eldre appvinduer før oppdateringen startes. PRONTO_SNARVEI.cmd kan lage en snarvei med riktig ikon etter at hele programmappen er pakket ut på sin faste plass.
 
 Avbryt er en samarbeidsbasert stopp ved trygge kontrollpunkter. Allerede fullførte prøver beholdes. En prøve som ikke har fullført sin databaseinnlegging skal ikke stå igjen som en halv rapport. Lukkes appen mens en jobb pågår, venter den til jobben kan avsluttes trygt. Det er ikke en tvungen prosessavslutning av et eksternt analyseprogram.
 
@@ -335,7 +335,7 @@ Interne adaptertabeller bruker tabulator som skilletegn, også når originalen e
 
 TMB og MSI leses fra sammendraget; importen gjør ikke en ny analyseberegning. Småvariantene kommer fra den annoterte tabellen. CNV og RNA leses som komplette støttede kildetabeller, og identitetskolonner filtreres på bekreftet prøve. Et manuelt valg av fil overstyrer ikke en motstridende prøve-ID i tabellradene. Generiske tabeller uten prøveidentitet krever at brukeren faktisk har kontrollert sammenhengen.
 
-Plott valideres før innlegging. Rapporten tillater høyst 100 plott og samlet 64 MiB vedleggsbytes; hvert vedlegg har grense på 12 MiB. PNG-plott kontrolleres for gyldig bildeinnhold og høyst 64 millioner piksler. Et PDF-plott kan ha høyst 20 sider og må kunne rasteriseres med de tilgjengelige PDF-verktøyene.
+Plott valideres før innlegging. Rapporten tillater høyst 100 plott og samlet 64 MiB vedleggsbytes; hvert vedlegg har grense på 12 MiB. PNG-plott kontrolleres for gyldig bildeinnhold og høyst 64 millioner piksler. Et PDF-plott kan ha høyst 100 sider og må kunne rasteriseres med de tilgjengelige PDF-verktøyene.
 
 Et kildefingerprint beregnes av prøve, run, kilderoller og filhashene. Deretter opprettes ReportRecord, første DRAFT ReviewRevision, ReportAsset, importørens ReportGrant, ImportItem og ImportSource i én databasetransaksjon. Første kladd oppgraderes av den eksisterende kontraktflyten når arbeidsflaten åpner den. Importen gir ikke ReportWriteGrant for BAM eller CRAM.
 
@@ -556,7 +556,7 @@ Den tidligere gjennomkjøringen på separat database kontrollerte import, CSRF-b
 
 ### Gjenstående miljøkontroller
 
-Jobb-PC-ens firemapperstruktur og utvalgte kildekommentarer og overskrifter er kartlagt. Den komplette jobbkjøringen er ikke importert, og alle kildekolonner er ennå ikke kontrollert mot rapportadapteren. Python FELLES og Ivanti, tilgangsrettigheter, Poppler og nettleser må prøves på den maskinen. Native Windows dekker ikke de Linux-avhengige funksjonene for permanent BAM eller CRAM-bevaring. Utelatte tester er ikke beståtte tester.
+Den leverte jobbkjøringen er prøvd lokalt i separat database: fem av 13 prøver ble importert, mens åtte manglet Study_id og ble stoppet før import. Python FELLES, Ivanti, tilgangsrettigheter og Poppler må fortsatt kontrolleres på jobb-PC-en. Klinisk innhold er ikke faglig godkjent av den tekniske testen. Native Windows dekker ikke de Linux-avhengige funksjonene for permanent BAM eller CRAM-bevaring. Utelatte tester er ikke beståtte tester.
 
 Docker Linux-tjenesten var ikke tilgjengelig ved den tidligere kontrollen og Docker-fixtureløpet ble da ikke kjørt på nytt. Dockerfile beskriver den eldre kommandolinjeflyten, ikke en ferdig desktop- eller webdistribusjon. Det foreligger heller ikke ekstern produksjonsdrift, klinisk godkjenning, generell belastningstest eller full sårbarhetsrevisjon av avhengighetene i denne overleveringen.
 
@@ -625,3 +625,14 @@ test_settings bruker isolerte testinnstillinger og en offentlig testnøkkel. Ikk
 Den samlede løsningen som ble kontrollert, ligger under repos/PRONTO/.worktrees/igv-django-integration i Inpred-arbeidsområdet. Roten repos/PRONTO er en eldre arbeidskopi. Mappenavnet er beholdt ved feilrettingen, selv om Git-branchen kan ha fått et nytt navn. Et navn på en worktree er ikke bevis på hvilken kodeversjon den inneholder; kontroller commit i kontrollnotatet.
 
 Backup fra den nye desktopappen ligger under backups i den aktive dataroten. Den tidligere beskyttede databasebackupen ligger under .local-web/backups i den eldre aktive arbeidskopien. Den konkrete backupfilen er registrert i det lokale kontrollgrunnlaget. Ved overtakelse flyttes denne og den private konfigurasjonen separat, slik kapittel 14 beskriver.
+
+
+## 20 Biomarkørliste og ny database
+
+I Innstillinger velger du Biomarkørliste og Velg XLSX. Appen leser kolonnene Molekylær markør og Biomarkør_spesifikasjon. En kontrollert kopi og SHA-256 lagres i dataroten som biomarker-list.xlsx og biomarker-list.json. Originalen flyttes ikke. Listen lastes igjen ved neste oppstart. Åpne rapporten på nytt for å se endret markering. Både aktive og lukkede oppføringer bidrar til genmedlemskap; fet skrift sier ingenting om studieegnethet. TMB og MSI behandles ikke som gensymboler. Ingen liste er aktiv i en ny desktopdatabase før en fil er valgt.
+
+Ny tom database under Innstillinger velger en tom mappe og lagrer oppsett for neste oppstart. Start appen på nytt; migreringene lager tabellene uten demo, rapporter eller brukere fra den gamle databasen. Opprett deretter første personlige konto. Databasen og senere redigeringer bevares i denne dataroten mellom oppstarter. Eksisterende database velges med det vanlige mappevalget. Behold hele dataroten ved flytting, inkludert nøkkel, råarkiv og biomarkørliste.
+
+Filversjon, CNV-tabell og Cancan-løsning ligger under Avansert i Importer. Vanlig import bruker nyeste tilgjengelige rapportfiler og den sammenslåtte CNV-tabellen. Valgene henter alternative resultater som allerede finnes i mappene; appen kjører ikke Cancan eller variant calling.
+
+Kjente eksportavvik håndteres av parseren: den sammenslåtte metadataoverskriften for de tre siste feltene deles, gamle rader med to manglende sluttfelt fylles med tomme felt, og kommentaren ID of the matched tumor RNA sample gjenkjennes. Manglende Study_id må rettes i en kontrollert kopi av metadata før nytt filsøk. PDF-plott kan ha opptil 100 sider og rasteriseres i grupper på fem med en samlet grense på 200 millioner piksler per PDF.

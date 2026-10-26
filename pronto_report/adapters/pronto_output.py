@@ -210,7 +210,7 @@ def adapt_pronto_output(
         raise AdapterError("Requested sample is absent from metadata")
 
     run_id = metadata.get("Sequencing_run_id", "")
-    patient_pseudonym = metadata.get("Study_id", "")
+    patient_pseudonym = metadata.get("Study_id", "").strip()
     if _is_missing(run_id) or _is_missing(patient_pseudonym):
         raise AdapterError("Required report identity metadata is missing")
 

@@ -3,6 +3,7 @@ from html import escape
 
 from .review_v3 import checkbox, shown
 from .source_fields import cnv_display_fields
+from pronto_report.review.gene_registry import gene_markup
 
 
 def cnv_row(table, row, activities, readonly, manual=False):
@@ -28,7 +29,9 @@ def cnv_row(table, row, activities, readonly, manual=False):
             cells+=f'<td><input data-v4-edit data-cn-field="cytoband" aria-label="Cytoband {escape(identifier)}" maxlength="100" value="{escape(str(value),quote=True)}"{disabled}></td>'
         elif manual and header in {'Gene_Symbol','Tumor_FC'}:
             cells+=f'<td><input data-v4-edit data-manual-field="{header}" aria-label="{header} {escape(identifier)}" maxlength="128" value="{escape(str(value) if value is not None else "",quote=True)}"{disabled}></td>'
-        else: cells+='<td class="source-data">'+shown(value)+'</td>'
+        else:
+            rendered = gene_markup(value) if header in {'Gene_Symbol', 'gene.name', 'Gene_A', 'Gene_B'} else shown(value)
+            cells+='<td class="source-data">'+rendered+'</td>'
     cells+='<td class="source-data">'+('Source QC highlighted' if row.get('sourceApproved') else '')+'</td>'
     if manual: cells+=f'<td><button type="button" data-v4-edit data-remove-cnv{disabled}>Remove row</button></td>'
     else: cells+='<td></td>'

@@ -461,6 +461,10 @@ def _actual_plan(folders, candidates, row_cache, table_cache, warnings, runs,
             issues += _row_identity_issues(sample, files, linked, row_cache, table_cache)
             if len(rows) != 1:
                 issues += ('metadata: prøve og kjøring må ha én entydig rad',)
+            current_metadata = [row for path in files['metadata'] for row in row_cache.get(path, ())
+                                if row.get('Sample_id') == sample and row.get('Sequencing_run_id') == run]
+            if len(current_metadata) == 1 and current_metadata[0].get('Study_id', '').strip() in {'', '-', '.', 'NA'}:
+                issues += ('metadata: Study_id mangler',)
             if len(flags) != 1 or not flags <= POSITIVE_FLAGS | NEGATIVE_FLAGS | {'-', ''}:
                 issues += ('Create_report: ukjent eller motstridende verdi',)
             if cnv_source == 'cancan' and not files.get('cancan_table'):
@@ -526,6 +530,8 @@ def assign_source(plan, report_key, role, path):
                         report = replace(report, metadata_flag=flag, selected=selected, selection_confirmed=confirmed)
                         if len(current) != 1:
                             issues += ('metadata: prøve og kjøring må ha én entydig rad',)
+                        elif current[0].get('Study_id', '').strip() in {'', '-', '.', 'NA'}:
+                            issues += ('metadata: Study_id mangler',)
                     row_cache = {source: table_rows(source) for source in files.get('variants', ())}
                     from pronto_report.adapters.source_tables import read_source_table
                     table_cache = {source: read_source_table(source, kind=kind)

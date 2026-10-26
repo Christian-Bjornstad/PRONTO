@@ -6,7 +6,7 @@ _ID = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$')
 _CONCORDANCE = re.compile(
     r'^# Concordance between processed \[tumor DNA: "([^"\r\n]+)"\] '
     r'and \[tumor RNA: "([^"\r\n]+)"\] samples:\s*$')
-_VARIANT = re.compile(r'^# \[([^\]\r\n]+)\].*?ID of matched tumor RNA sample:\s*(\S+)\s*$')
+_VARIANT = re.compile(r'^# \[([^\]\r\n]+)\].*?ID of (?:the )?matched tumor RNA sample:\s*(\S+)\s*$')
 _EMPTY = {'NA', 'N/A', 'NONE', '-', ''}
 
 
@@ -46,7 +46,7 @@ def _comment_claims(path, sample_id):
                     claims.append({sample_id, rna})
                 else:
                     raise ValueError('Ugyldig RNA-identitet i DNA/RNA-kobling.')
-            elif 'Concordance between processed [tumor DNA:' in line or 'ID of matched tumor RNA sample:' in line:
+            elif 'Concordance between processed [tumor DNA:' in line or 'matched tumor RNA sample:' in line:
                 raise ValueError('DNA/RNA-koblingen har ukjent format.')
     return claims
 

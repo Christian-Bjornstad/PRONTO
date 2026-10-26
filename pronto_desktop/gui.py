@@ -10,7 +10,7 @@ from PyQt6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Qt, QUrl, pyqt
 from PyQt6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QComboBox, QDialog, QDialogButtonBox,
-    QFileDialog, QFormLayout, QFrame, QGridLayout, QHBoxLayout, QHeaderView,
+    QFileDialog, QFormLayout, QFrame, QGridLayout, QHBoxLayout, QHeaderView, QLayout,
     QLabel, QLineEdit, QMainWindow, QPlainTextEdit, QProgressBar, QPushButton,
     QScrollArea, QSizePolicy, QSpinBox, QStackedWidget, QTableWidget,
     QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
@@ -289,6 +289,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(8)
         brand_row = QHBoxLayout()
         brand_row.setSpacing(8)
+        brand_row.addStretch()
         mark = QLabel()
         mark.setObjectName("app-mark")
         mark.setAccessibleName("PRONTO")
@@ -299,13 +300,11 @@ class MainWindow(QMainWindow):
         brand.setWordWrap(False)
         brand.setObjectName("brand")
         brand_row.addWidget(brand)
+        brand_row.addStretch()
         layout.addLayout(brand_row)
-        detail = label("Analyse og rapport")
-        detail.setObjectName("brand-detail")
-        layout.addWidget(detail)
         layout.addSpacing(30)
         self.nav_buttons: list[QPushButton] = []
-        for index, name in enumerate(("Oversikt", "Importer", "Rapporter", "Innstillinger", "Diagnostikk")):
+        for index, name in enumerate(("Oversikt", "Importer", "Rapporter", "Innstillinger", "Log")):
             nav = button(name, f"nav-{index}")
             nav.setCheckable(True)
             nav.setProperty("nav", True)
@@ -375,7 +374,6 @@ class MainWindow(QMainWindow):
         layout.addLayout(row)
         frame, contents = card()
         contents.addWidget(label("Ny kjøring", section=True))
-        contents.addWidget(label("Velg kildemappen, kontroller prøvene og importer til databasen."))
         actionrow = QHBoxLayout()
         self.begin_button = button("Importer kjøring", "begin-import", primary=True)
         self.begin_button.clicked.connect(lambda: self.navigate(1))
@@ -383,12 +381,11 @@ class MainWindow(QMainWindow):
         actionrow.addStretch()
         contents.addLayout(actionrow)
         layout.addWidget(frame)
-        layout.addWidget(label("Fortsett med vurdering og redigering i rapportoversikten.", muted=True))
         layout.addStretch()
         return page
 
     def _import_page(self) -> QWidget:
-        page, layout = self._page("Importer kjøring", "Velg PRONTO-mappen eller resultatmappene fra én kjøring.")
+        page, layout = self._page("Importer kjøring", "")
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         inner = QWidget()
@@ -437,13 +434,13 @@ class MainWindow(QMainWindow):
         options.setHorizontalSpacing(12)
         self.report_version = QComboBox()
         self.report_version.setObjectName("report-version")
-        self.report_version.setAccessibleName("Rapportgrunnlag")
+        self.report_version.setAccessibleName("Filversjon")
         self.report_version.setToolTip("Nyeste tilgjengelige prioriterer report_preQC_newPRONTO_version, deretter report_preQC og rådata.")
         for text, value in (("Nyeste tilgjengelige", "auto"), ("Ny PRONTO-versjon", "new"), ("Tidligere PRONTO-versjon", "legacy"), ("Rådata", "raw")):
             self.report_version.addItem(text, value)
         self.cnv_source = QComboBox()
         self.cnv_source.setObjectName("cnv-source")
-        self.cnv_source.setAccessibleName("CNV-grunnlag")
+        self.cnv_source.setAccessibleName("CNV-tabell")
         self.cnv_source.addItem("Sammenslått CNV-tabell", "merged")
         self.cnv_source.addItem("Cancan", "cancan")
         self.cnv_solution = QComboBox()
@@ -452,14 +449,21 @@ class MainWindow(QMainWindow):
         for text, value in (("Main", "main"), ("Alternativ 01", "alt01"), ("Alternativ 02", "alt02")):
             self.cnv_solution.addItem(text, value)
         self.cnv_solution.setEnabled(False)
-        for column, (title, widget) in enumerate((("Rapportgrunnlag", self.report_version), ("CNV-grunnlag", self.cnv_source), ("Cancan-løsning", self.cnv_solution))):
+        for column, (title, widget) in enumerate((("Filversjon", self.report_version), ("CNV-tabell", self.cnv_source), ("Cancan-løsning", self.cnv_solution))):
             caption = label(title)
             caption.setBuddy(widget)
             options.addWidget(caption, 0, column)
             options.addWidget(widget, 1, column)
             options.setColumnStretch(column, 1)
             widget.currentIndexChanged.connect(self._import_options_changed)
-        contents.addLayout(options)
+        self.advanced_import = QWidget()
+        self.advanced_import.setLayout(options)
+        self.advanced_import.hide()
+        advanced = button('Avansert', 'advanced-import-options')
+        advanced.setCheckable(True)
+        advanced.toggled.connect(self.advanced_import.setVisible)
+        contents.addWidget(advanced, alignment=Qt.AlignmentFlag.AlignRight)
+        contents.addWidget(self.advanced_import)
         inner_layout.addWidget(foldercard)
         self.plan_summary = label("Velg mappe. Filene finnes automatisk.", muted=True)
         self.plan_hint = label("", muted=True)
@@ -563,12 +567,10 @@ class MainWindow(QMainWindow):
         form.addRow("Kildearkiv", self.raw_field)
         form.addRow("Serverport", self.port_field)
         contents.addLayout(form)
-        contents.addWidget(label("Aktiv lagringsplass for denne økten.", muted=True))
         storage_row = QHBoxLayout()
         storage_row.addWidget(frame, 1)
         selection, selection_contents = card()
         selection_contents.addWidget(label("Neste oppstart", section=True))
-        selection_contents.addWidget(label("Velg en eksisterende PRONTO-datamappe. Endringen gjelder etter omstart.", muted=True))
         selection_row = QHBoxLayout()
         self.next_root = QLineEdit(str(getattr(self.runtime, "data_root", self.runtime.database_path.parent)))
         self.next_root.setAccessibleName("Datamappe ved neste oppstart")
@@ -591,9 +593,24 @@ class MainWindow(QMainWindow):
         self.save_settings_button.clicked.connect(self._save_next_launch)
         selection_contents.addLayout(options)
         selection_contents.addWidget(self.save_settings_button)
+        new_database = button('Ny tom database …', 'new-empty-database')
+        new_database.clicked.connect(self._new_database)
+        selection_contents.addWidget(new_database)
         selection_contents.addStretch()
         storage_row.addWidget(selection, 1)
         layout.addLayout(storage_row)
+        marker_card, marker_layout = card()
+        marker_layout.addWidget(label('Biomarkørliste', section=True))
+        self.marker_status = label('Ingen fil valgt', muted=True)
+        if getattr(self.runtime, 'biomarker_info', None):
+            info = self.runtime.biomarker_info
+            self.marker_status.setText(f'{info["name"]} · {len(info["genes"])} gener')
+        marker_layout.addWidget(self.marker_status)
+        marker_button = button('Velg XLSX …', 'choose-biomarker-list')
+        marker_button.clicked.connect(self._choose_biomarker_list)
+        marker_layout.addWidget(marker_button, alignment=Qt.AlignmentFlag.AlignLeft)
+        preferences_row = QHBoxLayout()
+        preferences_row.addWidget(marker_card, 1)
         frame, contents = card()
         contents.addWidget(label("Sikkerhetskopi", section=True))
         contents.addWidget(label("Lag en kopi av databasen. Kildearkiv og nøkkel må sikkerhetskopieres separat."))
@@ -606,7 +623,8 @@ class MainWindow(QMainWindow):
         self.backup_result = label("", muted=True)
         self.backup_result.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         contents.addWidget(self.backup_result)
-        layout.addWidget(frame)
+        preferences_row.addWidget(frame, 1)
+        layout.addLayout(preferences_row)
         self.account_state = label("Ikke innlogget", muted=True)
         layout.addWidget(self.account_state)
         self.account_button = button("Logg inn", "manage-account")
@@ -620,19 +638,36 @@ class MainWindow(QMainWindow):
         account_actions.addStretch()
         layout.addLayout(account_actions)
         layout.addStretch()
-        return page
+        layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(page)
+        return scroll
 
     def _choose_data_root(self) -> None:
         directory = QFileDialog.getExistingDirectory(self, "Velg datamappe ved neste oppstart", self.next_root.text())
         if directory:
             self.next_root.setText(directory)
 
+    def _new_database(self):
+        directory = QFileDialog.getExistingDirectory(self, 'Ny database: velg en tom mappe')
+        if directory:
+            self._job('Klargjør ny database …', lambda progress, cancel: self.runtime.prepare_empty_database(Path(directory)),
+                      lambda result: self._log('Ny tom database valgt. Start appen på nytt.'))
+
+    def _choose_biomarker_list(self):
+        path, _ = QFileDialog.getOpenFileName(self, 'Biomarkørliste', '', 'Excel (*.xlsx)')
+        if path:
+            self._job('Leser biomarkørliste …', lambda progress, cancel: self.runtime.set_biomarker_list(Path(path)),
+                      lambda result: self.marker_status.setText(f'{result["name"]} · {len(result["genes"])} gener'))
+
     def _save_next_launch(self) -> None:
         root, port = Path(self.next_root.text()), self.next_port.value()
         self._job("Lagrer oppstartsinnstillinger …", lambda progress, cancel: self.runtime.save_next_launch(root, port), lambda result: self._log("Innstillingene er lagret. Lukk og åpne appen for å bruke den valgte datamappen."))
 
     def _diagnostics_page(self) -> QWidget:
-        page, layout = self._page("Diagnostikk", "Hendelser fra denne økten.")
+        page, layout = self._page("Log", "")
         self.pdf_tools_status = label("PDF-kildeplott: kontrollerer verktøy …", muted=True)
         self.pdf_tools_status.setAccessibleName("Status for PDF-verktøy")
         layout.addWidget(self.pdf_tools_status)
