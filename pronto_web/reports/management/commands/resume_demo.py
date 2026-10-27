@@ -16,7 +16,8 @@ def inspect_demo_cohort(database: Path) -> tuple[int, tuple[str, ...]]:
             or database == Path(settings.DATABASES['default']['NAME']).resolve()):
         raise CommandError('Existing isolated *.demo.sqlite3 database required.')
     try:
-        with closing(sqlite3.connect(f'{database.as_uri()}?mode=ro', uri=True)) as connection:
+        from pronto_desktop.runtime import sqlite_readonly_uri
+        with closing(sqlite3.connect(sqlite_readonly_uri(database), uri=True)) as connection:
             if connection.execute('PRAGMA quick_check').fetchone() != ('ok',):
                 raise CommandError('Demo database failed its integrity check.')
             reports = connection.execute('SELECT report_id FROM reports_reportrecord ORDER BY report_id LIMIT 501').fetchall()

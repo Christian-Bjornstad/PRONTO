@@ -5,6 +5,7 @@ import os
 import site
 import sys
 import traceback
+import tempfile
 
 PROJECT_DIR = Path(__file__).resolve().parent
 
@@ -27,16 +28,23 @@ def activate_user_site():
 
 
 def record_failure(stage, error):
-    logs = Path(os.environ.get("LOCALAPPDATA") or Path.home() / ".local" / "share") / "PRONTO" / "logs"
-    try:
-        logs.mkdir(parents=True, exist_ok=True)
-        path = logs / "bootstrap.log"
-        with path.open("a", encoding="utf-8") as output:
-            output.write(f"\n{stage}: {type(error).__name__}: {error}\n")
-            traceback.print_exception(type(error), error, error.__traceback__, file=output)
-        print(f"PRONTO could not {stage}: {error}\nDetails: {path}")
-    except OSError:
-        print(f"PRONTO could not {stage}: {error}")
+    print(f"PRONTO could not {stage}: {error}")
+    candidates = [Path(os.environ.get('LOCALAPPDATA') or Path.home() / '.local' / 'share') / 'PRONTO' / 'logs',
+                  Path(tempfile.gettempdir()) / 'PRONTO' / 'logs']
+    for logs in candidates:
+        try:
+            logs.mkdir(parents=True, exist_ok=True)
+            path = logs / 'bootstrap.log'
+            with path.open('a', encoding='utf-8') as output:
+                output.write(f'\n{stage}: {type(error).__name__}: {error}\n')
+                traceback.print_exception(type(error), error, error.__traceback__, file=output)
+            print(f'Feillogg: {path}\nLim denne mappen inn i adressefeltet i Filutforsker:\n{logs}')
+            return path
+        except OSError:
+            continue
+    print('Feilloggen kunne ikke lagres. Kopier feildetaljene nedenfor:')
+    traceback.print_exception(type(error), error, error.__traceback__, file=sys.stdout)
+    return None
 
 
 def install(*, project_dir=PROJECT_DIR, user_site=None, pip_main=None, importer=importlib.import_module):

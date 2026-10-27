@@ -4,6 +4,7 @@ import importlib
 import runpy
 import site
 import sys
+import sqlite3
 
 PROJECT_DIR = Path(__file__).resolve().parent
 _helpers = runpy.run_path(str(PROJECT_DIR / "install_python_felles.py"), run_name="pronto_bootstrap_helpers")
@@ -41,7 +42,12 @@ def main(*, project_dir=PROJECT_DIR, argv=None):
         return start(project_dir=project_dir, argv=argv)
     except Exception as error:
         _helpers["record_failure"]("start", error)
-        print("Run PRONTO_INSTALL.cmd to install or repair the application dependencies.")
+        if isinstance(error, ImportError):
+            print('Kjør PRONTO_INSTALL.cmd for å installere eller reparere Python-avhengighetene.')
+        elif isinstance(error, sqlite3.Error):
+            print('Feil ved database eller sikkerhetskopi. Behold datamappen; reinstallering av Python-avhengigheter løser ikke denne feilen.')
+        else:
+            print('Se feilloggen ovenfor. Behold eksisterende datamappe og database.')
         return 1
 
 

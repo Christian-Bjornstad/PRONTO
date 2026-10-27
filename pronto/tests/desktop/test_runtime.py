@@ -13,6 +13,59 @@ import pytest
 ROOT = Path(__file__).resolve().parents[3]
 
 
+def test_sqlite_readonly_uri_supports_unc_and_escapes_filename():
+    from pathlib import PureWindowsPath
+    from urllib.parse import urlsplit, unquote
+    from pronto_desktop.runtime import sqlite_readonly_uri
+    path = PureWindowsPath(r'\\files.example.test\team\PRONTO #1\prøve%.sqlite3')
+    uri = sqlite_readonly_uri(path)
+    parsed = urlsplit(uri)
+    assert parsed.netloc in ('', 'localhost')
+    assert unquote(parsed.path) == path.as_posix()
+    assert parsed.query == 'mode=ro' and not parsed.fragment
+    assert '%23' in uri and '%25' in uri
+    # Exercise the actual bundled SQLite URI parser without accessing a share.
+    with sqlite3.connect(uri.replace('mode=ro', 'mode=memory'), uri=True) as connection:
+        assert connection.execute('select 1').fetchone() == (1,)
+
+
+def test_sqlite_readonly_uri_cannot_create_or_modify_database(tmp_path):
+    from pronto_desktop.runtime import sqlite_readonly_uri
+    database = tmp_path / 'report #1 %.sqlite3'
+    with sqlite3.connect(database) as connection:
+        connection.execute('create table marker (value text)')
+    with sqlite3.connect(sqlite_readonly_uri(database), uri=True) as connection:
+        with pytest.raises(sqlite3.OperationalError):
+            connection.execute("insert into marker values ('changed')")
+    missing = tmp_path / 'missing.sqlite3'
+    with pytest.raises(sqlite3.OperationalError):
+        sqlite3.connect(sqlite_readonly_uri(missing), uri=True)
+    assert not missing.exists()
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows UNC integration')
+def test_backup_real_unc_share_and_original_authority_failure(tmp_path):
+    from pronto_desktop.runtime import backup_sqlite
+    # Use an existing Windows administrative share, never create/change shares.
+    drive = tmp_path.drive.rstrip(':')
+    host = os.environ.get('COMPUTERNAME', 'localhost')
+    share = Path(f'//{host}/{drive}$')
+    if not share.is_dir():
+        pytest.skip('Local Windows administrative share is not available')
+    source = tmp_path / 'prøve #1 %.sqlite3'
+    with sqlite3.connect(source) as connection:
+        connection.execute('create table marker (value text)')
+        connection.execute("insert into marker values ('preserved')")
+    unc = share.joinpath(*source.parts[1:])
+    # The reported failure occurs before any migration or backup writes.
+    with pytest.raises(sqlite3.OperationalError, match='invalid uri authority'):
+        sqlite3.connect(unc.as_uri() + '?mode=ro', uri=True)
+    backup = backup_sqlite(unc, share.joinpath(*tmp_path.parts[1:], 'backups'))
+    with sqlite3.connect(backup) as connection:
+        assert connection.execute('select value from marker').fetchall() == [('preserved',)]
+        assert connection.execute('PRAGMA integrity_check').fetchone() == ('ok',)
+
+
 def test_server_lifecycle_health_reuse_and_port_conflict():
     from pronto_desktop.server import LocalServer
 

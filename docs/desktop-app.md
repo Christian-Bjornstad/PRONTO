@@ -1,5 +1,32 @@
 # PRONTO desktop
 
+## Oppstartsretting 0.6.1 — 27. oktober 2026
+
+Feilen `invalid uri authority` ved oppstart fra nettverksområde skyldtes at
+sikkerhetskopieringen før migrering brukte `Path.as_uri()` direkte. En UNC-sti
+ble dermed en SQLite-URI med nettverksserver som authority, som standard SQLite
+avviser. Backup bruker nå `file://localhost//server/share/...?...` med korrekt
+escaping og `mode=ro`. Dette bevarer UNC-stien og skrivebeskyttet kildelesing.
+Sikkerhetskopieringen hoppes ikke over. Rettelsen gjelder også lesing av lokale
+demodatabaser fra UNC-sti og gjør ikke SQLite egnet for samtidig flerbrukerdrift.
+
+Oppdater koden på `feature/pronto-desktop`, avslutt Python FELLES og start på
+nytt. Behold valgt datamappe, database, råarkiv og nøkkel. Ikke lag en ny database
+for å løse feilen. Denne feilen skyldes ikke manglende Python-avhengigheter.
+
+Ved oppstartsfeil skrives loggen normalt til
+`%LOCALAPPDATA%\PRONTO\logs\bootstrap.log` i den aktive Python/Citrix-økten.
+Lim `%LOCALAPPDATA%\PRONTO\logs` inn i adressefeltet i Filutforsker i samme
+økt. Hvis profilområdet ikke kan skrives til, brukes `%TEMP%\PRONTO\logs`.
+Feilmeldingen viser den faktiske mappen som ble brukt. Hvis ingen av stedene
+kan brukes, skrives feildetaljene direkte i Python-vinduet. Reinstallering
+anbefales bare ved importfeil, ikke ved databasefeil.
+
+Kontrollert på en eksisterende lokal Windows SMB/UNC-deling: opprinnelig feil,
+backup med spesialtegn i filnavn, migrering fra 0011, bevart brukerkonto og
+HTTP-oppstart. Jobbens Isilon/Citrix-område må prøves der; det er ikke tilgjengelig
+fra utviklingsmaskinen.
+
 PRONTO desktop samler filinnlasting, import til databasen, serverstart og åpning av HTML-rapportene i ett lokalt program. Velg PRONTO-mappen med kjøringsmappene, kontroller versjon og prøver, og importer. Appen bruker dagens rapportmotor, innlogging, vurderinger og historikk.
 
 ## Installere og starte

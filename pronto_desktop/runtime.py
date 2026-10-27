@@ -42,6 +42,16 @@ def _write_json(path: Path, data: dict) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def sqlite_readonly_uri(database) -> str:
+    """Keep a UNC server in the path, not SQLite's restricted URI authority."""
+    from urllib.parse import quote
+    if not database.is_absolute():
+        raise ValueError('SQLite requires an absolute database path.')
+    if database.as_posix().startswith('//'):
+        return 'file://localhost' + quote(database.as_posix(), safe='/:') + '?mode=ro'
+    return database.as_uri() + '?mode=ro'
+
+
 def backup_sqlite(database: Path, destination_root: Path) -> Path:
     """Use SQLite's backup API, including committed WAL data, then check integrity."""
     database = Path(database).resolve(strict=True)
@@ -49,7 +59,7 @@ def backup_sqlite(database: Path, destination_root: Path) -> Path:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     destination = destination_root / f"pronto-{stamp}-{secrets.token_hex(3)}.sqlite3"
     try:
-        with sqlite3.connect(database.as_uri() + "?mode=ro", uri=True, timeout=20) as source:
+        with sqlite3.connect(sqlite_readonly_uri(database), uri=True, timeout=20) as source:
             with sqlite3.connect(destination, timeout=20) as target:
                 os.chmod(destination, 0o600)
                 source.backup(target, pages=256, sleep=0.05)
