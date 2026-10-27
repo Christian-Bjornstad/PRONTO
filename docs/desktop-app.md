@@ -1,5 +1,28 @@
 # PRONTO desktop
 
+## Automatisk databasevalg for nettverksinstallasjon fra 0.6.4
+
+Start den oppdaterte appen først som brukeren som allerede har fungerende
+databasevalg. Etter vellykket oppstart publiserer appen `pronto-installation.json`
+ved siden av PRONTO_START.cmd dersom program, datarot og database ligger på
+Windows-nettverksstier. Filen inneholder bare datarot og databasepeker, ingen
+passord eller hemmelig nøkkel. Den får arvede filrettigheter fra programmappen
+og erstattes aldri automatisk dersom den allerede finnes.
+
+Kollegene starter deretter appen fra samme oppdaterte programmappe. En bruker
+uten eget databasevalg leser installasjonens peker og husker den i egen profil.
+Eldre profil med samme datarot uten databasepeker kan også bruke fellesvalget.
+Ingen database kopieres og ingen tom erstatningsdatabase opprettes ved feil.
+Eksplisitte valg av annen database beholdes. En privat database på lokal disk
+publiseres ikke til kolleger. Relative stier brukes når data ligger i programmappen,
+ellers beholdes den fullstendige nettverksstien.
+
+Første bruker må kunne opprette pekerfilen i programmappen. De øvrige trenger
+lesetilgang til denne filen. Alle trenger fortsatt faktisk tilgang til datarot,
+database og opprinnelig secret.key. Ved endring av felles databasevalg må områdets
+forvalter oppdatere pekerfilen og avklare brukernes lagrede valg. Dette er
+automatisk oppsett, ikke ny støtte for samtidig skriving til delt SQLite-fil.
+
 ## Felles programmappe og personlig oppsett fra 0.6.3
 
 Desktopappen skriver ikke lenger til felles `.local-web/config.json` ved oppstart.

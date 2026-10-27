@@ -277,6 +277,10 @@ class MainWindow(QMainWindow):
         self._timer.timeout.connect(self._refresh_server)
         self._timer.start()
         QTimer.singleShot(0, self.refresh_counts)
+        for warning in getattr(self.runtime, 'startup_warnings', ()):
+            self._log(warning)
+        if getattr(self.runtime, 'startup_warnings', ()):
+            self.statusBar().showMessage('Oppstartsmerknad – se Log')
 
     def _sidebar(self) -> QFrame:
         sidebar = QFrame()

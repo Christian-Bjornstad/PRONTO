@@ -21,6 +21,8 @@ htmlcov/
 .local-web/
 initial-users.json
 initial-admin.json
+pronto-installation.json
+.pronto-installation-*.tmp
 STARTPASSORD.txt
 
 # Generated PRONTO output and local review state

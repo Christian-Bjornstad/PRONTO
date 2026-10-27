@@ -80,8 +80,19 @@ class DesktopRuntime:
                  database_path: Path | None = None):
         self.config_path = _preferences_path()
         preferences = _read_json(self.config_path)
+        shared = None
+        if (data_root is None and database_path is None and not preferences.get('database')
+                and not preferences.get('new_database')):
+            from .shared_installation import read_locator
+            shared = read_locator(ROOT)
+            if shared and (not preferences.get('data_root') or
+                    Path(preferences['data_root']).expanduser().resolve() == shared['data_root']):
+                data_root = shared['data_root']
+                database_path = shared['database']
+            else:
+                shared = None
         selected = data_root if data_root is not None else preferences.get("data_root")
-        self._remembered = data_root is None and bool(preferences.get("data_root"))
+        self._remembered = shared is not None or data_root is None and bool(preferences.get("data_root"))
         self._new_database = bool(self._remembered and preferences.get('new_database'))
         self.data_root = Path(selected).expanduser().resolve() if selected else ROOT / ".local-web"
         self._legacy = not selected or self.data_root == ROOT / ".local-web"
@@ -235,8 +246,15 @@ class DesktopRuntime:
             # Ephemeral ports are deliberately not remembered (only tests use port 0).
             _write_json(self.config_path, {"data_root": str(self.data_root), "database": str(self.database_path),
                                            "port": self.port or 8770})
+            from .shared_installation import publish_locator
+            try:
+                publish_locator(ROOT, self.data_root, self.database_path)
+            except (OSError, ValueError) as error:
+                self.startup_warnings.append('Felles databasevalg kunne ikke publiseres i programmappen. '
+                    'Områdets forvalter må gi tilgang for førstegangsoppsettet. ' + str(error))
             from .capabilities import PDF_TOOL_HELP
-            self.startup_warnings = [] if self.capabilities()["pdf"] else [PDF_TOOL_HELP]
+            if not self.capabilities()['pdf']:
+                self.startup_warnings.append(PDF_TOOL_HELP)
             connection.close()
 
     def capabilities(self) -> dict[str, bool]:
