@@ -321,11 +321,13 @@ def test_felles_install_uses_current_interpreter_and_pinned_requirements(tmp_pat
     assert "PyQt6.QtWidgets" in imported
 
 
-def test_installer_reports_missing_poppler_instead_of_claiming_complete(tmp_path, monkeypatch):
+def test_installer_reports_missing_pdf_backend_instead_of_claiming_complete(tmp_path, monkeypatch):
     import install_python_felles
     import shutil
     monkeypatch.setattr(shutil, "which", lambda name: None)
-    with pytest.raises(RuntimeError, match="Poppler"):
+    from pronto_report.renderers import pdfium
+    monkeypatch.setattr(pdfium, 'available', lambda: False)
+    with pytest.raises(RuntimeError, match="PDF-leseren"):
         install_python_felles.install(project_dir=ROOT, user_site=tmp_path,
                                       pip_main=lambda args: 0, importer=lambda name: None)
 

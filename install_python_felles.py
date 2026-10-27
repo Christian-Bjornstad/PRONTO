@@ -71,7 +71,7 @@ def install(*, project_dir=PROJECT_DIR, user_site=None, pip_main=None, importer=
         raise RuntimeError(f"Dependency installation exited with code {result}.")
     add_path(project)
     importlib.invalidate_caches()
-    for name in ("PyQt6.QtWidgets", "django", "pandas", "openpyxl", "pronto_desktop.runtime"):
+    for name in ("PyQt6.QtWidgets", "django", "pandas", "openpyxl", "pypdfium2", "pronto_desktop.runtime"):
         importer(name)
     from pronto_desktop.capabilities import PDF_TOOL_HELP, capabilities
     if not capabilities()["pdf"]:

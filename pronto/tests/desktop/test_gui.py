@@ -224,8 +224,8 @@ def test_missing_pdf_tools_are_reported_without_blocking_gui(window, qtbot):
     window.refresh_counts()
     qtbot.waitUntil(lambda: window._worker is None)
     assert threads and threads[0] != get_ident()
-    assert "Poppler" in window.pdf_tools_status.text()
-    assert "pdfinfo: mangler" in window.pdf_tools_status.text()
+    assert "PDF-leseren mangler" in window.pdf_tools_status.text()
+    assert "PRONTO_INSTALL.cmd" in window.pdf_tools_status.text()
     window.navigate(4)
     assert window.scan_button.isEnabled()
 

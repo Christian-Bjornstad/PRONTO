@@ -34,8 +34,9 @@ def _validate_plot(content, media):
     if len(content) > _MAX_ATTACHMENT_BYTES:
         raise ImportProblem('Et plott overskrider rapportgrensen på 12 MiB.')
     if media == 'application/pdf':
-        if not shutil.which('pdfinfo') or not shutil.which('pdftoppm'):
-            raise ImportProblem('PDF-verktøy mangler: installer Poppler (pdfinfo og pdftoppm) før import av PDF-plott.')
+        from pronto_desktop.capabilities import capabilities, PDF_TOOL_HELP
+        if not capabilities()['pdf']:
+            raise ImportProblem(PDF_TOOL_HELP)
         try:
             _pdf_pages(content)
         except Exception:

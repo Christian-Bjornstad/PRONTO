@@ -1164,9 +1164,9 @@ class MainWindow(QMainWindow):
         if "capabilities" in result:
             capabilities = result["capabilities"]
             detail = " · ".join(f"{name}: {'funnet' if capabilities.get(name) else 'mangler'}" for name in ("pdfinfo", "pdftoppm"))
-            message = f"PDF-kildeplott klare · {detail}" if capabilities.get("pdf") else (
-                f"PDF-kildeplott krever Poppler · {detail}. Installer Poppler og start appen på nytt."
-            )
+            message = ('PDF-kildeplott klare · innebygd PDF-leser' if capabilities.get('pdfium')
+                else f'PDF-kildeplott klare · Poppler · {detail}' if capabilities.get('pdf')
+                else 'PDF-leseren mangler. Kjør PRONTO_INSTALL.cmd og start Python FELLES på nytt.')
             self.pdf_tools_status.setText(message)
         if "history" in result:
             self._persisted_history = []

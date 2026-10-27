@@ -25,7 +25,7 @@ Den nye forvalteren må overta tre forskjellige ting: programkoden, det private 
 ### Anbefalt første arbeidsøkt
 
 1. Pakk ut kildekoden til en ny prosjektmappe. Kontroller versjonen mot kontrollnotatet. Ikke arbeid videre i den eldre PRONTO-hovedmappen ved en feil.
-2. Installer Python-miljøet og Poppler som beskrevet i kapittel 7. Bruk en isolert database ved første kontroll.
+2. Installer Python-miljøet med den innebygde PDF-leseren som beskrevet i kapittel 7. Bruk en isolert database ved første kontroll.
 3. Avtal om overtakelsen gjelder en tom installasjon eller eksisterende rapporter og historikk. Flytt eksisterende privat tilstand etter fremgangsmåten i kapittel 14.
 4. Opprett første personlige konto i en tom database, eller logg inn med eksisterende konto. Kontroller riktig datamappe i Innstillinger, prøv kjøringsmappene i Importer og avklar alle kilder før import. Kontroller rapporttilgang med både riktig konto og en annen konto uten tilgang.
 5. Gjennomfør en rapport på godkjent testgrunnlag: åpne, rediger, lagre, last siden på nytt, ferdigstill og last ned begge PDF-formatene. Bruk en testkopi ved øving.
@@ -203,7 +203,7 @@ py -3.14 -m venv .venv
 .\.venv\Scripts\python.exe -m pronto_desktop
 ```
 
-PDF-kildeplott valideres før de lagres og krever i tillegg Poppler med pdfinfo og pdftoppm tilgjengelig i PATH for Python-prosessen. Python-pakken pdf2image installerer ikke disse programmene. PDF-rapportene PRONTO selv produserer bruker ReportLab. Installer Poppler i godkjent område, legg bin-mappen i PATH og start Python FELLES eller appen på nytt etter endring. Kontroller verktøyene under Log og med Get-Command pdfinfo, pdftoppm i PowerShell. Import med PDF-plott avvises før rapporten lagres hvis verktøyene mangler. Et program som har vært åpent mens PATH ble endret kan fortsatt bruke gammelt miljø.
+PDF-kildeplott valideres før de lagres. Fra 0.6.2 brukes pypdfium2==5.14.0, som installeres sammen med Python-avhengighetene. Ingen separat Poppler-installasjon eller PATH-endring kreves. PDFium leveres som et native bibliotek i Python-miljøet; kjøremiljøet må tillate denne DLL-en. Eldre Poppler-oppsett støttes som reserve dersom PDFium ikke er tilgjengelig. PDF-rapportene PRONTO produserer bruker fortsatt ReportLab.
 
 ### Første oppstart og eksisterende data
 
@@ -517,7 +517,7 @@ Ta en konsistent backup og noter nåværende kodeversjon før endring. Installer
 | Manglende SECRET_KEY | Bruk launcheren eller sett en privat nøkkel ved direkte Django-oppstart. Ikke bruk testnøkkelen i drift. |
 | Lagre gir konflikt | Sikre lokal JSON, last siste tilstand og avstem manuelt. 409 skal ikke løses ved å overskrive databaseraden. |
 | Feil ved PDF eller HTML | Behold kladden. Kontroller serverlogg, lagret revisjon, kontrakt og tilgjengelige vedlegg eller figurer. |
-| CNV eller QC-plott vises ikke | Kontroller pdfinfo og pdftoppm, ReportAsset, deklarert hash, filtype og vedleggsgrense. |
+| CNV eller QC-plott vises ikke | Kontroller innebygd PDF-leser under Log, ReportAsset, deklarert hash, filtype og vedleggsgrense. |
 | IGV mangler referanse | Kontroller komplett FASTA og FAI, riktig bygg og autentiserte referanseruter. Start lokal server på nytt. |
 | IGV viser ingen reads | Kontroller filpar, indeks, koordinat, chr-navn, referansebygg og at regionen finnes i utdraget. |
 | BAM Save er utilgjengelig | Windows er kun for visning. På Linux kontrolleres policy, private røtter, grenser, referanse og write grant. |
@@ -556,7 +556,7 @@ Den tidligere gjennomkjøringen på separat database kontrollerte import, CSRF-b
 
 ### Gjenstående miljøkontroller
 
-Den leverte jobbkjøringen er prøvd lokalt i separat database: alle 13 prøver ble importert, inkludert åtte uten Study_id. Python FELLES, Ivanti, tilgangsrettigheter og Poppler må fortsatt kontrolleres på jobb-PC-en. Klinisk innhold er ikke faglig godkjent av den tekniske testen. Native Windows dekker ikke de Linux-avhengige funksjonene for permanent BAM eller CRAM-bevaring. Utelatte tester er ikke beståtte tester.
+Den leverte jobbkjøringen er prøvd lokalt i separat database: alle 13 prøver ble importert, inkludert åtte uten Study_id. Python FELLES, Ivanti, tilgangsrettigheter og PDF-leseren må fortsatt kontrolleres på jobb-PC-en. Klinisk innhold er ikke faglig godkjent av den tekniske testen. Native Windows dekker ikke de Linux-avhengige funksjonene for permanent BAM eller CRAM-bevaring. Utelatte tester er ikke beståtte tester.
 
 Docker Linux-tjenesten var ikke tilgjengelig ved den tidligere kontrollen og Docker-fixtureløpet ble da ikke kjørt på nytt. Dockerfile beskriver den eldre kommandolinjeflyten, ikke en ferdig desktop- eller webdistribusjon. Det foreligger heller ikke ekstern produksjonsdrift, klinisk godkjenning, generell belastningstest eller full sårbarhetsrevisjon av avhengighetene i denne overleveringen.
 

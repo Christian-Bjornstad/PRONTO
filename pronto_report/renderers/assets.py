@@ -25,6 +25,9 @@ def _attachment_path(root: Path, name: str) -> Path:
 
 
 def _pdf_pages(payload: bytes) -> tuple[tuple[str, bytes], ...]:
+    from . import pdfium
+    if pdfium.available():
+        return pdfium.render_pages(payload, max_pages=_MAX_PDF_PAGES)
     try:
         from pdf2image import convert_from_bytes, pdfinfo_from_bytes
 

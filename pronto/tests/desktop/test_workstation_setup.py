@@ -79,6 +79,8 @@ def test_patient_label_accepts_supplied_display_identifiers():
 
 
 def test_long_pdf_plots_are_rendered_in_bounded_batches(monkeypatch):
+    from pronto_report.renderers import pdfium
+    monkeypatch.setattr(pdfium, 'available', lambda: False)
     import pdf2image
     from PIL import Image
     from pronto_report.renderers.assets import _pdf_pages

@@ -35,7 +35,7 @@ Pakk ut hele programmappen til en fast plass. Bruk PRONTO_INSTALL.cmd første ga
 
 Lukk den gamle appen før du starter en oppdatert versjon. Versjon 0.3 har automatisk filkobling og felles PRONTO-ikon i app, oppgavelinje, nettleser og rapport. Kjør `PRONTO_SNARVEI.cmd` hvis du vil lage en Windows-snarvei med dette ikonet. Snarveien peker på den utpakkede programmappen, som derfor må bli liggende på samme plass.
 
-Installer også Poppler slik at `pdfinfo` og `pdftoppm` finnes i PATH for den samme brukeren og Python-økten. Dette gjøres normalt gjennom lokal IT. Kontroller med `Get-Command pdfinfo, pdftoppm` i PowerShell, og start Python FELLES eller appen på nytt etter endring av PATH. Python-pakkene alene installerer ikke disse programmene. Log viser status; import med PDF-plott avvises før rapporten lagres hvis verktøyene mangler.
+Fra versjon 0.6.2 installerer PRONTO_INSTALL.cmd PDF-leseren pypdfium2 i det aktive Python-miljøet. Poppler og endring av PATH er ikke nødvendig. Lukk Python FELLES etter installasjon og start PRONTO_START.cmd på nytt. Den innebygde leseren bruker en DLL fra Python-pakken; ingen eksterne PDF-programmer startes. Hvis biblioteket mangler, kan et eksisterende Poppler-oppsett fortsatt brukes som reserve.
 
 Med prosjektets Python 3.14-miljø kan du også bruke:
 
@@ -137,7 +137,7 @@ Lag et syntetisk eksempel med fire kjøringsmapper, historiske metadata, eksplis
 
 Velg Out/desktop-example i Importer. Kjør filkontroll og merk SYN0001-D01-P01-A01 før import. Prøven er bevisst satt til `Create_report = -` for å teste dette valget. Bruk en separat testdatabase. Eksempelet leser ingen pasientfiler og oppretter ingen egen sample_list i kildemappene.
 
-Den leverte kjøringen er testet i separat lokal database. Filsøket fant 13 DNA-prøver; alle 13 ble importert, inkludert åtte uten Study_id. En importert rapport er åpnet med alle plott, gennavn fra biomarkørlisten i fet skrift og lagring av kladd. Databasebackup er kontrollert. Rapportinnhold må fortsatt gjennomgås faglig. Python FELLES, Ivanti og Poppler må også prøves i det faktiske jobbmiljøet.
+Den leverte kjøringen er testet i separat lokal database. Filsøket fant 13 DNA-prøver; alle 13 ble importert, inkludert åtte uten Study_id. En importert rapport er åpnet med alle plott, gennavn fra biomarkørlisten i fet skrift og lagring av kladd. Databasebackup er kontrollert. Rapportinnhold må fortsatt gjennomgås faglig. Python FELLES, Ivanti og den innebygde PDF-leseren må også prøves i det faktiske jobbmiljøet.
 
 ## Utviklerkontroll
 
@@ -219,3 +219,8 @@ I rapportoversikten finner molpat Administrer revisjoner. Eldre utkast kan fjern
 Presentation PDF følger InPreD MolMDT-enkelsidemalen i 16:9: pasientfelt til venstre, signaturer, CNV og RNA øverst, hovedfunn og beskrivelser i midten og inkluderte mutasjoner til høyre. Bare inkluderte funn rapporteres; hovedfunn krever også Report highlight. Tomme resultater vises som manglende opplysninger. Lange tabeller og beskrivelser fortsetter på senere sider. Fullstendige kildeannotasjoner, øvrige notater og QC følger på detaljsider, og valgte figurer kommer til slutt.
 
 Under Tumour board report → Presentation — annotations finnes manuelle felt for de markerte hovedfunnene. GoF/LoF, Sensitive, Resistant, EMA for pasientens tumortype eller annen tumortype, signaturstatus og beskrivelse lagres sammen med vurderingen. Appen beregner ikke behandlingsindikasjon, HRD/MSI-status eller regulatorisk godkjenning fra disse feltene. De fylles ut og kontrolleres av ansvarlig fagbruker. Uutfylte felt viser en strek i presentasjonen. ESMO-formatet beholder sitt stående rapportoppsett.
+
+
+## PDF-leser fra 0.6.2
+
+Oppdater programfilene, kjør PRONTO_INSTALL.cmd én gang for å installere pypdfium2==5.14.0, lukk Python FELLES og start på nytt. Denne versjonen fjerner installasjonskravet om pdfinfo og pdftoppm. Datamappe, database og eksisterende rapporter beholdes. PDF-leseren behandler én side om gangen med grenser på 100 sider, 32 millioner piksler per side og 200 millioner piksler samlet per PDF. Native PDFium-kall er serialisert fordi biblioteket ikke er trådsikkert.
