@@ -1,5 +1,28 @@
 # PRONTO desktop
 
+## Felles programmappe og personlig oppsett fra 0.6.3
+
+Desktopappen skriver ikke lenger til felles `.local-web/config.json` ved oppstart.
+Filen brukes bare som eldre databasepeker ved første oppstart. Faktisk database,
+datarot og lokal port huskes i hver brukers `%LOCALAPPDATA%\PRONTO\desktop.json`.
+Det opprettes ingen privat kopi av pasientdatabasen. En eventuell kopi av privat
+brukerbootstrap lagres også i brukerprofilen, ikke tilbake i programmappen.
+
+Hvis felles config.json ikke kan leses, åpnes et valg av eksisterende SQLite-fil.
+Velg den avtalte databasen, ikke en backup eller en ny fil. Ved standardoppsett
+ligger den i `.local-web/pronto.sqlite3`; nyere datarøtter bruker
+`database/pronto.sqlite3`. Appen trenger også den opprinnelige secret.key i
+dataroten. Valget huskes per bruker. Ved database utenfor den eldre dataroten
+kan `--data-root <opprinnelig datarot> --database <eksisterende database>` angi
+begge eksplisitt. Manglende nøkkel eller filtilgang skal ikke omgås ved å opprette
+ny database eller erstatte nøkkelen.
+
+Programfiler trenger lesetilgang. Databasen og dataroten trenger rettigheter til
+skriving og oppretting av SQLite-journal, råarkiv og backup. Nøkkelen trenger
+lesetilgang. PRONTO-brukere og administratorrollen endrer ikke Windows/Isilon-
+rettigheter. Dersom disse mangler, må tilgang gis av områdets forvalter.
+Oppstartsrettingen innfører ikke samtidig flerbrukerlagring på en delt SQLite-fil.
+
 ## Oppstartsretting 0.6.1 — 27. oktober 2026
 
 Feilen `invalid uri authority` ved oppstart fra nettverksområde skyldtes at

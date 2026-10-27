@@ -15,6 +15,10 @@ ROOT = Path(__file__).resolve().parents[1]
 _SETUP_LOCK = threading.RLock()
 
 
+class ConfigurationAccessError(PermissionError):
+    """The shared legacy locator cannot be read; selecting a DB is explicit recovery."""
+
+
 def _preferences_path() -> Path:
     base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / ".local" / "share")
     return base / "PRONTO" / "desktop.json"
@@ -72,7 +76,8 @@ def backup_sqlite(database: Path, destination_root: Path) -> Path:
 
 
 class DesktopRuntime:
-    def __init__(self, data_root: Path | None = None, port: int | None = None):
+    def __init__(self, data_root: Path | None = None, port: int | None = None,
+                 database_path: Path | None = None):
         self.config_path = _preferences_path()
         preferences = _read_json(self.config_path)
         selected = data_root if data_root is not None else preferences.get("data_root")
@@ -80,12 +85,18 @@ class DesktopRuntime:
         self._new_database = bool(self._remembered and preferences.get('new_database'))
         self.data_root = Path(selected).expanduser().resolve() if selected else ROOT / ".local-web"
         self._legacy = not selected or self.data_root == ROOT / ".local-web"
+        saved_database = preferences.get('database') if data_root is None else None
+        self._selected_database = Path(database_path or saved_database).expanduser().resolve() if database_path or saved_database else None
+        if self._selected_database is not None:
+            self._legacy = self._legacy or self._selected_database.parent == self.data_root
         self._requested_port = port if port is not None else preferences.get("port")
         self._server = None
         self._initialized = False
         self.startup_warnings = []
         self.biomarker_info = None
         self.database_path = self.data_root / ("pronto.sqlite3" if self._legacy else "database/pronto.sqlite3")
+        if self._selected_database is not None:
+            self.database_path = self._selected_database
         self.raw_root = self.data_root / "raw_imports"
 
     @property
@@ -115,12 +126,18 @@ class DesktopRuntime:
                 return
             if self._new_database and self.database_path.exists():
                 raise RuntimeError('Den valgte nye databasen finnes allerede. Velg den som eksisterende database.')
-            if self._legacy:
-                from scripts.start_web import STATE
-                config = _read_json(STATE / "config.json")
-                selected_db = Path(config.get("database") or STATE / "pronto.sqlite3")
+            if self._legacy and self._selected_database is None:
+                try:
+                    config = _read_json(self.data_root / 'config.json')
+                except PermissionError as error:
+                    raise ConfigurationAccessError('Kan ikke lese felles config.json. Velg eksisterende PRONTO-database; ingen ny database opprettes.') from error
+                selected_db = Path(config.get("database") or self.data_root / "pronto.sqlite3")
                 self.database_path = (ROOT / selected_db).resolve() if not selected_db.is_absolute() else selected_db.resolve()
+                if config.get('database') and not self.database_path.is_file():
+                    raise ValueError('Databasen i fellesoppsettet finnes ikke. Velg eksisterende database; ingen erstatning opprettes.')
                 self._requested_port = self._requested_port if self._requested_port is not None else config.get("port", 8770)
+            if self._selected_database is not None and not self.database_path.is_file():
+                raise ValueError('Den valgte databasen finnes ikke. Ingen erstatning opprettes.')
             if self._remembered and not self._new_database and (not self.data_root.is_dir() or not self.database_path.is_file()):
                 raise RuntimeError("The remembered PRONTO database is unavailable. Restore its location or restart "
                                    "with an explicit --data-root to create a new empty database.")
@@ -130,25 +147,19 @@ class DesktopRuntime:
                     raise RuntimeError("Changing the PRONTO database requires a restart of the application.")
             self.data_root.mkdir(parents=True, exist_ok=True, mode=0o700)
             self.raw_root.mkdir(parents=True, exist_ok=True, mode=0o700)
-            if self._legacy:
-                from scripts.start_web import configure
-                # configure preserves the existing DB/key and local reference settings.
-                configure_port = None if self._requested_port == 0 else self._requested_port
-                self.database_path, selected_port, local_config_path = configure(port=configure_port)
-                if self._requested_port != 0:
-                    self._requested_port = selected_port
-            else:
-                self.database_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-                key_path = self.data_root / "secret.key"
-                if not key_path.exists():
-                    with key_path.open("x", encoding="utf-8") as key:
-                        os.chmod(key_path, 0o600)
-                        key.write(secrets.token_urlsafe(48))
-                key = key_path.read_text(encoding="utf-8").strip()
-                if len(key) < 50:
-                    raise ValueError("The local secret key is missing or invalid.")
-                os.environ.update({"DJANGO_SETTINGS_MODULE": "pronto_web.local_settings",
-                                   "PRONTO_DJANGO_SECRET_KEY": key, "PRONTO_DJANGO_DB": str(self.database_path)})
+            self.database_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            key_path = self.data_root / "secret.key"
+            if not key_path.exists():
+                if self._selected_database is not None and self.database_path.is_file():
+                    raise ValueError('Nøkkelen secret.key mangler for eksisterende database. Behold databasen og gjenopprett riktig nøkkel.')
+                with key_path.open("x", encoding="utf-8") as key:
+                    os.chmod(key_path, 0o600)
+                    key.write(secrets.token_urlsafe(48))
+            key = key_path.read_text(encoding="utf-8").strip()
+            if len(key) < 50:
+                raise ValueError("The local secret key is missing or invalid.")
+            os.environ.update({"DJANGO_SETTINGS_MODULE": "pronto_web.local_settings",
+                               "PRONTO_DJANGO_SECRET_KEY": key, "PRONTO_DJANGO_DB": str(self.database_path)})
             if not apps.ready:
                 import django
                 django.setup()
@@ -187,18 +198,21 @@ class DesktopRuntime:
             from .accounts import provision_team_accounts
             from shutil import copyfile
             saved_accounts = self.data_root / 'initial-users.json'
+            from hashlib import sha256
+            account_cache = self.config_path.parent / 'accounts' / sha256(str(self.database_path).encode()).hexdigest() / 'initial-users.json'
             configured_accounts = os.environ.get('PRONTO_INITIAL_USERS_FILE')
             bundled_accounts = Path(configured_accounts) if configured_accounts else ROOT / 'config' / 'initial-users.json'
-            accounts = saved_accounts if saved_accounts.is_file() else bundled_accounts
+            accounts = saved_accounts if saved_accounts.is_file() else bundled_accounts if bundled_accounts.is_file() else account_cache
             if configured_accounts == '':
                 accounts = None
             if configured_accounts and not bundled_accounts.is_file():
                 raise ValueError('Den valgte filen med startbrukere finnes ikke.')
             if accounts is not None and accounts.is_file():
                 provision_team_accounts(accounts)
-                if accounts != saved_accounts:
-                    copyfile(accounts, saved_accounts)
-                    os.chmod(saved_accounts, 0o600)
+                if accounts not in (saved_accounts, account_cache):
+                    account_cache.parent.mkdir(parents=True, exist_ok=True)
+                    copyfile(accounts, account_cache)
+                    os.chmod(account_cache, 0o600)
             from django.contrib.staticfiles.handlers import StaticFilesHandler
             from .accounts import provision_administrator
             admin_seed = ROOT / 'config' / 'initial-admin.json'
@@ -218,11 +232,9 @@ class DesktopRuntime:
                 if saved_marker.get('sha256') == self.biomarker_info['sha256']:
                     self.biomarker_info['name'] = saved_marker.get('name', marker_file.name)
                 settings.PRONTO_BIOMARKER_GENES = frozenset(self.biomarker_info['genes'])
-            if self._legacy:
-                _write_json(local_config_path, {**_read_json(local_config_path), "database": str(self.database_path),
-                                                "port": self.port or 8770})
             # Ephemeral ports are deliberately not remembered (only tests use port 0).
-            _write_json(self.config_path, {"data_root": str(self.data_root), "port": self.port or 8770})
+            _write_json(self.config_path, {"data_root": str(self.data_root), "database": str(self.database_path),
+                                           "port": self.port or 8770})
             from .capabilities import PDF_TOOL_HELP
             self.startup_warnings = [] if self.capabilities()["pdf"] else [PDF_TOOL_HELP]
             connection.close()
@@ -261,14 +273,14 @@ class DesktopRuntime:
         selected = Path(data_root).expanduser().resolve()
         database = selected / "database" / "pronto.sqlite3"
         if selected == ROOT / ".local-web":
-            stored = _read_json(selected / "config.json").get("database")
+            stored = str(self.database_path) if selected == self.data_root else _read_json(selected / "config.json").get("database")
             database = Path(stored) if stored else selected / "pronto.sqlite3"
             if not database.is_absolute():
                 database = ROOT / database
         if not database.is_file():
             raise ValueError("Select an existing PRONTO data root. To create a new empty database, "
                              "start once with an explicit --data-root <folder>.")
-        _write_json(self.config_path, {"data_root": str(selected), "port": port})
+        _write_json(self.config_path, {"data_root": str(selected), "database": str(database.resolve()), "port": port})
 
     def has_users(self) -> bool:
         from django.contrib.auth import get_user_model
