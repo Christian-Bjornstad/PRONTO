@@ -262,15 +262,15 @@ def test_remembered_database_missing_does_not_create_replacement(tmp_path):
     _runtime_script(tmp_path, r'''
 import json, os
 from pathlib import Path
-from pronto_desktop.runtime import DesktopRuntime
+from pronto_desktop.runtime import DesktopRuntime, DatabaseLocationError
 root = Path(os.environ["PRONTO_TEST_DATA_ROOT"])
 prefs = Path(os.environ["LOCALAPPDATA"]) / "PRONTO" / "desktop.json"
 prefs.parent.mkdir(parents=True)
 prefs.write_text(json.dumps({"data_root": str(root), "port": 8771}), encoding="utf8")
 try:
     DesktopRuntime().initialize()
-except RuntimeError as exc:
-    assert "unavailable" in str(exc).lower()
+except DatabaseLocationError as exc:
+    assert str(root) in str(exc) and "ikke funnet" in str(exc)
 else:
     raise AssertionError("A remembered missing database was silently recreated")
 assert not root.exists()

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import secrets
 import sqlite3
+import stat
 import threading
 from datetime import datetime, timezone
 
@@ -20,15 +21,30 @@ class ConfigurationAccessError(PermissionError):
     """The shared legacy locator cannot be read; selecting a DB is explicit recovery."""
 
 
+class DatabaseLocationError(RuntimeError):
+    """An existing database needs to be located before Django is configured."""
+
+
+def _path_has_type(path: Path, predicate) -> bool:
+    # Path.is_file/is_dir suppress all OSError exceptions on Python 3.14,
+    # including access denied. Missing files and denied access need different UI.
+    try:
+        return predicate(path.stat().st_mode)
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+
+
 def _preferences_path() -> Path:
     base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / ".local" / "share")
     return base / "PRONTO" / "desktop.json"
 
 
 def _read_json(path: Path) -> dict:
-    if not path.exists():
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
         return {}
-    value = json.loads(path.read_text(encoding="utf-8"))
+    value = json.loads(text)
     if not isinstance(value, dict):
         raise ValueError("PRONTO configuration must be a JSON object.")
     return value
@@ -85,7 +101,11 @@ class DesktopRuntime:
         if (data_root is None and database_path is None and not preferences.get('database')
                 and not preferences.get('new_database')):
             from .shared_installation import read_locator
-            shared = read_locator(ROOT)
+            try:
+                shared = read_locator(ROOT)
+            except (OSError, ValueError) as error:
+                raise DatabaseLocationError(f'Kan ikke lese felles databasevalg: {error}\n'
+                                            f'Programmappe: {ROOT}') from error
             if shared and (not preferences.get('data_root') or
                     Path(preferences['data_root']).expanduser().resolve() == shared['data_root']):
                 data_root = shared['data_root']
@@ -96,7 +116,7 @@ class DesktopRuntime:
         self._remembered = shared is not None or data_root is None and bool(preferences.get("data_root"))
         self._new_database = bool(self._remembered and preferences.get('new_database'))
         self.data_root = Path(selected).expanduser().resolve() if selected else ROOT / ".local-web"
-        self._legacy = not selected or self.data_root == ROOT / ".local-web"
+        self._legacy = not selected or self.data_root.name == ".local-web"
         saved_database = preferences.get('database') if data_root is None else None
         self._selected_database = Path(database_path or saved_database).expanduser().resolve() if database_path or saved_database else None
         if self._selected_database is not None:
@@ -130,6 +150,42 @@ class DesktopRuntime:
         from pronto_web.reports.user_management import create_installation_admin
         return create_installation_admin(username.strip().lower(), password).username
 
+    def _resolve_database_location(self):
+        """Recover either supported layout within the selected root, never a backup."""
+        try:
+            if self._legacy and self._selected_database is None:
+                config = _read_json(self.data_root / 'config.json')
+                if config.get('database'):
+                    selected = Path(config['database'])
+                    self.database_path = (ROOT / selected).resolve() if not selected.is_absolute() else selected.resolve()
+                    self._selected_database = self.database_path
+                if self._requested_port is None:
+                    self._requested_port = config.get('port', 8770)
+            if self._selected_database is None and not self._new_database:
+                candidates = [path for path in (self.data_root / 'pronto.sqlite3',
+                              self.data_root / 'database' / 'pronto.sqlite3')
+                              if _path_has_type(path, stat.S_ISREG)]
+                if len(candidates) > 1:
+                    raise DatabaseLocationError('Datamappen inneholder to databaser. Velg den avtalte databasen.\n'
+                                                + '\n'.join(str(path) for path in candidates))
+                if candidates:
+                    self.database_path = candidates[0]
+                    self._legacy = self.database_path.parent == self.data_root
+            if self._selected_database is not None or self._remembered and not self._new_database:
+                if not _path_has_type(self.data_root, stat.S_ISDIR) or not _path_has_type(self.database_path, stat.S_ISREG):
+                    raise DatabaseLocationError('Den lagrede databaseplasseringen ble ikke funnet.\n'
+                        f'Datamappe: {self.data_root}\nDatabase: {self.database_path}\n'
+                        'Velg eksisterende database. Ingen ny database opprettes.')
+            if _path_has_type(self.database_path, stat.S_ISREG):
+                # Check real file access before Django can bind to this location.
+                # Opening an existing file this way never creates or truncates it.
+                with self.database_path.open('r+b'):
+                    pass
+        except OSError as error:
+            raise DatabaseLocationError(f'Kan ikke undersøke databaseplasseringen: {error}\n'
+                f'Datamappe: {self.data_root}\nDatabase: {self.database_path}\n'
+                'Behold dataene. Kontroller filtilgang og nettverkstilkobling.') from error
+
     def initialize(self) -> None:
         from django.apps import apps
         from django.conf import settings
@@ -138,36 +194,33 @@ class DesktopRuntime:
                 return
             if self._new_database and self.database_path.exists():
                 raise RuntimeError('Den valgte nye databasen finnes allerede. Velg den som eksisterende database.')
-            if self._legacy and self._selected_database is None:
-                try:
-                    config = _read_json(self.data_root / 'config.json')
-                except PermissionError as error:
-                    raise ConfigurationAccessError('Kan ikke lese felles config.json. Velg eksisterende PRONTO-database; ingen ny database opprettes.') from error
-                selected_db = Path(config.get("database") or self.data_root / "pronto.sqlite3")
-                self.database_path = (ROOT / selected_db).resolve() if not selected_db.is_absolute() else selected_db.resolve()
-                if config.get('database') and not self.database_path.is_file():
-                    raise ValueError('Databasen i fellesoppsettet finnes ikke. Velg eksisterende database; ingen erstatning opprettes.')
-                self._requested_port = self._requested_port if self._requested_port is not None else config.get("port", 8770)
-            if self._selected_database is not None and not self.database_path.is_file():
-                raise ValueError('Den valgte databasen finnes ikke. Ingen erstatning opprettes.')
-            if self._remembered and not self._new_database and (not self.data_root.is_dir() or not self.database_path.is_file()):
-                raise RuntimeError("The remembered PRONTO database is unavailable. Restore its location or restart "
-                                   "with an explicit --data-root to create a new empty database.")
+            self._resolve_database_location()
             if settings.configured:
                 configured_db = Path(settings.DATABASES["default"]["NAME"]).resolve()
                 if configured_db != self.database_path:
                     raise RuntimeError("Changing the PRONTO database requires a restart of the application.")
-            create_data_directory(self.data_root)
-            create_data_directory(self.raw_root)
-            create_data_directory(self.database_path.parent)
             key_path = self.data_root / "secret.key"
-            if not key_path.exists():
-                if self._selected_database is not None and self.database_path.is_file():
-                    raise ValueError('Nøkkelen secret.key mangler for eksisterende database. Behold databasen og gjenopprett riktig nøkkel.')
-                with key_path.open("x", encoding="utf-8") as key:
+            try:
+                key_exists = _path_has_type(key_path, stat.S_ISREG)
+                if not key_exists and _path_has_type(self.database_path, stat.S_ISREG):
+                    raise DatabaseLocationError(f'Nøkkelen til eksisterende database ble ikke funnet: {key_path}\n'
+                                                'Velg riktig datamappe eller gjenopprett den opprinnelige nøkkelen.')
+                key = key_path.read_text(encoding="utf-8").strip() if key_exists else None
+            except OSError as error:
+                raise DatabaseLocationError(f'Kan ikke lese databasens nøkkel: {error}\n'
+                                            f'Nøkkel: {key_path}\nDatabase: {self.database_path}') from error
+            try:
+                create_data_directory(self.data_root)
+                create_data_directory(self.raw_root)
+                create_data_directory(self.database_path.parent)
+            except OSError as error:
+                raise DatabaseLocationError(f'Kan ikke klargjøre datamappen: {error}\n'
+                                            f'Datamappe: {self.data_root}') from error
+            if key is None:
+                with key_path.open("x", encoding="utf-8") as output:
                     os.chmod(key_path, 0o600)
-                    key.write(secrets.token_urlsafe(48))
-            key = key_path.read_text(encoding="utf-8").strip()
+                    output.write(secrets.token_urlsafe(48))
+                key = key_path.read_text(encoding="utf-8").strip()
             if len(key) < 50:
                 raise ValueError("The local secret key is missing or invalid.")
             os.environ.update({"DJANGO_SETTINGS_MODULE": "pronto_web.local_settings",

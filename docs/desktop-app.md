@@ -1,5 +1,38 @@
 # PRONTO desktop
 
+## Lagret databaseplassering fra 0.6.6
+
+Feilen «The remembered PRONTO database is unavailable» var for upresis:
+Python 3.14 lar `Path.is_file()`/`is_dir()` returnere `False` også ved
+tilgangsfeil. Oppstarten bruker nå filstatus og faktisk åpning av eksisterende
+database uten oppretting eller tømming, slik at manglende fil og tilgang nektet
+kan skilles. Feilen viser datamappen, databasefilen og eventuell underliggende
+Windows-feil. Eksisterende nøkkel leses før oppretting av driftsmapper.
+En eksisterende database får aldri en ny erstatningsnøkkel ved manglende nøkkel.
+
+Når profilen bare inneholder datamappe, oppdager appen begge kjente oppsett:
+`pronto.sqlite3` eller `database/pronto.sqlite3`. Finnes begge, må brukeren
+velge. Et eksplisitt databasevalg eller en databasepeker i eldre config beholdes;
+appens oppstart bytter ikke automatisk til en annen database hvis denne mangler.
+
+Ved feil før Django-oppsett åpnes «Finn eksisterende PRONTO-database».
+«Bruk felles database» vises når programmappens `pronto-installation.json`
+kan leses. Ellers kan brukeren velge den eksisterende SQLite-filen manuelt.
+Dialogen starter i programmappens `.local-web`. Ved filvalg i undermappen
+`database` forventes nøkkelen i overordnet datamappe; ellers i samme mappe som
+databasefilen. Et delt valg bevarer dataroten fra installasjonspekeren.
+Valget lagres bare etter vellykket oppstart. Avbryt endrer ingen databasevalg.
+Ingen backup velges automatisk, og feil gjenopprettes ikke ved å lage en tom database.
+
+Oppdater hele programmappen til 0.6.6, avslutt Python FELLES og start på nytt.
+Velg felles database dersom profilen viser en gammel plassering. Hvis dialogen
+viser «Permission denied», må den oppgitte filens faktiske områderettigheter
+fortsatt rettes. Databasevalg og Windows/Isilon-tilgang er separate forhold.
+`--check` viser feil uten å åpne gjenopprettingsdialogen.
+
+Kilde for filstatus ved tilgangsfeil:
+https://docs.python.org/3.14/library/pathlib.html#pathlib.Path.is_file
+
 ## Rettigheter til secret.key fra 0.6.5
 
 Python 3.13 og nyere håndterer `mkdir(mode=0o700)` spesielt på Windows:
