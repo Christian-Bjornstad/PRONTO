@@ -158,6 +158,14 @@
             ],
             "minimum": 0,
             "maximum": 1000000000
+          },
+          "tumorCn": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000000000
           }
         }
       }
@@ -501,6 +509,14 @@
         },
         "presentation": {
           "$ref": "#/$defs/presentationAnnotation"
+        },
+        "tumorCn": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1000000000
         }
       }
     },
@@ -570,6 +586,18 @@
           "maxLength": 50000
         },
         "status": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "alteration": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "effect": {
           "type": "string",
           "maxLength": 2000
         }

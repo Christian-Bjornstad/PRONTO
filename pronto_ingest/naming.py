@@ -26,7 +26,7 @@ def classify_run_directory(name):
     run, suffix = match.groups()
     families = {'': 'raw', 'tso500localapppostprocessingresults': 'raw',
                 'cnvs': 'cnv', 'reportpreqc': 'legacy',
-                'reportpreqcnewprontoversion': 'new'}
+                'reportpreqcnewprontoversion': 'new', 'reportwithqc': 'qc'}
     version = families.get(normalise_role(suffix))
     return (run, version) if version is not None else None
 

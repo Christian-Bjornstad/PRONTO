@@ -1032,14 +1032,19 @@ def render_html(
         html_context.setdefault(key, '')
     if review and review.schema_version in {'3.0','4.0'}:
         review_v3.enhance_context(html_context, report, review, plot_images, not editable)
-        html_context['tumour_content'] += review_v3.presentation_figures(review,figure_assets or {},figure_upload_url,csrf_token,not editable)
-        html_context['tumour_content'] += ('<details class="presentation-annotations"><summary>Presentation — annotations</summary>'
-            f'<div id="presentation-annotations" data-readonly="{str(not editable).lower()}"></div></details>')
+        from .source_fields import presentation_sources
+        source_data=json.dumps(presentation_sources(report),ensure_ascii=False).replace('<',r'\u003c')
+        editor=('<section class="presentation-annotations"><h3>Key relevant findings — report fields</h3>'
+            f'<script type="application/json" id="presentation-source-data">{source_data}</script>'
+            f'<div id="presentation-annotations" data-readonly="{str(not editable).lower()}"></div></section>')
+        html_context['tumour_content'] = editor+html_context['tumour_content']+review_v3.presentation_figures(review,figure_assets or {},figure_upload_url,csrf_token,not editable)
         html_context['review_columns'] = '<th scope="col">Report</th><th scope="col">Review</th><th scope="col">Exclude</th><th scope="col">Report highlight</th>'
         if review.schema_version=='4.0':
-            from pronto_report.review.source_defaults import source_defaults
+            from pronto_report.review.source_defaults import source_defaults, exclusion_ids
             defaults=json.dumps(source_defaults(report)).replace('<',r'\u003c')
             html_context['review_toolbar'] += '<button type="button" id="use-source-defaults" data-v4-edit>Use source defaults</button><button type="button" data-expand-table="variant-table">Expand table</button><script type="application/json" id="source-defaults">'+defaults+'</script>'
+            html_context['review_toolbar'] += ('<button type="button" id="apply-exclusion-rules" data-v4-edit>Apply variant filters</button>'
+                '<script type="application/json" id="exclusion-defaults">'+json.dumps(exclusion_ids(report)).replace('<',r'\u003c')+'</script>')
             html_context['review_columns'] = '<th>Report review</th><th>Review</th><th>Report highlight</th>'
             html_context['igv_column'] = ''
             if web_igv: html_context['variant_extra_headers'] = '<th>IGV</th>'+html_context['variant_extra_headers']

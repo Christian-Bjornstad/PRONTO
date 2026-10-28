@@ -524,6 +524,18 @@
         "status": {
           "type": "string",
           "maxLength": 2000
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "alteration": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "effect": {
+          "type": "string",
+          "maxLength": 2000
         }
       }
     }

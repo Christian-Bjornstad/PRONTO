@@ -98,7 +98,7 @@ def _validate_run_scope(path, role, report_plan):
         'metadata': ('raw',), 'summary': ('raw',), 'variants': (version,),
         'sample_list': ('raw', version), 'linkage': ('raw',),
         'cnv_table': ('raw',), 'cancan_table': ('cnv',), 'qc_plot': ('raw',),
-        'signature_plot': ('raw',), 'rna_profile_plot': ('raw',), 'rna_table': ('raw',),
+        'signature_plot': ('raw',), 'rna_profile_plot': ('raw',), 'rna_table': ('qc', 'raw'),
         'supporting': (version,), 'other_plot': ('raw', version),
         'cnv_plot': ('cnv',) if report_plan.cnv_source == 'cancan' else ('raw', version),
     }
@@ -111,6 +111,8 @@ def _validate_run_scope(path, role, report_plan):
         if role in {'metadata', 'summary'} and path.parent == root:
             return
         if role not in {'metadata', 'summary'} and path.is_relative_to(root / report_plan.sample_id):
+            return
+        if role=='rna_table' and family[1]=='qc' and path.parent==root / 'Fusion_splice' / report_plan.sample_id:
             return
         break
     raise ImportProblem('Kildefilen avviker fra valgt kjøring, rapportversjon eller DNA-prøvemappe.')
@@ -356,7 +358,7 @@ def _import_one(plan, report_plan, actor, raw_root, batch, progress, cancel):
             raise ImportProblem('Importplanen har ukjente filroller.')
         if report_plan.profile not in {'legacy', 'tsoppi-run-v1'}:
             raise ImportProblem('Importplanen har ukjent profil.')
-        if report_plan.profile == 'tsoppi-run-v1' and (report_plan.report_version not in {'new', 'legacy', 'raw'}
+        if report_plan.profile == 'tsoppi-run-v1' and (report_plan.report_version not in {'qc', 'new', 'legacy', 'raw'}
                 or report_plan.cnv_source not in {'merged', 'cancan'} or report_plan.cnv_solution not in {'main', 'alt01', 'alt02'}):
             raise ImportProblem('Importplanen har ukjente kildevalg.')
         # Validate every source boundary before opening a linkage or table file.

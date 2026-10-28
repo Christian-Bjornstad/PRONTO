@@ -22,7 +22,7 @@ def test_manual_cnv_zoom_qc_and_download_share_one_working_copy(browser):
         page.get_by_role('button',name='Add CNV row',exact=True).click()
         row=page.locator('#test-cnv tbody tr').first
         row.locator('[data-manual-field="Gene_Symbol"]').fill('MYC')
-        row.locator('[data-manual-field="Tumor_FC"]').fill('3,5')
+        row.locator('[data-manual-field="Tumor_CN"]').fill('3,5')
         row.get_by_role('button',name='Include',exact=False).click()
         row.get_by_role('button',name='Gain',exact=False).click()
         row.locator('[data-cn-field="cytoband"]').fill('8q24')
@@ -45,7 +45,7 @@ def test_manual_cnv_zoom_qc_and_download_share_one_working_copy(browser):
             page.get_by_role('button',name='Download ReviewState',exact=True).click()
         saved=json.loads(Path(pending.value.path()).read_text())
         assert saved['manualCnvRows'][0]['geneSymbol']=='MYC'
-        assert saved['manualCnvRows'][0]['tumorFc']==3.5
+        assert saved['manualCnvRows'][0]['tumorCn']==3.5
         activity=next(i for i in saved['findingReviews'] if i['findingId']==saved['manualCnvRows'][0]['findingId'])
         assert activity['reportingDecision']=='INCLUDE' and activity['cnChange']=='GAIN' and activity['cytoband']=='8q24'
         assert saved['sectionQc']['cnv']['comment']=='Confirm segmentation'
@@ -156,7 +156,7 @@ def test_invalid_manual_cnv_value_cannot_download_a_stale_review(browser):
             page.goto(url)
             page.get_by_role('button', name='Edit mode: OFF').click()
             page.get_by_role('tab', name='CNV review', exact=True).click()
-            value = page.locator('[data-manual-field="Tumor_FC"]').first
+            value = page.locator('[data-manual-field="Tumor_CN"]').first
             value.fill('invalid')
             page.get_by_role('tab', name='Variant review').click()
             with pytest.raises(playwright.TimeoutError):
@@ -169,6 +169,6 @@ def test_invalid_manual_cnv_value_cannot_download_a_stale_review(browser):
             with page.expect_download() as pending:
                 page.get_by_role('button', name='Download ReviewState', exact=True).click()
             saved = json.loads(Path(pending.value.path()).read_text())
-            assert saved['manualCnvRows'][0]['tumorFc'] == 3.5
+            assert saved['manualCnvRows'][0]['tumorCn'] == 3.5
         finally:
             context.close()

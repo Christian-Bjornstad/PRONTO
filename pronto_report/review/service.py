@@ -129,7 +129,7 @@ class ReviewCommandService:
                 raise ReviewCommandError('INVALID_DRAFT','Duplicate manual CNV row',422)
             known_findings.update(manual_ids)
             cnv_ids = {row['findingId'] for table in report.source_tables if table['kind']=='CNV' for row in table['rows']} | set(manual_ids)
-            if any(('cnChange' in item or 'cytoband' in item) and item['findingId'] not in cnv_ids for item in draft.finding_reviews):
+            if any(('cnChange' in item or 'cytoband' in item or 'tumorCn' in item) and item['findingId'] not in cnv_ids for item in draft.finding_reviews):
                 raise ReviewCommandError('INVALID_DRAFT','CNV fields require a CNV finding',422)
             for activities, key, known in ((draft.finding_reviews, 'findingId', known_findings),
                                           (draft.biomarker_reviews, 'metricId', {m['metricId'] for m in report.biomarkers})):

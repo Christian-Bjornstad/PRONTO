@@ -200,5 +200,5 @@ def presentation_figures(review,assets,upload_url,csrf,readonly):
                      f'<p class="figure-caption-readonly">{shown(item["caption"])}</p></div>')
     controls=(f'<label>Add presentation figures <input type="file" id="figure-upload" accept="image/png,image/jpeg,image/webp" multiple data-figure-edit data-upload-url="{escape(upload_url,quote=True)}" data-csrf="{escape(csrf or "",quote=True)}"></label>'
               if upload_url and not readonly else '')
-    return ('<section id="presentation-figures"><h3>Presentation figures</h3><p>Selected figures are appended at the end of the landscape presentation PDF. Captions and order are saved with the review. PNG, JPEG or WebP; up to 8 MB per image, 30 selected figures. Very large figures are resized while preserving their aspect ratio.</p>'
+    return ('<section id="presentation-figures"><h3>Presentation figures</h3>'
         +controls+'<p id="figure-upload-status" role="status" aria-live="polite"></p><div id="figure-list">'+''.join(cards)+'</div></section>')

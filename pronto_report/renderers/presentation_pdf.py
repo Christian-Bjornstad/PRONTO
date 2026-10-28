@@ -5,15 +5,9 @@ from reportlab.platypus import Table, TableStyle, PageBreak, Spacer
 
 from .report_pdf import (_paragraph, _heading, _table, _variant_table, _cnv_table,
     _rna_table, _note, _qc, _header, _draw_column, BLUE, GREEN, FIELD_LABELS, QC_COLORS)
+from .source_fields import effect_label, rna_read_support
 
 PAGE_SIZE = (960, 540)
-
-
-def rna_read_support(fields):
-    percentage = fields.get('Event_Support_Dedup_Percentage')
-    if percentage not in (None, ''):
-        return str(percentage) if str(percentage).endswith('%') else f'{percentage}%'
-    return fields.get('Read_Support')
 
 
 def highlighted_rows(model):
@@ -28,14 +22,19 @@ def highlighted_rows(model):
             if not item['review']['reportHighlight']:
                 continue
             f=item['fields']
-            rows.append({'label':f.get('Gene_Symbol') or f.get('Gene_A'),
-                'alteration':'CNV' if kind=='cnv' else f.get('Gene_B') or f.get('Event_ID'),
-                'effect':f.get('CN_Change') if kind=='cnv' else f.get('Provisional_Event_Type'),
+            rows.append({'label':f.get('Gene_Symbol') if kind=='cnv' else f.get('Gene_Label'),
+                'alteration':'CNV' if kind=='cnv' else f.get('Alteration_Label'),
+                'effect':f.get('CN_Change') if kind=='cnv' else f.get('Effect_Label'),
                 'value':f.get('Tumor_CN') if kind=='cnv' else rna_read_support(f), 'activity':item['review']})
     for item in model['variants']:
         if item['review']['reportHighlight']:
             rows.append({'label':item['gene'], 'alteration':item['protein'] or item['dna'],
-                'effect':item['annotations'].get('codingStatus'), 'value':item['af'], 'activity':item['review']})
+                'effect':effect_label(item['annotations'].get('codingStatus')), 'value':item['af'], 'activity':item['review']})
+    for row in rows:
+        annotation=row['activity'].get('presentation',{})
+        for field, target in (('displayName','label'),('alteration','alteration'),('effect','effect')):
+            if annotation.get(field):
+                row[target]=annotation[field]
     return rows
 
 
@@ -44,7 +43,7 @@ def key_table(model, width):
     labels=['Gene /\nMolecular marker','Alteration','Effect /\nEvent','VAF /\nCN / Score','GoF /\nLoF',
         'Therapeutic context','', 'Approved targeted therapy (EMA)','']
     second=['','','','','','Sensitive','Resistant',"Patient’s tumour type",'Other tumour type']
-    weights=[72,64,62,48,38,79,79,90,80]
+    weights=[84,120,55,50,38,60,60,76,70]
     widths=[width*w/sum(weights) for w in weights]
     data=[[_paragraph(x,size=8,bold=True) for x in labels],[_paragraph(x,size=7.4) for x in second]]
     for row in rows:
@@ -71,16 +70,17 @@ def key_table(model, width):
 def top_tables(model):
     values={item['metricId']:item for item in model['measurements']}
     signatures=_table(['Signature','Score','Status'],[
-        [name.upper()+' — '+values.get(name,{}).get('label',name.upper()),values.get(name,{}).get('value'),
+        [name.upper()+' — '+values.get(name,{}).get('label',name.upper()),values.get(name,{}).get('value') if values.get(name,{}).get('value') is not None else '—',
          model['metricReviews'].get(name,{}).get('presentation',{}).get('status','—')]
-        for name in ('tmb','msi','hrd')],188,size=7.2,proportions=[.60,.17,.23])
+        for name in ('tmb','msi','hrd')],188,size=7.2,proportions=[.54,.16,.30])
     cnv=_table(['Gene','Chr/Loc','Tumour CN'],[
-        [item['fields'].get('Gene_Symbol'),item['fields'].get('Cytoband') or item['fields'].get('Chromosome'),
-         item['fields'].get('Tumor_CN')] for item in model['cnv']] or [['—']*3],155,size=7.2)
+        [item['review'].get('presentation',{}).get('displayName') or item['fields'].get('Gene_Symbol'),item['fields'].get('Cytoband') or item['fields'].get('Chromosome'),
+         item['fields'].get('Tumor_CN')] for item in model['cnv']] or [['—']*3],155,size=7.2,proportions=[.32,.33,.35])
     rna=_table(['Gene','Alteration','Read support','Review'],[
-        [item['fields'].get('Gene_A'),str(item['fields'].get('Gene_B') or '')+' '+str(item['fields'].get('Provisional_Event_Type') or ''),
+        [item['review'].get('presentation',{}).get('displayName') or item['fields'].get('Gene_Label'),
+         item['review'].get('presentation',{}).get('alteration') or item['fields'].get('Alteration_Label'),
          rna_read_support(item['fields']),item['review'].get('comment','—')]
-        for item in model['rna']] or [['—']*4],245,size=7.2,proportions=[.18,.38,.23,.21])
+        for item in model['rna']] or [['—']*4],245,size=7.2,proportions=[.26,.42,.18,.14])
     return [([_paragraph('Mutational signatures',size=12,color=BLUE,bold=True),signatures],108,188),
         ([_paragraph('Copy number alterations',size=12,color=BLUE,bold=True),cnv],302,155),
         ([_paragraph('Fusions and splice',size=12,color=BLUE,bold=True),rna],463,245)]
@@ -111,10 +111,10 @@ def presentation_story(model, doc, author):
             row['activity'].get('presentation',{}).get('description') for row in highlighted_rows(model)):
         main.append(_paragraph('—',size=9))
     right=[_paragraph(f'Mutations (N={len(model["variants"])})',size=12,color=BLUE,bold=True),
-        _variant_table(model,223,True),_paragraph('VUS: Variant of uncertain significance',size=7)]
+        _variant_table(model,235,True),_paragraph('VUS: Variant of uncertain significance',size=7)]
     columns=[(sidebar,9,PAGE_SIZE[1]-56,89,PAGE_SIZE[1]-90)]
     columns.extend((flows,x,PAGE_SIZE[1]-56,w,top_height) for flows,x,w in top)
-    columns.extend([(main,108,main_top,600,main_top-28),(right,725,PAGE_SIZE[1]-56,223,PAGE_SIZE[1]-90)])
+    columns.extend([(main,108,main_top,600,main_top-28),(right,717,PAGE_SIZE[1]-56,235,PAGE_SIZE[1]-90)])
     remaining=[]
     for flows,x,y,w,h in columns:
         remaining.extend(_draw_column(test,flows,x,y,w,h))

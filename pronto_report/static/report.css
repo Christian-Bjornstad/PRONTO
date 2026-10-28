@@ -1411,4 +1411,15 @@ button {
 .signature-details{margin:1rem 0;border:1px solid #d5dfe7;border-radius:6px;padding:.75rem 1rem}
 .signature-details summary{cursor:pointer;font-weight:600}
 
-.presentation-annotations{margin:24px 0}.presentation-annotations>summary{font-weight:600;cursor:pointer;padding:12px 0}.presentation-annotation{margin:16px 0;border:1px solid #ccd6e2;border-radius:6px;padding:16px}.presentation-annotation legend{font-weight:600;padding:0 8px}.presentation-annotation__fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.presentation-annotation label{display:flex;flex-direction:column;gap:6px}.presentation-annotation input,.presentation-annotation textarea{width:100%;box-sizing:border-box;font:inherit;padding:8px;border:1px solid #bcc9d8;border-radius:4px}.presentation-annotation__description{grid-column:1/-1}@media(max-width:768px){.presentation-annotation__fields{grid-template-columns:1fr}}
+.presentation-annotations{margin:24px 0}
+.signature-status-fields{display:flex;gap:16px;flex-wrap:wrap;border:1px solid #ccd6e2;border-radius:6px;padding:12px 16px;margin-bottom:20px}
+.signature-status-fields label{display:flex;align-items:center;gap:8px}
+.presentation-editor{min-width:1280px;width:100%;table-layout:fixed;border-collapse:collapse}
+.presentation-editor th{background:#e6ecf2;text-align:left;padding:10px;font-size:12px;white-space:normal}
+.presentation-editor td{vertical-align:top;padding:8px;border-bottom:1px solid #dce4ef}
+.presentation-editor th:nth-child(2){width:180px}.presentation-editor th:nth-child(4){width:85px}
+.presentation-editor input,.presentation-editor textarea,.signature-status-fields input{box-sizing:border-box;width:100%;font:inherit;padding:8px;border:1px solid #bcc9d8;border-radius:4px;background:white;color:#20364a}
+.signature-status-fields input{width:180px}.presentation-editor textarea{resize:vertical;min-height:58px}.presentation-editor__description{background:#f7fafc}
+.presentation-editor__description label{display:block;font-size:12px}.presentation-editor__description textarea{display:block;margin-top:6px;min-height:64px}
+.presentation-editor input:focus-visible,.presentation-editor textarea:focus-visible,.signature-status-fields input:focus-visible{outline:2px solid #008ac3;outline-offset:2px}
+.source-approved:not(.excluded-row){background:#fff7d6}

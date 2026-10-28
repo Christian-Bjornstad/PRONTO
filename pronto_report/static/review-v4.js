@@ -22,32 +22,42 @@ window.initReviewV4 = function ({state, changed, busy}) {
   function updateLabel(row) {
     const manual=state.manualCnvRows.find(i=>i.findingId===row.dataset.sourceId);
     if(manual) {
-      row.dataset.sourceLabel=`${manual.geneSymbol} · ${manual.tumorFc ?? ''}`;
+      row.dataset.sourceLabel=`${manual.geneSymbol} · CN ${(Object.hasOwn(manual,'tumorCn')?manual.tumorCn:manual.tumorFc) ?? ''}`;
       row.dataset.sourceSearch=row.dataset.sourceLabel.toLocaleLowerCase();
     }
+  }
+  function numberValue(control) {
+    const text=control.value.trim().replace(',','.');const value=text==='' ? null : Number(text);
+    const valid=value===null || Number.isFinite(value) && value>=0 && value<=1e9;
+    control.setCustomValidity(valid ? '' : 'Enter a non-negative number.');
+    return {valid,value};
   }
   document.addEventListener('input',event=> {
     const control=event.target;
     if(!editing()) return;
     if(control.dataset.sectionQcComment) {
       state.sectionQc[control.dataset.sectionQcComment].comment=control.value;
+    } else if(control.hasAttribute('data-rna-comment')) {
+      finding(control.closest('tr').dataset.sourceId).comment=control.value;
     } else if(control.dataset.cnField) {
-      finding(control.closest('tr').dataset.sourceId)[control.dataset.cnField]=control.value;
+      const item=finding(control.closest('tr').dataset.sourceId);
+      if(control.dataset.cnField==='tumorCn') {
+        const result=numberValue(control);if(!result.valid) return;
+        if(result.value===null) delete item.tumorCn;else item.tumorCn=result.value;
+      } else item[control.dataset.cnField]=control.value;
     } else if(control.dataset.manualField) {
       const row=control.closest('tr'); const item=state.manualCnvRows.find(i=>i.findingId===row.dataset.sourceId);
       if(control.dataset.manualField==='Gene_Symbol') item.geneSymbol=control.value;
       else {
-        const text=control.value.trim().replace(',','.'); const value=text==='' ? null : Number(text);
-        const valid=value===null || Number.isFinite(value) && value>=0 && value<=1e9;
-        control.setCustomValidity(valid ? '' : 'Enter a non-negative number.');
-        if(valid) item.tumorFc=value;
+        const result=numberValue(control);if(!result.valid) return;
+        item[control.dataset.manualField==='Tumor_CN'?'tumorCn':'tumorFc']=result.value;
       }
       updateLabel(row);
     } else return;
     changed();refresh();
   });
   document.addEventListener('click',event=> {
-    const control=event.target.closest('[data-source-action],[data-cn-change],[data-add-cnv],[data-remove-cnv],#use-source-defaults');
+    const control=event.target.closest('[data-source-action],[data-cn-change],[data-add-cnv],[data-remove-cnv],#use-source-defaults,#apply-exclusion-rules');
     if(!control || !editing()) return;
     const row=control.closest('[data-source-id]');
     if(control.dataset.sourceAction) {
@@ -66,12 +76,24 @@ window.initReviewV4 = function ({state, changed, busy}) {
       }));
       fresh.dataset.sourceId=id;
       fresh.querySelectorAll('input,button').forEach(node=>node.disabled=false);
-      state.manualCnvRows.unshift({findingId:id,geneSymbol:'',tumorFc:null});
+      state.manualCnvRows.unshift({findingId:id,geneSymbol:'',tumorFc:null,tumorCn:null});
       document.getElementById(control.dataset.addCnv).querySelector('tbody').prepend(fresh);
       fresh.querySelector('[data-manual-field]').focus();
     } else if(control.hasAttribute('data-remove-cnv')) {
       state.manualCnvRows=state.manualCnvRows.filter(i=>i.findingId!==row.dataset.sourceId);
       state.findingReviews=state.findingReviews.filter(i=>i.findingId!==row.dataset.sourceId);row.remove();
+    } else if(control.id==='apply-exclusion-rules') {
+      const excluded=JSON.parse(document.getElementById('exclusion-defaults').textContent);
+      if(!confirm(`Exclude ${excluded.length} variants matching the reporting filters? Other review choices are kept.`)) return;
+      excluded.forEach(id=> {
+        let item=state.variantReviews.find(i=>i.variantId===id);
+        if(!item) {item={variantId:id,clinicalClassification:'UNCLASSIFIED',igvAssessment:'NOT_REVIEWED',reportHighlight:false};state.variantReviews.push(item);}
+        item.reportingDecision='EXCLUDE';item.reportHighlight=false;
+      });
+      document.querySelectorAll('#variant-table select[data-review-field]').forEach(select=> {
+        const item=state.variantReviews.find(i=>i.variantId===select.dataset.variantId);
+        if(item) select.value=item[select.dataset.reviewField];
+      });
     } else {
       if(!confirm('Replace variant Report review and Review choices with source defaults?')) return;
       const defaults=JSON.parse(document.getElementById('source-defaults').textContent);

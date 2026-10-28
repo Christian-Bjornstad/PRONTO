@@ -11,9 +11,9 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, 
 
 from pronto_report.migration import migrate_review_state_to_v3
 from pronto_report.serialization import serialize_report_data, serialize_review_state
-from .source_fields import cnv_display_fields
+from .source_fields import cnv_display_fields, rna_display_fields, effect_label
 
-TEMPLATE_VERSION = '2.0'
+TEMPLATE_VERSION = '2.1'
 BLUE = '#203b63'; GREEN = '#14592c'; OLIVE = '#708322'
 QC_COLORS = {'PASS':'#399a44', 'CONDITIONAL':'#e88917', 'FAIL':'#cf2525', 'NOT_REVIEWED':'#777777'}
 FIELD_LABELS = {
@@ -71,16 +71,23 @@ def project_report_export(report, review):
         fields={header:(values[0] if len(values)==1 else ' / '.join(str(value) for value in values))
                 for header,values in group['fields'].items()}
         if group['kind']=='CNV': fields=cnv_display_fields(fields)
+        else: fields=rna_display_fields(fields)
         findings[group['kind']].append({'id':identifier,'fields':fields,'review':finding_activities[identifier],
                                        'source':group['source'],'demo':group['demo']})
     manual_cnv=[]
     for row in review.manual_cnv_rows:
         identifier=row['findingId']
         if identifier in finding_activities:
-            manual_cnv.append({'id':identifier,'fields':{'Gene_Symbol':row['geneSymbol'],'Tumor_FC':row['tumorFc']},'review':finding_activities[identifier],'source':'Manual CNV','demo':False})
+            manual_cnv.append({'id':identifier,'fields':{'Gene_Symbol':row['geneSymbol'],'Tumor_FC':row['tumorFc'],
+                'Tumor_CN':row.get('tumorCn', row['tumorFc'])},'review':finding_activities[identifier],'source':'Manual CNV','demo':False})
     findings['CNV']=manual_cnv+findings['CNV']
     for row in findings['CNV']:
-        row['fields'].update(Cytoband=row['review'].get('cytoband',''),CN_Change=row['review'].get('cnChange',''))
+        if 'cytoband' in row['review']:
+            row['fields']['Cytoband']=row['review']['cytoband']
+        if row['review'].get('cnChange') in {'GAIN','LOSS'}:
+            row['fields']['CN_Change']=row['review']['cnChange']
+        if row['review'].get('tumorCn') is not None:
+            row['fields']['Tumor_CN'] = row['review']['tumorCn']
     highlights={item['metricId'] for item in v['biomarkerReviews'] if item['reportHighlight']}
     return {'reportId':report.report_id,'revision':review.revision,'status':review.status,
         'sample':r['sample'],'run':r['run'],'measurements':r['biomarkers'], 'variants':variants,
@@ -145,9 +152,13 @@ def _signatures(model,width):
 def _variant_table(model,width,compact=False):
     if compact:
         return _table(['Gene','Variant','Effect','VAF','Review'],[
-            [item['gene'],item['protein'] or item['dna'],item['annotations'].get('codingStatus'),item['af'],
-             item['review']['clinicalClassification']] for item in model['variants']],width,BLUE,size=7,
-             proportions=[37,45,80,30,67])
+            [item['review'].get('presentation',{}).get('displayName') or item['gene'],
+             item['review'].get('presentation',{}).get('alteration') or item['protein'] or item['dna'],
+             item['review'].get('presentation',{}).get('effect') or effect_label(item['annotations'].get('codingStatus')),item['af'],
+             {'UNCLASSIFIED':'Not reviewed','LIKELY_ONCOGENIC':'Likely oncogenic','ONCOGENIC':'Oncogenic',
+              'LIKELY_PATHOGENIC':'Likely pathogenic','PATHOGENIC':'Pathogenic','LIKELY_BENIGN':'Likely benign',
+              'BENIGN':'Benign'}.get(item['review']['clinicalClassification'],item['review']['clinicalClassification'])]
+             for item in model['variants']],width,BLUE,size=7,proportions=[.21,.19,.25,.12,.23])
     return _table(['Gene','Transcript','Position','Variant','Effect','Depth','VAF','Review'],[
         [item['gene'],item['annotations'].get('refSeqMrna') or item['annotations'].get('ensemblTranscript'),
          item['location'],item['protein'] or item['dna'],item['annotations'].get('codingStatus'),

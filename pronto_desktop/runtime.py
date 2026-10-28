@@ -98,7 +98,7 @@ class DesktopRuntime:
         self.config_path = _preferences_path()
         preferences = _read_json(self.config_path)
         shared = None
-        if (data_root is None and database_path is None and not preferences.get('database')
+        if (data_root is None and database_path is None
                 and not preferences.get('new_database')):
             from .shared_installation import read_locator
             try:
@@ -106,8 +106,11 @@ class DesktopRuntime:
             except (OSError, ValueError) as error:
                 raise DatabaseLocationError(f'Kan ikke lese felles databasevalg: {error}\n'
                                             f'Programmappe: {ROOT}') from error
-            if shared and (not preferences.get('data_root') or
-                    Path(preferences['data_root']).expanduser().resolve() == shared['data_root']):
+            saved_root = Path(preferences['data_root']).expanduser().resolve() if preferences.get('data_root') else None
+            saved_db = Path(preferences['database']).expanduser().resolve() if preferences.get('database') else None
+            managed = saved_root in {ROOT / '.local-web', ROOT / '.local-web2'} and (saved_db is None or saved_db.is_relative_to(saved_root))
+            if shared and (saved_root is None or managed or saved_root == shared['data_root'] and
+                           (saved_db is None or saved_db == shared['database'])):
                 data_root = shared['data_root']
                 database_path = shared['database']
             else:
@@ -344,7 +347,9 @@ class DesktopRuntime:
             raise ValueError("Port must be between 1024 and 65535.")
         selected = Path(data_root).expanduser().resolve()
         database = selected / "database" / "pronto.sqlite3"
-        if selected == ROOT / ".local-web":
+        if selected == self.data_root:
+            database = self.database_path
+        elif selected.name in {'.local-web', '.local-web2'}:
             stored = str(self.database_path) if selected == self.data_root else _read_json(selected / "config.json").get("database")
             database = Path(stored) if stored else selected / "pronto.sqlite3"
             if not database.is_absolute():
@@ -353,6 +358,18 @@ class DesktopRuntime:
             raise ValueError("Select an existing PRONTO data root. To create a new empty database, "
                              "start once with an explicit --data-root <folder>.")
         _write_json(self.config_path, {"data_root": str(selected), "database": str(database.resolve()), "port": port})
+
+    def set_shared_database(self, actor):
+        from django.contrib.auth import get_user_model
+        from django.core.exceptions import PermissionDenied
+        from pronto_web.reports.user_management import is_administrator
+        from .shared_installation import publish_locator
+        current = get_user_model().objects.filter(pk=actor.pk).first() if actor is not None else None
+        if current is None or not is_administrator(current):
+            raise PermissionDenied('Logg inn som administrator for å velge felles database.')
+        if not publish_locator(ROOT, self.data_root, self.database_path, replace_existing=True):
+            raise ValueError('Felles standard krever at program, database og datamappe ligger på nettverksområdet.')
+        return self.database_path
 
     def has_users(self) -> bool:
         from django.contrib.auth import get_user_model

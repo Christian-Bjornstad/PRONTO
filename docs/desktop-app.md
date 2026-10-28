@@ -1,5 +1,38 @@
 # PRONTO desktop
 
+## 0.7.0 — felles database i .local-web2
+
+Oppdater **alle** arbeidsstasjoner til samme programversjon og avslutt Python
+FELLES før ny oppstart. Eksisterende datamapper og nøkkel skal beholdes.
+Nye rapportfelt lagres i JSON-gjennomgangen og krever den oppdaterte appen;
+ingen ny SQL-database eller ny databasekopi trengs for oppgraderingen.
+
+På en Windows-nettverksinstallasjon finner appen nå `.local-web2` ved siden av
+PRONTO_START.cmd. Den må inneholde én database med navnet `pronto.sqlite3`
+eller `pronto.sqlite`, direkte i mappen eller i undermappen `database`, og
+den opprinnelige `secret.key` i dataroten. Flere kandidater gir et valg,
+aldri gjetting. Det søkes ikke i backupmapper.
+
+Det tilgjengelige oppsettet i `.local-web2` prioriteres foran en eldre automatisk
+peker til `.local-web`. Profiler som husker standarddatabasen under `.local-web`
+eller `.local-web2`, følger installasjonens valg. Eksplisitte CLI-valg og andre
+private databaseplasseringer beholdes. Bare filplasseringen endres; ingen
+database/nøkkel kopieres, og separate databaser slås ikke sammen.
+
+Etter innlogging som administrator kan **Innstillinger → Bruk aktiv database
+som felles standard** lagre den fungerende plasseringen for installasjonen.
+Dialogen viser hele filstien før valget bekreftes. Administratorrollen sjekkes
+på nytt i databasen, og pekerfilen erstattes atomisk. Den får
+`selectionMode: ADMIN`, slik at senere automatisk mappegjenkjenning ikke
+overstyrer administratorvalget. Alle brukere må ha oppdatert app før dette
+formatet brukes. Program, datarot og database må ligge på nettverksområdet;
+private lokale databaser publiseres ikke. Felles datafilrettigheter og behovet
+for å unngå samtidige SQLite-skrivekonflikter er uendret.
+
+Bruk `.local-web2` videre når den er avtalt felles database. Den gamle mappen
+skal ikke fylles med nye rapporter parallelt; behold den inntil innholdet er
+avklart. Denne endringen sletter ingen av mappene.
+
 ## Lagret databaseplassering fra 0.6.6
 
 Feilen «The remembered PRONTO database is unavailable» var for upresis:

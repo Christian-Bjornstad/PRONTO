@@ -1,5 +1,6 @@
 """Explicit source defaults; saved human choices always take precedence."""
 import json
+import re
 
 from pronto_report.migration import migrate_review_state_to_v3
 from pronto_report.serialization import serialize_review_state
@@ -12,6 +13,35 @@ IGV = {'SUPPORTS': 'OK', 'DOES_NOT_SUPPORT': 'ARTIFACT', 'INCONCLUSIVE': 'NOT_RE
 
 def normalized(value):
     return str(value or '').strip().upper().replace(' ', '_').replace('-', '_')
+
+
+def exclusion_reason(gene, coding_status, localapp_class):
+    """User-defined reporting defaults; never delete a source variant."""
+    if normalized(localapp_class) in {'BL', 'GL_BL'}:
+        return 'LocalApp: ' + normalized(localapp_class)
+    coding = re.split(r'[;|,&\s/]+', str(coding_status or '').strip().casefold())
+    if 'synonymous_variant' in coding:
+        return 'Synonymous variant'
+    if any(value.startswith('x:noncoding') for value in coding) and normalized(gene) != 'TERT':
+        return 'Noncoding variant (except TERT)'
+    return ''
+
+
+def exclusion_ids(report):
+    identifiers = set()
+    for table in report.source_tables:
+        if table['kind'] != 'VARIANTS':
+            continue
+        for row in table['rows']:
+            fields = {normalized(k): v for k, v in zip(table['headers'], row['values'])}
+            if exclusion_reason(fields.get('GENE_SYMBOL'), fields.get('CODING_STATUS') or fields.get('CODING_SASTUS'),
+                                fields.get('TSO500_LOCALAPP_CLASS')):
+                identifiers.add(row['findingId'])
+    for variant in report.variants:
+        annotations = {item['key']: item['value'] for item in variant['annotations']}
+        if exclusion_reason(variant.get('gene'), annotations.get('codingStatus'), annotations.get('tso500LocalAppClass')):
+            identifiers.add(variant['variantId'])
+    return sorted(identifiers)
 
 
 def source_defaults(report):
@@ -28,6 +58,7 @@ def source_defaults(report):
                     'clinicalClassification': classification, 'igvAssessment': normalized(fields.get('IGV_QC'))}
             groups.setdefault(row['findingId'], []).append(item)
     result = {}
+    excluded = set(exclusion_ids(report))
     for variant in report.variants:
         identifier = variant['variantId']
         choices = {}
@@ -37,6 +68,8 @@ def source_defaults(report):
             values = {item[key] for item in groups.get(identifier, [])}
             choices[key] = next(iter(values)) if len(values) == 1 and values <= allowed else blank
         result[identifier] = {'variantId': identifier, **choices, 'reportHighlight': False}
+        if identifier in excluded:
+            result[identifier]['reportingDecision'] = 'EXCLUDE'
     return result
 
 
@@ -54,4 +87,15 @@ def upgrade_review(report, review, *, seed_defaults=True):
         item['igvAssessment'] = IGV.get(item['igvAssessment'], item['igvAssessment'])
         defaults.pop(item['variantId'], None)
     document['variantReviews'].extend(defaults.values())
+    # Seed only new review entries. Existing human report choices stay intact.
+    existing = {item['findingId'] for item in document['findingReviews']}
+    if seed_defaults:
+        for table in report.source_tables:
+            if table['kind'] != 'RNA' or not table['fileName'].casefold().endswith('withqc.xlsx'):
+                continue
+            for row in table['rows']:
+                if row['findingId'] not in existing:
+                    document['findingReviews'].append({'findingId':row['findingId'],
+                        'reportingDecision':'INCLUDE' if row.get('sourceApproved') else 'EXCLUDE', 'reportHighlight':False})
+                    existing.add(row['findingId'])
     return validate_review_state(document, report=report)

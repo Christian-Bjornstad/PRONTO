@@ -28,8 +28,8 @@ def test_manual_presentation_context_is_sent_with_saved_review(browser):
             page.goto(url)
             page.locator('#edit-btn').click()
             page.locator('#tab-tumour-board').click()
-            page.locator('.presentation-annotations summary').click()
             field=page.locator('[data-presentation-field="sensitive"]').first
+            expect(field).to_be_visible()
             field.fill('Manual treatment context')
             page.locator('[data-presentation-field="description"]').first.fill('Manual description, preserved after save.')
             # Standalone report asks for attribution; use its standard initials dialog.

@@ -330,13 +330,14 @@ def adapt_pronto_output(
         zip(variant_rows, parsed_coordinates, identities), start=1
     ):
         chromosome, position, reference, alternate = coordinates
+        coding_column = next((key for key in row if key.casefold() in {'coding_status', 'coding_sastus'}), 'Coding_status')
         annotations = [
             annotation
             for column, key, parser in annotation_columns
             if (
                 annotation := _annotation(
                     row,
-                    column,
+                    coding_column if key == 'codingStatus' else column,
                     key,
                     file_name=variant_name,
                     record=index,

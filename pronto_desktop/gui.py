@@ -436,8 +436,8 @@ class MainWindow(QMainWindow):
         self.report_version = QComboBox()
         self.report_version.setObjectName("report-version")
         self.report_version.setAccessibleName("Filversjon")
-        self.report_version.setToolTip("Nyeste tilgjengelige prioriterer report_preQC_newPRONTO_version, deretter report_preQC og rådata.")
-        for text, value in (("Nyeste tilgjengelige", "auto"), ("Ny PRONTO-versjon", "new"), ("Tidligere PRONTO-versjon", "legacy"), ("Rådata", "raw")):
+        self.report_version.setToolTip("Prioriterer report_withQC, deretter ny og tidligere preQC-versjon og rådata.")
+        for text, value in (("Nyeste tilgjengelige", "auto"), ("Etter QC", "qc"), ("Ny PRONTO-versjon", "new"), ("Tidligere PRONTO-versjon", "legacy"), ("Rådata", "raw")):
             self.report_version.addItem(text, value)
         self.cnv_source = QComboBox()
         self.cnv_source.setObjectName("cnv-source")
@@ -600,6 +600,9 @@ class MainWindow(QMainWindow):
         self.save_settings_button.clicked.connect(self._save_next_launch)
         selection_contents.addLayout(options)
         selection_contents.addWidget(self.save_settings_button)
+        shared_database = button('Bruk aktiv database som felles standard', 'set-shared-database')
+        shared_database.clicked.connect(self._set_shared_database)
+        selection_contents.addWidget(shared_database)
         new_database = button('Ny tom database …', 'new-empty-database')
         new_database.clicked.connect(self._new_database)
         selection_contents.addWidget(new_database)
@@ -678,6 +681,17 @@ class MainWindow(QMainWindow):
     def _save_next_launch(self) -> None:
         root, port = Path(self.next_root.text()), self.next_port.value()
         self._job("Lagrer oppstartsinnstillinger …", lambda progress, cancel: self.runtime.save_next_launch(root, port), lambda result: self._log("Innstillingene er lagret. Lukk og åpne appen for å bruke den valgte datamappen."))
+
+    def _set_shared_database(self):
+        if self.actor is None:
+            self._request_credentials(False)
+            return
+        if QMessageBox.question(self, 'Felles database',
+                f'Bruk denne databasen som standard for nettverksinstallasjonen?\n\n{self.runtime.database_path}\n\n'
+                'Dette endrer bare databasepekeren. Ingen rapporter flyttes eller kopieres.') != QMessageBox.StandardButton.Yes:
+            return
+        self._job('Lagrer felles databasevalg …', lambda progress, cancel: self.runtime.set_shared_database(self.actor),
+                  lambda result: self._log('Felles databasevalg er lagret. Kollegene bruker det ved neste oppstart.'))
 
     def _diagnostics_page(self) -> QWidget:
         page, layout = self._page("Log", "")

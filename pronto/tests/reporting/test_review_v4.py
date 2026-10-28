@@ -104,14 +104,15 @@ def test_included_extended_classifications_render_live_and_historical(classifica
     assert 'Classification:' in render_html(report,review,inline_assets=True,snapshot=True)
 
 
-def test_manual_fc_is_editable_when_source_does_not_have_fc_column():
+def test_manual_cn_is_editable_when_source_does_not_have_cn_column():
     from pronto_report.renderers.html import render_html
     report,review=cnv_case()
     table={**report.source_tables[0],'headers':['Chromosome','Gene_Symbol'],
            'rows':[{'findingId':'cnv-1','values':['7','MET'],'sourceApproved':False,'record':2}]}
     html=render_html(replace(report,source_tables=(table,)),review)
     assert 'Tumor_FC</th>' in html
-    assert 'data-manual-field="Tumor_FC"' in html
+    assert 'data-manual-field="Tumor_CN"' in html
+    assert 'data-manual-field="Tumor_FC"' not in html
     assert 'value="4.2"' in html
 
 

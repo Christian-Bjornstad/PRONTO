@@ -4,6 +4,60 @@ For local installation and login, see the [startup guide](oppstart-nb.md).
 The workspace keeps imported `ReportData` separate from the reviewer's saved
 decisions, comments, corrections and report text in `ReviewState`.
 
+## Changes in 0.7.0
+
+New report defaults exclude `synonymous_variant`, LocalApp `BL` and `GL_BL`,
+and `x:noncoding*` except for the gene TERT. The TERT exception applies only
+to the noncoding rule. Both `coding_status` and the historical typo
+`coding_sastus` are accepted, without regard to column-name case.
+Original variant rows remain available for review and explicit overrides.
+Existing saved choices are preserved. In an existing draft, enable editing
+and choose **Variant review → Apply variant filters** to apply only these
+exclusions. Other classifications and comments are kept. Save afterwards.
+**Use source defaults** is broader and also replaces choices from the source.
+
+Import now recognizes `report_withQC` and prefers it in automatic file-version
+selection when that sample has a primary QC variant table, otherwise retaining
+the selected preQC/raw version. A missing table in a selected preQC version still
+blocks import instead of silently substituting raw variants. RNA workbooks
+in `report_withQC/Fusion_splice/<DNA sample>/` are matched to the exact linked
+RNA sample, with raw RNA tables used where no QC workbook exists. Yellow
+rows in the `*_withQC.xlsx` workbook seed Include, other rows seed Exclude,
+when a review entry has no saved human choice. These are reporting defaults,
+not inferred clinical classifications or an automatic overall QC assessment.
+Yellow source rows remain visible in RNA review. Gene names, event, exon/intron
+fields and read support come first; all other source columns remain available.
+**Review note** supplies the RNA Review text in the presentation PDF.
+
+Changed input files do not overwrite an existing report during re-import.
+The importer reports a different source basis and preserves the report and
+its reviews. Re-import with QC files into a separate empty data root for
+comparison if the patient already exists. There is no automatic migration of
+existing raw RNA reviews onto new QC rows.
+
+In **CNV review**, enter an absolute manually reviewed value in **Tumor_CN**.
+It is saved separately from imported measurements and appears in both the
+presentation's Copy number alterations and Key relevant findings tables.
+Source Tumor_FC is never converted into an absolute copy number. For older
+manually added rows, the legacy tumorFc value is displayed as the manual CN
+until a separate tumorCn value is supplied. Include the row, select Gain/Loss
+and select **Key relevant findings** when it belongs in the highlights.
+
+In **Tumour board report → Key relevant findings — report fields**, highlighted
+included findings have editable names, alteration/effect text, GoF/LoF,
+Sensitive/Resistant, EMA context and descriptions. Blank display text uses the
+source label. CN/VAF/read-support values come from the underlying finding;
+change manual CN in CNV review. TMB/MSI/other available signature statuses can
+be edited without adding them to the highlights. Enable Edit mode and Save
+before exporting. These fields are human-entered; no therapy/status is inferred.
+
+Fusion labels use `GENE_A::GENE_B` and supplied exon/intron fields, for example
+`EWSR1(ex8)::ATF1(ex4)`. Splice labels preserve the supplied boundaries; the app
+does not infer an exon-skipping name from two coordinates. Override the display
+text explicitly if a different reviewed name is needed. Compact mutation effect
+labels omit the `_variant` suffix; original annotations remain in source tables
+and the detailed appendix. Presentation template version is 2.1.
+
 ## Review tables
 
 Variant review, CNV and RNA display their source data in horizontally scrollable

@@ -80,6 +80,16 @@ def test_four_selected_folders_and_explicit_legacy_version(actual_run):
     assert plan.reports[0].files['variants'][0].is_relative_to(actual_run['legacy'])
 
 
+def test_reviewed_rna_in_fusion_splice_folder_is_preferred(actual_run):
+    qc=actual_run['raw'].parent / (RUN+'_report_withQC')
+    source=write(qc/'Fusion_splice'/DNA/f'{RNA}_fusion_and_splice_variant_candidates_withQC.tsv',
+                 f'Provisional_Event_Type\tSample_ID\tGene_A\nFusion\t{RNA}\tTEST\n')
+    report=discover_folders((actual_run['raw'].parent,)).reports[0]
+    assert report.ready
+    assert report.report_version=='new'
+    assert report.files['rna_table']==(source,)
+
+
 def test_missing_chosen_version_never_falls_back_per_sample(actual_run):
     (actual_run['new'] / DNA / f'{DNA}_small_variant_table_forQC.tsv').unlink()
     report = discover_folders(tuple(actual_run.values())).reports[0]

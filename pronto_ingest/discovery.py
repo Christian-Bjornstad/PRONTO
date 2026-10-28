@@ -132,7 +132,7 @@ def _linked_ids(path, sample, rows=None):
 
 
 def discover_folders(folders, progress=None, cancel=None, *, report_version='auto', cnv_source='merged', cnv_solution='main'):
-    if report_version not in {'auto', 'new', 'legacy', 'raw'} or cnv_source not in {'merged', 'cancan'} or cnv_solution not in {'main', 'alt01', 'alt02'}:
+    if report_version not in {'auto', 'qc', 'new', 'legacy', 'raw'} or cnv_source not in {'merged', 'cancan'} or cnv_solution not in {'main', 'alt01', 'alt02'}:
         raise ValueError('Ukjent rapportversjon eller CNV-valg.')
     folders = tuple(Path(folder).absolute() for folder in folders)
     if not 1 <= len(folders) <= 5 or any(not folder.is_dir() for folder in folders):
@@ -370,6 +370,11 @@ def _actual_plan(folders, candidates, row_cache, table_cache, warnings, runs,
                 identities.setdefault(sample, []).append((path, row.get('Create_report', '').strip()))
         for sample, rows in sorted(identities.items()):
             check_cancel(cancel)
+            if report_version == 'auto':
+                version = next((value for value in ('new','legacy','raw') if roots.get(value)), 'raw')
+                if any(c.role=='variants' and not variant_excluded(c.path.name) and c.path.parent==root / sample
+                       for root in roots.get('qc', ()) for c in candidates):
+                    version = 'qc'
             files = {'metadata': tuple(sorted({path for path, _ in rows}))}
 
             def matches(role, versions=('raw',), name_role=None, sample_id=None, nested=False):
@@ -379,6 +384,7 @@ def _actual_plan(folders, candidates, row_cache, table_cache, warnings, runs,
                     and (boundary := nearest_run_directory(c.path)) is not None
                     and boundary[1] == run and boundary[2] in versions
                     and any((c.path.is_relative_to(root / sample) if nested else c.path.parent == root / sample)
+                            or (role=='rna_table' and boundary[2]=='qc' and c.path.parent==root / 'Fusion_splice' / sample)
                             for root in selected_roots)
                     and (role not in REQUIRED_ROLES and role != 'cancan_table' or c.path in row_cache)
                     and (role not in {'cnv_table', 'rna_table'} or c.path in table_cache)))
@@ -448,6 +454,10 @@ def _actual_plan(folders, candidates, row_cache, table_cache, warnings, runs,
                 if linked_id != sample:
                     for role in ('rna_table', 'rna_profile_plot'):
                         paths = matches(role, name_role=role, sample_id=linked_id)
+                        if role == 'rna_table':
+                            reviewed = matches(role, ('qc',), name_role=role, sample_id=linked_id)
+                            if reviewed:
+                                paths = reviewed
                         if role == 'rna_table' and not paths:
                             paths = tuple(path for path in matches(role)
                                 if not conflicts_sample_name(path.name, linked_id, role)
