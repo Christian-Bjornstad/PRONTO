@@ -1423,3 +1423,13 @@ button {
 .presentation-editor__description label{display:block;font-size:12px}.presentation-editor__description textarea{display:block;margin-top:6px;min-height:64px}
 .presentation-editor input:focus-visible,.presentation-editor textarea:focus-visible,.signature-status-fields input:focus-visible{outline:2px solid #008ac3;outline-offset:2px}
 .source-approved:not(.excluded-row){background:#fff7d6}
+.table-view-workspace{min-width:0;max-width:100%;margin:12px 0}
+.table-view-controls{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:12px 0}
+.table-view-controls button{font:inherit;font-size:13px;padding:8px 14px;min-height:38px;border:1px solid #b6c9d8;border-radius:5px;background:#f7fafc;color:#203b63;cursor:pointer}
+.table-view-controls button[aria-pressed="true"]{background:#203b63;color:white;border-color:#203b63}
+.table-view-controls button:focus-visible{outline:3px solid #008ac3;outline-offset:2px}
+.table-view-count{font-size:12px;color:#496274;margin-left:8px}
+@media screen{.table-mode-compact .table-column-secondary{display:none!important}.table-mode-compact:not(.presentation-editor){table-layout:auto;min-width:0}}
+@media print{.table-view-controls{display:none!important}}
+#variant-table:not(:has(colgroup)) th,#variant-table:not(:has(colgroup)) td{white-space:normal;overflow-wrap:anywhere}
+#variant-table.table-mode-compact:not(:has(colgroup)) td:nth-child(3){min-width:16rem;max-width:24rem}

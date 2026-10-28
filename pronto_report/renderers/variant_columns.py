@@ -25,16 +25,28 @@ def headers(report):
                       for _, _, label in columns(report)))
 
 
+def value_reader(report):
+    """Index once per render, without retaining patient data in a global cache."""
+    selected_columns=columns(report)
+    source_rows={}
+    for table in report.source_tables:
+        if table['kind']=='VARIANTS':
+            for row in table['rows']:
+                source_rows.setdefault((table['tableId'],row.get('occurrenceId')),[]).append(row['values'])
+    return lambda variant:_values(selected_columns,source_rows,variant)
+
+
 def values(report, variant):
-    source_rows = {table['tableId']: [row for row in table['rows']
-                                    if row.get('occurrenceId') == variant['occurrenceId']]
-                   for table in report.source_tables if table['kind'] == 'VARIANTS'}
+    return value_reader(report)(variant)
+
+
+def _values(selected_columns, source_rows, variant):
     annotations = {item['key']: item.get('value') for item in variant.get('annotations', ())}
     result = []
-    for kind, key, _ in columns(report):
+    for kind, key, _ in selected_columns:
         if kind == 'source':
             table_id, index = key
-            matches = [row['values'][index] for row in source_rows[table_id]]
+            matches = [row[index] for row in source_rows.get((table_id,variant['occurrenceId']),())]
             value = ' / '.join('' if item is None else str(item) for item in matches)
         else:
             value = variant.get(key) if kind == 'field' else annotations.get(key)

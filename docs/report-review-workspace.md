@@ -4,6 +4,42 @@ For local installation and login, see the [startup guide](oppstart-nb.md).
 The workspace keeps imported `ReportData` separate from the reviewer's saved
 decisions, comments, corrections and report text in `ReviewState`.
 
+## Table views in 0.8.0
+
+Each HTML table starts in **Table**, showing the columns below. **Full table**
+shows every original column in the original order. Summary tables and the
+presentation editor already contain only purposeful columns, so their two
+views have the same columns. The buttons show the visible/total column count.
+There is one live table: switching views, expanding or closing it never clones
+or resets inputs. **Expand table** still opens a larger workspace, including
+the Table/Full table controls and zoom. These are separate choices: number of
+columns versus size of workspace.
+
+| Table | Visible in Table | Available in Full table |
+| --- | --- | --- |
+| Small variants | Gene, protein, coding effect, VAF, tumour depth, biomarker-list membership, report choice, classification, highlight, IGV QC and review comment | Coordinates, DNA change, tier, transcript/annotation columns, complete source columns, legacy class and internal IDs; OncoKB placeholder |
+| CNV | Report choice/highlight, Gain/Loss, gene, chromosome, cytoband, Tumor_CN, Tumor_FC, adjusted CN, high-confidence flag when supplied; manual row controls | Source coordinates, normal CN, supporting measurements, annotations and other original columns |
+| RNA | Report choice/highlight, review note, manual source QC, both genes, event type/ID, exon/intron A/B, support percentage and source QC verdict | Breakpoint coordinates, transcripts, caller, filters, individual read counts and other source columns |
+| Key findings / report fields / summaries | Their existing concise columns | Same columns, plus any technical columns in wider source summaries |
+
+Compact CNV/RNA headings have shorter display names; Full table restores exact
+source headings. All-source search searches hidden columns too. It changes row
+visibility only, never reporting decisions. Technical values remain in the HTML
+and can be shown immediately; a compact table is not a redacted export.
+View changes are not saved as clinical edits or revisions. Without JavaScript,
+all original columns remain available. PDF templates and contents are unchanged.
+
+The variant renderer builds an occurrence index once per render, avoiding
+repeated full source-table scans. Separate tables and duplicate variant
+occurrences retain their own values. The index lives only within the render
+call; it is not a global patient-data cache.
+
+Further review-workspace improvements to consider after user feedback: row
+filters for included or source-QC-approved RNA/CNV findings, user-selected
+compact columns, and an explicit comparison when new QC sources are supplied
+for an already imported patient. These are not part of 0.8.0 and must preserve
+saved clinical choices and the current database setup.
+
 ## Changes in 0.7.0
 
 New report defaults exclude `synonymous_variant`, LocalApp `BL` and `GL_BL`,

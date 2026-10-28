@@ -34,6 +34,19 @@ def test_source_columns_join_by_occurrence_and_keep_each_table_separate():
         assert [row[i] for i in source_indices] == [f'first-{index}', f'second-{index}']
 
 
+def test_indexed_source_reader_matches_values_without_global_patient_cache():
+    from dataclasses import replace
+    from pronto_report.renderers.variant_columns import value_reader,values
+    report=build_report()
+    table={'kind':'VARIANTS','tableId':'source','headers':['Technical'], 'rows':[
+        {'occurrenceId':variant['occurrenceId'],'values':[str(index)]} for index,variant in enumerate(report.variants)]}
+    report=replace(report,source_tables=(table,))
+    reader=value_reader(report)
+    assert [reader(variant) for variant in report.variants]==[values(report,variant) for variant in report.variants]
+    other=replace(report,source_tables=({**table,'rows':[]},))
+    assert value_reader(other)(report.variants[0])!=reader(report.variants[0])
+
+
 def test_signature_selection_is_inside_metric_cards_and_not_a_separate_list():
     from html.parser import HTMLParser
     report = build_report()

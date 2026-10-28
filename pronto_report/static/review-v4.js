@@ -128,7 +128,7 @@ document.addEventListener('DOMContentLoaded',()=> {
   document.addEventListener('click',event=> {
     const button=event.target.closest('[data-expand-table]');if(!button) return;
     const table=document.getElementById(button.dataset.expandTable);if(!table) return;
-    const workspace=table.closest('.source-table-block') || table.closest('.table-scroll');
+    const workspace=table.closest('.source-table-block,.table-view-workspace') || table.closest('.table-scroll');
     const nodes=[workspace];
     if(table.id==='variant-table') nodes.unshift(document.querySelector('#panel-variant-review .table-toolbar'));
     moved=nodes.filter(Boolean).map(node=> {const marker=document.createComment('table position');node.before(marker);content.append(node);return [node,marker];});
@@ -140,7 +140,9 @@ document.addEventListener('DOMContentLoaded',()=> {
     content.querySelectorAll('table').forEach(table=> {
       let left=0;
       Array.from(table.querySelectorAll('thead th')).forEach((header,index)=> {
-        if(!['Gene','Gene_Symbol','Gene_A','Gene_B','Chromosome'].includes(header.textContent.trim())) return;
+        table.querySelectorAll('tr').forEach(row=> {const cell=row.children[index];if(cell) {cell.classList.remove('frozen-identity');cell.style.removeProperty('left');}});
+        if(!header.getClientRects().length) return;
+        if(!['Gene','Gene_Symbol','Gene_A','Gene_B','Chromosome','Gene A','Gene B','Chr'].includes(header.textContent.trim())) return;
         table.querySelectorAll('tr').forEach(row=> {const cell=row.children[index];if(cell) {cell.classList.add('frozen-identity');cell.style.left=`${left}px`;}});
         left+=header.getBoundingClientRect().width/(Number(zoom.value)/100);
       });
@@ -154,4 +156,5 @@ document.addEventListener('DOMContentLoaded',()=> {
   zoom.addEventListener('input',()=>setZoom(Number(zoom.value)));
   dialog.querySelector('[data-zoom-reset]').addEventListener('click',()=>setZoom(100));
   dialog.querySelector('[data-table-max]').addEventListener('click',()=>dialog.classList.toggle('maximized'));
+  dialog.addEventListener('pronto-table-view',freezeIdentity);
 });

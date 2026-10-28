@@ -368,6 +368,13 @@ def _variant_rows(
         return f'<tr><td colspan="{span}">No variants in source data.</td></tr>'
     rows = []
     reviews = {item["variantId"]: item for item in review.variant_reviews} if review else {}
+    read_columns=variant_columns.value_reader(report)
+    source_occurrences={}
+    if not review or review.schema_version not in {'3.0','4.0'}:
+        for table in report.source_tables:
+            if table['kind']=='VARIANTS':
+                for row in table['rows']:
+                    source_occurrences.setdefault(row.get('occurrenceId'),[]).append((table['headers'],row['values']))
     for variant in report.variants:
         gene = _display(variant.get("gene"))
         location = _display(variant.get("genomicLocation"))
@@ -377,7 +384,8 @@ def _variant_rows(
         frequency = variant.get("alleleFrequency")
         vaf = _af(frequency)
         coding = _display(_annotation(variant, "codingStatus"))
-        search = " ".join(str(value) for value in (gene, location, dna, protein, coding, vaf, tier)).casefold()
+        extra_values=read_columns(variant)
+        search = " ".join(str(value) for value in (gene, location, dna, protein, coding, vaf, tier,*extra_values)).casefold()
         igv_cell = ""
         if web_igv:
             variant_id = escape(str(variant["variantId"]), quote=True)
@@ -469,10 +477,8 @@ def _variant_rows(
                 )
         if review and review.schema_version in {'3.0','4.0'} and activity.get('legacyClinicalClassification'):
             review_details += '<dt>Legacy classification (read-only)</dt><dd>'+escape(str(activity['legacyClinicalClassification']))+'</dd>'
-        source_rows = [row for table in report.source_tables if table['kind'] == 'VARIANTS' for row in table['rows'] if row.get('occurrenceId') == variant['occurrenceId']]
-        source_details = ''.join('<dt>' + escape(str(header)) + '</dt><dd>' + escape(_display(value)) + '</dd>' for table in report.source_tables if table['kind'] == 'VARIANTS' for row in source_rows for header,value in zip(table['headers'], row['values']))
-        if source_rows:
-            search += ' ' + ' '.join(str(value).casefold() for row in source_rows for value in row['values'])
+        source_details = ''.join('<dt>' + escape(str(header)) + '</dt><dd>' + escape(_display(value)) + '</dd>'
+            for headers,values in source_occurrences.get(variant['occurrenceId'],()) for header,value in zip(headers,values))
         details = (
             '<td class="variant-detail-cell"><details><summary>Details</summary><dl>'
             + '<dt>Genomic location</dt><dd>' + escape(location) + '</dd>'
@@ -493,7 +499,7 @@ def _variant_rows(
                                 'data-review-field="comment" maxlength="10000" rows="2"{}>{}</textarea>').format(
                     escape(occurrence_id, quote=True), escape(variant_id, quote=True), disabled, escape(comment))
             details = (igv_cell if review.schema_version=='4.0' else '') + '<td>' + qc_cell + '</td><td>' + comment_cell + '</td><td>' + escape(str(activity.get('legacyClinicalClassification', ''))) + '</td>'
-            details += ''.join('<td class="source-data">' + escape(value) + '</td>' for value in variant_columns.values(report, variant))
+            details += ''.join('<td class="source-data">' + escape(value) + '</td>' for value in extra_values)
         rows.append(
             '<tr data-occurrence-id="{}" data-search="{}" data-vaf="{}">{}{}{}</tr>'.format(
                 escape(str(variant["occurrenceId"]), quote=True),
@@ -689,7 +695,7 @@ def _inline_assets(
     web_igv: bool = False, *, allow_same_origin_requests: bool = False
 ) -> tuple[str, str, str]:
     stylesheet = (_STATIC_ROOT / "report.css").read_text(encoding="utf-8")
-    script = (_STATIC_ROOT / "presentation-fields.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "working-draft.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "review-v4.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "review-v3.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "report-attribution.js").read_text(encoding="utf-8") + '\n' + (_STATIC_ROOT / "report.js").read_text(encoding="utf-8")
+    script = (_STATIC_ROOT / "table-views.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "presentation-fields.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "working-draft.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "review-v4.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "review-v3.js").read_text(encoding="utf-8") + "\n" + (_STATIC_ROOT / "report-attribution.js").read_text(encoding="utf-8") + '\n' + (_STATIC_ROOT / "report.js").read_text(encoding="utf-8")
     if "</style" in stylesheet.casefold() or "</script" in script.casefold():
         raise ValueError("Unsafe static report asset")
     style_hash = base64.b64encode(sha256(stylesheet.encode("utf-8")).digest()).decode("ascii")
@@ -793,7 +799,7 @@ def render_html(
         _inline_assets(web_igv, allow_same_origin_requests=save_url is not None or print_url is not None or html_export_url is not None or pdf_export_url is not None)
         if inline_assets else
         ("", '<link rel="stylesheet" href="/static/report.css">',
-         '<script src="/static/presentation-fields.js" defer></script><script src="/static/review-v4.js" defer></script><script src="/static/review-v3.js" defer></script><script src="/static/report-attribution.js" defer></script><script src="/static/report.js" defer></script>')
+         '<script src="/static/table-views.js" defer></script><script src="/static/presentation-fields.js" defer></script><script src="/static/review-v4.js" defer></script><script src="/static/review-v3.js" defer></script><script src="/static/report-attribution.js" defer></script><script src="/static/report.js" defer></script>')
     )
     if web_igv:
         igv_scripts = '<script type="module" src="/static/report-igv.js"></script>'
