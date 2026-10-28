@@ -11,6 +11,7 @@ import shutil
 import uuid
 from io import BytesIO
 import warnings
+from pronto_desktop.storage_access import create_data_directory
 
 from .contracts import (ImportCancelled, ImportItemResult, ImportResult, REQUIRED_ROLES,
                         ROLES, check_cancel)
@@ -373,7 +374,7 @@ def _import_one(plan, report_plan, actor, raw_root, batch, progress, cancel):
         plots = [path for role in PLOT_ROLES for path in report_plan.files.get(role, ())]
         if len(plots) > MAX_ASSETS or sum(path.stat().st_size for path in plots) > MAX_ASSET_BYTES:
             raise ImportProblem('Rapportens plott overskrider grensen på 100 filer eller 64 MiB samlet.')
-        archive.mkdir(mode=0o700)
+        create_data_directory(archive, parents=False, exist_ok=False)
         sources, hashes, original_names = {}, {}, {}
         linked = _links(report_plan, report_plan.files)
         for role, paths in sorted(report_plan.files.items()):
@@ -472,7 +473,7 @@ def import_plan(plan, actor, raw_root, progress=None, cancel=None):
     roots = tuple(folder.resolve(strict=True) for folder in plan.folders)
     if any(raw_root == folder or raw_root.is_relative_to(folder) or folder.is_relative_to(raw_root) for folder in roots):
         raise ValueError('Privat kildelager må ligge utenfor de valgte kildemappene.')
-    raw_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    create_data_directory(raw_root)
     batch = ImportBatch.objects.create(actor=actor, folder_count=len(plan.folders))
     results, cancelled = [], False
     try:

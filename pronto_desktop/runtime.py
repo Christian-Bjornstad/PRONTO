@@ -10,6 +10,7 @@ import threading
 from datetime import datetime, timezone
 
 from .server import LocalServer
+from .storage_access import create_data_directory
 
 ROOT = Path(__file__).resolve().parents[1]
 _SETUP_LOCK = threading.RLock()
@@ -59,7 +60,7 @@ def sqlite_readonly_uri(database) -> str:
 def backup_sqlite(database: Path, destination_root: Path) -> Path:
     """Use SQLite's backup API, including committed WAL data, then check integrity."""
     database = Path(database).resolve(strict=True)
-    destination_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    create_data_directory(destination_root)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     destination = destination_root / f"pronto-{stamp}-{secrets.token_hex(3)}.sqlite3"
     try:
@@ -156,9 +157,9 @@ class DesktopRuntime:
                 configured_db = Path(settings.DATABASES["default"]["NAME"]).resolve()
                 if configured_db != self.database_path:
                     raise RuntimeError("Changing the PRONTO database requires a restart of the application.")
-            self.data_root.mkdir(parents=True, exist_ok=True, mode=0o700)
-            self.raw_root.mkdir(parents=True, exist_ok=True, mode=0o700)
-            self.database_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            create_data_directory(self.data_root)
+            create_data_directory(self.raw_root)
+            create_data_directory(self.database_path.parent)
             key_path = self.data_root / "secret.key"
             if not key_path.exists():
                 if self._selected_database is not None and self.database_path.is_file():
@@ -267,7 +268,7 @@ class DesktopRuntime:
             raise ValueError('Velg en annen tom mappe.')
         if selected.exists() and any(selected.iterdir()):
             raise ValueError('Velg en tom mappe for den nye databasen.')
-        selected.mkdir(parents=True, exist_ok=True, mode=0o700)
+        create_data_directory(selected)
         _write_json(self.config_path, {'data_root': str(selected), 'port': self.port, 'new_database': True})
         return selected
 

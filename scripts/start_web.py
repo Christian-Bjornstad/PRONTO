@@ -31,7 +31,8 @@ def create_reviewer(username, password):
 
 
 def configure(database=None, port=None):
-    STATE.mkdir(mode=0o700, exist_ok=True)
+    from pronto_desktop.storage_access import create_data_directory
+    create_data_directory(STATE)
     config_file = STATE / 'config.json'
     config = json.loads(config_file.read_text(encoding='utf-8')) if config_file.exists() else {}
     selected = Path(database or config.get('database') or STATE / 'pronto.sqlite3')

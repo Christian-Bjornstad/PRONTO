@@ -46,6 +46,7 @@ def main(*, project_dir=PROJECT_DIR, argv=None):
             print('Kjør PRONTO_INSTALL.cmd for å installere eller reparere Python-avhengighetene.')
         elif isinstance(error, PermissionError):
             print('Tilgang nektet i filsystemet. Felles programfiler trenger lesetilgang; database, råarkiv og backup trenger skrivetilgang, og secret.key trenger lesetilgang. Behold dataene. PRONTO-innlogging og reinstallering endrer ikke disse filrettighetene.')
+            print('Hvis filen er secret.key eller ligger i datamappen: lukk PRONTO hos alle, og kjør PRONTO_REPARER_TILGANG.cmd fra kontoen som opprettet datamappen. Verktøyet arver eksisterende områderettigheter for mapper som ble opprettet privat; det oppretter ingen ny nøkkel.')
         elif isinstance(error, sqlite3.Error):
             print('Feil ved database eller sikkerhetskopi. Behold datamappen; reinstallering av Python-avhengigheter løser ikke denne feilen.')
         else:

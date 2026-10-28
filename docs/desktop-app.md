@@ -1,5 +1,36 @@
 # PRONTO desktop
 
+## Rettigheter til secret.key fra 0.6.5
+
+Python 3.13 og nyere håndterer `mkdir(mode=0o700)` spesielt på Windows:
+mappen får tilgang for oppretteren og administratorer. Tidligere PRONTO-versjoner
+brukte dette også for datamapper på nettverksområdet. Dette kan forklare at
+oppretteren kommer inn, mens kolleger får tilgang nektet til `.local-web/secret.key`.
+Fra 0.6.5 opprettes nye Windows-nettverksmapper med områdets vanlige arvede ACL.
+Private lokale mapper og brukerprofiler beholder privat oppsett.
+
+Eksisterende mapper endres ikke av en vanlig Git-oppdatering. Lukk PRONTO og
+Python FELLES hos alle. Bruk kontoen som opprettet datamappen og kan åpne appen,
+og kjør `PRONTO_REPARER_TILGANG.cmd` én gang. Dette kjører
+`scripts/repair_shared_access.ps1 -Apply` gjennom Windows PowerShell. Scriptet
+aktiverer arv fra eksisterende overordnet mappe bare for beskyttede ACL-er som
+eies av den innloggede Windows-brukeren og bare har tillatelser til eier,
+administratorer og eventuelt SYSTEM. Egne tilpassede tilgangsregler og andre
+eieres filer hoppes over. Ingen nye brukergrupper legges til. Skriptet følger
+ikke kataloglenker og kopierer, flytter eller erstatter ingen rapporter/nøkler.
+
+Originale ACL-deskriptorer lagres i den aktive brukerprofilens
+`PRONTO/permission-backups` før endring. Uten `-Apply` gjør PowerShell-scriptet
+bare en gjennomgang. Reparasjonen omfatter `.local-web`, eventuell datarot fra
+installasjonspekeren, undermapper og kjente driftsfiler, inkludert secret.key.
+Den endrer ikke Windows-/Isilon-rettigheter utenfor disse avgrensede områdene.
+Start deretter appen først som eier, og så som kollega. Dersom overordnet mappe
+eller SMB-delingen ikke gir teamet tilgang, eller reparasjonen avvises av
+filserveren, må områdets forvalter rette disse rettighetene. En ny secret.key
+skal ikke opprettes som erstatning for å komme rundt tilgangsfeilen.
+
+Kilde: https://docs.python.org/3.14/library/os.html#os.mkdir
+
 ## Automatisk databasevalg for nettverksinstallasjon fra 0.6.4
 
 Start den oppdaterte appen først som brukeren som allerede har fungerende
