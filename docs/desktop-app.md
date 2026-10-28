@@ -1,5 +1,36 @@
 # PRONTO desktop
 
+## 0.8.0 — importer med kjøringsdato
+
+I **Importer → Kilder**, velg **Kjøringsdato** og velg hovedmappen som inneholder
+kjøringsmappene. Det kan være en felles mappe med år-/månedsmapper; søket går
+inntil tre nivåer ned. Skriv for eksempel `261021`, `20261021`, `2026-10-21`
+eller `261021_A02134_0177_AHVLFCDRX7`, og velg **Kontroller filer** eller Enter.
+Flere kjøringer på samme dato gir et valg av full kjørings-ID. Deretter brukes
+vanlig filkontroll, prøvevalg og **Importer valgte**. Datoinnlesing starter
+aldri selve importen automatisk.
+
+PRONTO kjenner rådata, `_CNVs`, `_report_preQC`,
+`_report_preQC_newPRONTO_version` og `_report_withQC` for samme eksakte kjøring.
+Det er mappeprefiksets dato, ikke filenes endringsdato, som brukes. Søket leser
+bare mapper frem til riktig kjøring er funnet; filinnhold leses av den normale
+filkontrollen etterpå. Det følges ikke kataloglenker. Maksimalt 20 000
+mappeoppføringer undersøkes. Ved manglende tilgang stoppes søket, slik at en
+delvis lest mappe ikke feilaktig fremstår som én entydig kjøring. Dubletter
+av samme kjøring på flere steder må avgrenses med en nærmere hovedmappe.
+Det må finnes en rådatamappe; løse rapportkopier erstatter ikke denne.
+
+Etter vellykket kontroll lagres bare hovedmappen i
+`%LOCALAPPDATA%/PRONTO/import.json` for den aktuelle brukeren. Ved neste oppstart
+er Kjøringsdato forhåndsvalgt med samme hovedmappe. Datoen fylles inn på nytt,
+slik at en gammel kjøring ikke velges automatisk neste uke. **Mapper** beholder
+muligheten for manuelt valg av én til fem mapper ved andre mappestrukturer.
+
+Denne funksjonen endrer ikke `desktop.json`, felles databasepeker,
+databasemodeller eller innholdet i `.local-web2`. Ingen kildefiler flyttes eller
+skrives. Det er ikke nødvendig å reinstallere avhengigheter for 0.8.0.
+Oppdater programfilene og start Python FELLES på nytt.
+
 ## 0.7.0 — felles database i .local-web2
 
 Oppdater **alle** arbeidsstasjoner til samme programversjon og avslutt Python

@@ -318,6 +318,17 @@ class DesktopRuntime:
         from .capabilities import capabilities
         return capabilities()
 
+    def import_preferences(self):
+        try:
+            return _read_json(self.config_path.with_name('import.json'))
+        except (OSError,ValueError):
+            self.startup_warnings.append('Lagret hovedmappe for import kunne ikke leses. Velg hovedmappe på nytt.')
+            return {}
+
+    def save_import_preferences(self, source_root):
+        # Kept separate from database selection, including on a fresh data root.
+        _write_json(self.config_path.with_name('import.json'), {'source_root':str(Path(source_root).resolve())})
+
     def prepare_empty_database(self, data_root: Path):
         selected = Path(data_root).expanduser().resolve()
         if selected == self.data_root:

@@ -398,11 +398,36 @@ class MainWindow(QMainWindow):
         heading = QHBoxLayout()
         heading.addWidget(label("Kilder", section=True))
         heading.addStretch()
+        preferences=getattr(self.runtime,'import_preferences',lambda:{})()
+        self.import_mode=QComboBox()
+        self.import_mode.setObjectName('import-source-mode')
+        self.import_mode.setAccessibleName('Velg kilde med kjøringsdato eller mapper')
+        self.import_mode.setMinimumWidth(150)
+        self.import_mode.addItem('Kjøringsdato','run')
+        self.import_mode.addItem('Mapper','folders')
+        self.import_mode.setCurrentIndex(0 if preferences.get('source_root') else 1)
+        heading.addWidget(self.import_mode)
         self.more_folders_button = button("Flere mapper", "more-folders")
         self.more_folders_button.setCheckable(True)
         self.more_folders_button.toggled.connect(self._toggle_folders)
         heading.addWidget(self.more_folders_button)
         contents.addLayout(heading)
+        self.run_sources=QWidget()
+        run_form=QFormLayout(self.run_sources);run_form.setContentsMargins(0,0,0,0)
+        self.run_root=QLineEdit(str(preferences.get('source_root','')))
+        self.run_root.setReadOnly(True);self.run_root.setObjectName('run-source-root')
+        self.run_root.setAccessibleName('Hovedmappe for kjøringer')
+        root_row=QHBoxLayout();root_row.addWidget(self.run_root,1)
+        self.run_root_button=button('Velg hovedmappe …','choose-run-root')
+        self.run_root_button.clicked.connect(self._choose_run_root);root_row.addWidget(self.run_root_button)
+        run_form.addRow('Hovedmappe',root_row)
+        self.run_query=QLineEdit();self.run_query.setObjectName('run-query')
+        self.run_query.setAccessibleName('Kjøringsdato eller full kjørings-ID')
+        self.run_query.setPlaceholderText('261021 · 2026-10-21 · full kjørings-ID')
+        self.run_query.setMaxLength(128);self.run_query.returnPressed.connect(self.start_scan)
+        run_form.addRow('Dato / kjørings-ID',self.run_query)
+        contents.addWidget(self.run_sources)
+        self.manual_sources=QWidget()
         grid = QGridLayout()
         grid.setHorizontalSpacing(9)
         grid.setVerticalSpacing(7)
@@ -430,7 +455,9 @@ class MainWindow(QMainWindow):
                 for widget in (field, browse, title):
                     widget.hide()
         grid.setColumnStretch(1, 1)
-        contents.addLayout(grid)
+        grid.setContentsMargins(0,0,0,0)
+        self.manual_sources.setLayout(grid)
+        contents.addWidget(self.manual_sources)
         options = QGridLayout()
         options.setHorizontalSpacing(12)
         self.report_version = QComboBox()
@@ -529,6 +556,10 @@ class MainWindow(QMainWindow):
         actions.addStretch()
         actions.addWidget(self.import_button)
         layout.addLayout(actions)
+        self.run_query.textChanged.connect(self._folders_changed)
+        self.run_root.textChanged.connect(self._folders_changed)
+        self.import_mode.currentIndexChanged.connect(self._import_source_mode_changed)
+        self._import_source_mode_changed()
         return page
 
     def _reports_page(self) -> QWidget:
@@ -790,6 +821,8 @@ class MainWindow(QMainWindow):
         for widget in (*self.folder_fields, *self.folder_buttons):
             widget.setEnabled(not busy)
         self.more_folders_button.setEnabled(not busy)
+        for widget in (self.import_mode,self.run_query,self.run_root_button):
+            widget.setEnabled(not busy)
         self.report_version.setEnabled(not busy)
         self.cnv_source.setEnabled(not busy)
         self.cnv_solution.setEnabled(not busy and self.cnv_source.currentData() == "cancan")
@@ -811,6 +844,18 @@ class MainWindow(QMainWindow):
                 self._folders_changed()
             else:
                 self.folder_fields[index].setText(directory)
+
+    def _choose_run_root(self):
+        directory=QFileDialog.getExistingDirectory(self,'Velg hovedmappen med kjøringsmappene',self.run_root.text())
+        if directory:
+            self.run_root.setText(directory)
+
+    def _import_source_mode_changed(self):
+        by_run=self.import_mode.currentData()=='run'
+        self.run_sources.setVisible(by_run)
+        self.manual_sources.setVisible(not by_run)
+        self.more_folders_button.setVisible(not by_run)
+        self._folders_changed()
 
     def _toggle_folders(self, expanded: bool) -> None:
         for index in range(1, len(self.folder_fields)):
@@ -847,13 +892,19 @@ class MainWindow(QMainWindow):
         paths = [field.text().strip() for field in self.folder_fields if field.text().strip()]
         self.study_id_button.hide()
         self.study_id_button.setEnabled(False)
-        self.plan_summary.setText(f'{len(paths)} mapper valgt · Klar for filkontroll' if paths
-                                  else 'Legg til mapper, og velg Kontroller filer.')
+        if self.import_mode.currentData()=='run':
+            self.plan_summary.setText('Velg hovedmappe og skriv kjøringsdato. Velg deretter Kontroller filer.')
+        else:
+            self.plan_summary.setText(f'{len(paths)} mapper valgt · Klar for filkontroll' if paths
+                                      else 'Legg til mapper, og velg Kontroller filer.')
 
     def start_scan(self) -> None:
         if self._worker is not None:
             return
         self.navigate(1)
+        if self.import_mode.currentData()=='run':
+            self._scan_by_run()
+            return
         folders = tuple(Path(field.text().strip()) for field in self.folder_fields if field.text().strip())
         if not folders:
             self.plan_summary.setText("Velg minst én mappe før filkontroll.")
@@ -870,6 +921,45 @@ class MainWindow(QMainWindow):
             return preserve_manual_study_ids(previous_plan,
                 discover_folders(folders, progress=progress, cancel=cancel, **options))
         self._job("Finner og kobler filer …", discover, lambda plan: self._scan_finished(plan, revision))
+
+    def _scan_by_run(self):
+        if not self.run_root.text().strip():
+            self.plan_summary.setText('Velg hovedmappe for kjøringene først.')
+            self.run_root_button.setFocus();return
+        from pronto_ingest.run_lookup import run_query,find_runs
+        try:
+            query=run_query(self.run_query.text())
+        except ValueError as error:
+            self.plan_summary.setText(str(error));self.run_query.setFocus();return
+        root=Path(self.run_root.text());revision=self._source_revision
+        self._job('Finner kjøring …',lambda progress,cancel:find_runs(root,query,progress=progress,cancel=cancel),
+                  lambda runs:self._run_found(runs,root,revision))
+
+    def _run_found(self,runs,root,revision):
+        if revision!=self._source_revision:return
+        if len(runs)>1:
+            name,accepted=QInputDialog.getItem(self,'Flere kjøringer på datoen','Velg kjøring',
+                                              [item.run_id for item in runs],0,False)
+            if not accepted:return
+            selected=next(item for item in runs if item.run_id==name)
+        else:selected=runs[0]
+        for index,field in enumerate(self.folder_fields):
+            field.blockSignals(True)
+            field.setText(str(selected.folders[index]) if index<len(selected.folders) else '')
+            field.blockSignals(False)
+        self._folder_button_text()
+        options={'report_version':self.report_version.currentData(),'cnv_source':self.cnv_source.currentData(),
+                 'cnv_solution':self.cnv_solution.currentData()}
+        previous_plan=self.plan
+        def discover(progress,cancel):
+            from pronto_ingest.discovery import discover_folders
+            from pronto_ingest.metadata import preserve_manual_study_ids
+            plan=preserve_manual_study_ids(previous_plan,discover_folders(selected.folders,progress=progress,cancel=cancel,**options))
+            if getattr(plan,'run_ids',())!=(selected.run_id,):
+                raise ValueError('Filkontrollen samsvarer ikke med valgt kjøring. Ingen data er importert.')
+            self.runtime.save_import_preferences(root)
+            return plan
+        self._job(f'Kontrollerer {selected.run_id} …',discover,lambda plan:self._scan_finished(plan,revision))
 
     def _scan_finished(self, plan: Any, revision: int) -> None:
         if revision != self._source_revision:
